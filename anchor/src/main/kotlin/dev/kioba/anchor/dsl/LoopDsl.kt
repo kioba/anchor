@@ -1,21 +1,20 @@
 package dev.kioba.anchor.dsl
 
-import dev.kioba.anchor.MviDsl
-import dev.kioba.anchor.MviScopeSyntax
-import kotlinx.coroutines.Job
+import dev.kioba.anchor.AnchorDsl
+import dev.kioba.anchor.AnchorSyntax
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
 
-@MviDsl
-public object LoopScope
+@AnchorDsl
+public object ExecuteScope
 
-@MviDsl
+@AnchorDsl
 public suspend fun <E> E.execute(
-  block: LoopScope.() -> Action<E>,
+  block: ExecuteScope.() -> Action<E>,
 ) where
-  E : MviScopeSyntax {
+  E : AnchorSyntax {
   supervisorScope {
-    launch { LoopScope.block().run(this@execute) }
+    launch { ExecuteScope.block().run(this@execute) }
   }
   }
 

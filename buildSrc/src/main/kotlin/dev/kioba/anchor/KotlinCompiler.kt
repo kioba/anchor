@@ -9,7 +9,11 @@ fun Project.configureKotlinCompiler() {
   tasks.withType<KotlinCompile> {
     kotlinOptions {
       jvmTarget = JavaVersion.VERSION_11.toString()
-      freeCompilerArgs = freeCompilerArgs + "-Xexplicit-api=strict"
+      freeCompilerArgs = freeCompilerArgs +
+        listOf(
+          "-Xexplicit-api=strict",
+          "-Xcontext-receivers",
+        )
     }
   }
 }

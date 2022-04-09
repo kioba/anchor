@@ -29,7 +29,7 @@ private fun Project.configureAndroid() {
 
     buildTypes {
       release {
-        isMinifyEnabled = true
+        isMinifyEnabled = false
       }
     }
     compileOptions {
@@ -40,7 +40,7 @@ private fun Project.configureAndroid() {
       compose = true
     }
     composeOptions {
-      kotlinCompilerExtensionVersion = "1.0.5"
+      kotlinCompilerExtensionVersion = "1.1.1"
     }
   }
 }

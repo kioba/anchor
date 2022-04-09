@@ -1,18 +1,16 @@
 package dev.kioba.anchor.dsl
 
-import dev.kioba.anchor.MviDsl
-import dev.kioba.anchor.MviScopeSyntax
+import dev.kioba.anchor.AnchorDsl
+import dev.kioba.anchor.AnchorSyntax
 
 public fun interface Action<E>
-  where E : MviScopeSyntax {
+  where E : AnchorSyntax {
   public suspend fun run(scope: E)
 }
 
-// TODO provide description meaning
-@MviDsl
+@AnchorDsl
 public fun <E> action(
-  description: String,
   block: suspend E.() -> Unit,
-): Action<E> where E : MviScopeSyntax =
+): Action<E> where E : AnchorSyntax =
   Action { scope -> scope.block() }
 

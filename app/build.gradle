@@ -4,9 +4,9 @@ plugins {
 }
 
 android {
-  compileSdk 31
+    compileSdk 32
 
-  defaultConfig {
+    defaultConfig {
     applicationId "dev.kioba.anchor"
     minSdk 26
     targetSdk 31
@@ -26,6 +26,10 @@ android {
     }
   }
   compileOptions {
+    kotlinOptions {
+      jvmTarget = JavaVersion.VERSION_11.toString()
+      freeCompilerArgs = freeCompilerArgs + "-Xexplicit-api=strict" + "-Xcontext-receivers"
+    }
     sourceCompatibility JavaVersion.VERSION_11
     targetCompatibility JavaVersion.VERSION_11
   }
@@ -36,7 +40,7 @@ android {
     compose true
   }
   composeOptions {
-    kotlinCompilerExtensionVersion "1.0.5"
+    kotlinCompilerExtensionVersion "1.1.1"
   }
   packagingOptions {
     resources {
@@ -47,15 +51,18 @@ android {
 
 dependencies {
 
+//  implementation("dev.kioba:anchor:0.0.1")
   implementation 'androidx.core:core-ktx:1.7.0'
-  implementation "androidx.compose.ui:ui:1.0.5"
-  implementation "androidx.compose.material:material:1.0.5"
-  implementation "androidx.compose.ui:ui-tooling-preview:1.0.5"
-  implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.3.1'
-  implementation 'androidx.activity:activity-compose:1.3.1'
+  implementation "androidx.compose.ui:ui:1.1.1"
+  implementation "androidx.compose.material:material:1.1.1"
+  implementation "androidx.compose.ui:ui-tooling-preview:1.1.1"
+  implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.4.1'
+  implementation 'androidx.activity:activity-compose:1.4.0'
+  implementation 'androidx.activity:activity-ktx:1.4.0'
+  implementation project(path: ':anchor')
   testImplementation 'junit:junit:4.13.2'
   androidTestImplementation 'androidx.test.ext:junit:1.1.3'
   androidTestImplementation 'androidx.test.espresso:espresso-core:3.4.0'
-  androidTestImplementation "androidx.compose.ui:ui-test-junit4:1.0.5"
-  debugImplementation "androidx.compose.ui:ui-tooling:1.0.5"
+  androidTestImplementation "androidx.compose.ui:ui-test-junit4:1.1.1"
+  debugImplementation "androidx.compose.ui:ui-tooling:1.1.1"
 }

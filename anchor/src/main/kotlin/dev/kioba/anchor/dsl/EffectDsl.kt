@@ -1,18 +1,18 @@
 package dev.kioba.anchor.dsl
 
-import dev.kioba.anchor.DslSyntax
-import dev.kioba.anchor.MviDsl
-import dev.kioba.anchor.MviEffect
-import dev.kioba.anchor.MviScopeSyntax
+import dev.kioba.anchor.AnchorDslSyntax
+import dev.kioba.anchor.AnchorDsl
+import dev.kioba.anchor.AnchorCommand
+import dev.kioba.anchor.AnchorSyntax
 
-@MviDsl
-public object EffectScope
+@AnchorDsl
+public object CommandScope
 
-@MviDsl
-public suspend inline fun <E> E.postEffect(
-  block: EffectScope.() -> MviEffect,
+@AnchorDsl
+public suspend inline fun <E> E.postCommand(
+  block: CommandScope.() -> AnchorCommand,
 ): Unit where
-  E : MviScopeSyntax,
-  E : DslSyntax<*> =
-  bridge.effectChannel
-    .emit(EffectScope.block())
+  E : AnchorSyntax,
+  E : AnchorDslSyntax<*> =
+  environment.effectChannel
+    .emit(CommandScope.block())
