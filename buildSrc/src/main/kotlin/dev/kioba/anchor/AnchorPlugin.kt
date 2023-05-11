@@ -17,11 +17,10 @@ class AnchorPlugin : Plugin<Project> {
 
 private fun Project.configureAndroid() {
   extensions.getByType<LibraryExtension>().apply {
-    compileSdk = 31
+    compileSdk = 33
 
     defaultConfig {
       minSdk = 26
-      targetSdk = 31
 
       testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
       consumerProguardFiles("consumer-rules.pro")
@@ -40,7 +39,7 @@ private fun Project.configureAndroid() {
       compose = true
     }
     composeOptions {
-      kotlinCompilerExtensionVersion = "1.1.1"
+      kotlinCompilerExtensionVersion = "1.4.7"
     }
   }
 }
