@@ -1,18 +1,16 @@
 package dev.kioba.anchor.dsl
 
-import dev.kioba.anchor.AnchorDslSyntax
 import dev.kioba.anchor.AnchorDsl
-import dev.kioba.anchor.AnchorCommand
-import dev.kioba.anchor.AnchorSyntax
+import dev.kioba.anchor.AnchorDslScope
 
 @AnchorDsl
-public object CommandScope
+public object EffectScope
 
 @AnchorDsl
-public suspend inline fun <E> E.postCommand(
-  block: CommandScope.() -> AnchorCommand,
-): Unit where
-  E : AnchorSyntax,
-  E : AnchorDslSyntax<*> =
-  environment.effectChannel
-    .emit(CommandScope.block())
+public inline fun <E, R> E.effect(
+  block: EffectScope.() -> R,
+): R where
+  E : AnchorDslScope =
+  EffectScope.block()
+
+
