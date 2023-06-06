@@ -1,4 +1,4 @@
-package dev.kioba.anchor.example.theme
+package dev.kioba.anchor.features.main.ui.theme
 
 import android.app.Activity
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -13,15 +13,15 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 private val DarkColorPalette = darkColors(
-  primary = Purple200,
+  primary = Teal200,
   primaryVariant = Purple700,
-  secondary = Teal200
+  secondary = Purple200
 )
 
 private val LightColorPalette = lightColors(
-  primary = Purple500,
+  primary = Teal200,
   primaryVariant = Purple700,
-  secondary = Teal200
+  secondary = Purple500
 
   /* Other default colors to override
   background = Color.White,
