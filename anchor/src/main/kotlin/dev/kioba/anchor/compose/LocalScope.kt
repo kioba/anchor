@@ -14,5 +14,5 @@ internal fun interface AnchorScopeDelegate {
 @PublishedApi
 internal val LocalAnchor: ProvidableCompositionLocal<AnchorScopeDelegate> =
   staticCompositionLocalOf {
-    error("Could not find an ActionDelegate provider")
+    AnchorScopeDelegate {}
   }

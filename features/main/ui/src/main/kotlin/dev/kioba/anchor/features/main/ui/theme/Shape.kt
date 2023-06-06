@@ -1,4 +1,4 @@
-package dev.kioba.anchor.example.theme
+package dev.kioba.anchor.features.main.ui.theme
 
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Shapes
