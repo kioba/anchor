@@ -4,25 +4,25 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.ProvidableCompositionLocal
 import androidx.compose.runtime.staticCompositionLocalOf
-import dev.kioba.anchor.UnitCommand
-import dev.kioba.anchor.AnchorCommand
+import dev.kioba.anchor.dsl.AnchorSignal
+import dev.kioba.anchor.dsl.UnitSignal
 
 @PublishedApi
-internal fun interface CommandProvider {
-  fun provide(): AnchorCommand
+internal fun interface SignalProvider {
+  fun provide(): AnchorSignal
 }
 
 @PublishedApi
-internal val LocalCommand: ProvidableCompositionLocal<CommandProvider> =
-  staticCompositionLocalOf { CommandProvider { UnitCommand } }
+internal val LocalSignals: ProvidableCompositionLocal<SignalProvider> =
+  staticCompositionLocalOf { SignalProvider { UnitSignal } }
 
 @Composable
 public inline fun <reified T> HandleCommand(
   noinline f: suspend (T) -> Unit,
 ) {
-  val effectProvider = LocalCommand.current
-  when (val effect = effectProvider.provide()) {
-    is UnitCommand -> Unit
-    is T -> LaunchedEffect(effectProvider) { f(effect) }
+  val signalProvider = LocalSignals.current
+  when (val effect = signalProvider.provide()) {
+    is UnitSignal -> Unit
+    is T -> LaunchedEffect(signalProvider) { f(effect) }
   }
 }

@@ -2,17 +2,17 @@ package dev.kioba.anchor.compose
 
 import androidx.compose.runtime.ProvidableCompositionLocal
 import androidx.compose.runtime.staticCompositionLocalOf
-import dev.kioba.anchor.AnchorSyntax
-import dev.kioba.anchor.dsl.Action
+import dev.kioba.anchor.AnchorDslScope
+import dev.kioba.anchor.dsl.AnchorEffect
 
 
 @PublishedApi
-internal fun interface ActionDelegate {
-  fun execute(action: Action<out AnchorSyntax>)
+internal fun interface AnchorScopeDelegate {
+  fun execute(anchorEffect: AnchorEffect<out AnchorDslScope>)
 }
 
 @PublishedApi
-internal val LocalScope: ProvidableCompositionLocal<ActionDelegate> =
+internal val LocalAnchor: ProvidableCompositionLocal<AnchorScopeDelegate> =
   staticCompositionLocalOf {
     error("Could not find an ActionDelegate provider")
   }

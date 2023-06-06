@@ -1,8 +1,7 @@
 package dev.kioba.anchor.dsl
 
 import dev.kioba.anchor.AnchorDsl
-import dev.kioba.anchor.AnchorSyntax
-import kotlinx.coroutines.launch
+import dev.kioba.anchor.AnchorDslScope
 import kotlinx.coroutines.supervisorScope
 
 @AnchorDsl
@@ -10,12 +9,11 @@ public object ExecuteScope
 
 @AnchorDsl
 public suspend fun <E> E.execute(
-  block: ExecuteScope.() -> Action<E>,
+  block: ExecuteScope.() -> AnchorEffect<E>,
 ) where
-  E : AnchorSyntax {
+  E : AnchorDslScope {
   supervisorScope {
-    launch { ExecuteScope.block().run(this@execute) }
+    ExecuteScope.block()
+      .run(this@execute)
   }
-  }
-
-
+}

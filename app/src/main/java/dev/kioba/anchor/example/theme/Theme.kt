@@ -1,44 +1,65 @@
 package dev.kioba.anchor.example.theme
 
+import android.app.Activity
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.darkColors
 import androidx.compose.material.lightColors
+import androidx.compose.material.primarySurface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 
 private val DarkColorPalette = darkColors(
-    primary = Purple200,
-    primaryVariant = Purple700,
-    secondary = Teal200
+  primary = Purple200,
+  primaryVariant = Purple700,
+  secondary = Teal200
 )
 
 private val LightColorPalette = lightColors(
-    primary = Purple500,
-    primaryVariant = Purple700,
-    secondary = Teal200
+  primary = Purple500,
+  primaryVariant = Purple700,
+  secondary = Teal200
 
-    /* Other default colors to override
-    background = Color.White,
-    surface = Color.White,
-    onPrimary = Color.White,
-    onSecondary = Color.Black,
-    onBackground = Color.Black,
-    onSurface = Color.Black,
-    */
+  /* Other default colors to override
+  background = Color.White,
+  surface = Color.White,
+  onPrimary = Color.White,
+  onSecondary = Color.Black,
+  onSurface = Color.Black,
+  */
 )
 
 @Composable
-internal fun AnchorTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
-    val colors = if (darkTheme) {
-        DarkColorPalette
-    } else {
-        LightColorPalette
-    }
+internal fun AnchorAppTheme(
+  isSystemDarkTheme: Boolean = isSystemInDarkTheme(),
+  content: @Composable () -> Unit,
+) {
+  val colors = when {
+    isSystemDarkTheme -> DarkColorPalette
+    else -> LightColorPalette
+  }
 
-    MaterialTheme(
-        colors = colors,
-        typography = Typography,
-        shapes = Shapes,
-        content = content
-    )
+  val view = LocalView.current
+  if (!view.isInEditMode) {
+    SideEffect {
+      val window = (view.context as Activity).window
+      window.statusBarColor = (colors.primarySurface).toArgb()
+      window.navigationBarColor = (colors.primarySurface).toArgb()
+
+      WindowCompat.getInsetsController(window, view)
+        .isAppearanceLightStatusBars = !isSystemDarkTheme
+      WindowCompat.getInsetsController(window, view)
+        .isAppearanceLightNavigationBars = !isSystemDarkTheme
+    }
+  }
+
+  MaterialTheme(
+    colors = colors,
+    typography = Typography,
+    shapes = Shapes,
+    content = content
+  )
 }
