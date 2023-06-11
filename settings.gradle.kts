@@ -33,6 +33,9 @@ dependencyResolutionManagement {
         username = localProperties.readGprUser()
         password = localProperties.readGprKey()
       }
+      authentication {
+        create<BasicAuthentication>("basic")
+      }
     }
   }
 }

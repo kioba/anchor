@@ -13,8 +13,8 @@ object PluginsVersions {
 }
 
 dependencies {
-  implementation("com.android.tools.build:gradle:8.0.1")
-  implementation("com.android.tools.build:gradle-api:8.0.1")
+  implementation("com.android.tools.build:gradle:8.0.2")
+  implementation("com.android.tools.build:gradle-api:8.0.2")
   implementation("org.jetbrains.kotlin:kotlin-gradle-plugin:${PluginsVersions.KOTLIN}")
   implementation(gradleApi())
 }

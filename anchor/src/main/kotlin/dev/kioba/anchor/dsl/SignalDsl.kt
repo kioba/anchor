@@ -1,7 +1,7 @@
 package dev.kioba.anchor.dsl
 
 import dev.kioba.anchor.AnchorDsl
-import dev.kioba.anchor.AnchorScope
+import dev.kioba.anchor.AnchorSignalScope
 
 
 public interface AnchorSignal
@@ -16,7 +16,7 @@ public object SignalScope
 public suspend inline fun <E> E.post(
   block: SignalScope.() -> AnchorSignal,
 ): Unit where
-  E : AnchorScope<*> =
+  E : AnchorSignalScope =
   signalManager
     .signals
     .emit(SignalScope.block())
