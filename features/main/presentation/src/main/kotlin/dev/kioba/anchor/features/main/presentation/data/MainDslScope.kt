@@ -2,14 +2,19 @@ package dev.kioba.anchor.features.main.presentation.data
 
 import dev.kioba.anchor.AnchorScope
 import dev.kioba.anchor.anchorScope
-import dev.kioba.anchor.dsl.AnchorEffect
+import dev.kioba.anchor.dsl.Anchor
 import dev.kioba.anchor.dsl.anchor
 import dev.kioba.anchor.dsl.effect
 import dev.kioba.anchor.dsl.reduce
 import dev.kioba.anchor.features.main.presentation.model.MainTab
 import dev.kioba.anchor.features.main.presentation.model.MainViewState
 
-public typealias MainScope = AnchorScope<MainViewState>
+public typealias MainScope = AnchorScope<MainViewState, MainEffects>
+
+public object MainEffects
+
+context(MainEffects)
+  public fun hello(): Int = 1
 
 public fun mainScope(): MainScope =
   anchorScope(
@@ -19,21 +24,22 @@ public fun mainScope(): MainScope =
         details = "Hey",
       )
     },
-    init = sayHi(),
+    effects = { MainEffects },
+    init = ::sayHi,
   )
 
-public fun sayHi(): AnchorEffect<MainScope> =
-  anchor {
+public fun sayHi(): Anchor<MainScope> =
+  anchor("Initial") {
     reduce { copy(details = "Hello Android!") }
   }
 
-public fun clicked(): AnchorEffect<MainScope> =
+public fun clicked(): Anchor<MainScope> =
   anchor {
     reduce { copy(details = "clicked") }
-    effect { }
+    val value = effect { hello() }
   }
 
-public fun selectHome(): AnchorEffect<MainScope> =
+public fun selectHome(): Anchor<MainScope> =
   anchor {
     reduce {
       copy(
@@ -43,7 +49,7 @@ public fun selectHome(): AnchorEffect<MainScope> =
     }
   }
 
-public fun selectProfile(): AnchorEffect<MainScope> =
+public fun selectProfile(): Anchor<MainScope> =
   anchor {
     reduce {
       copy(

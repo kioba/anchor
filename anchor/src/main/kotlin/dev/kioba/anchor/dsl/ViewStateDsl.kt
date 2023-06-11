@@ -1,13 +1,13 @@
 package dev.kioba.anchor.dsl
 
 import dev.kioba.anchor.AnchorDsl
-import dev.kioba.anchor.AnchorScope
+import dev.kioba.anchor.AnchorStateScope
 import kotlinx.coroutines.flow.update
 
 @AnchorDsl
 public inline val <E, S> E.state: S
   where
-  E : AnchorScope<S>
+  E : AnchorStateScope<S>
   get() = stateManager.states.value
 
 @AnchorDsl
@@ -15,7 +15,7 @@ public inline fun <E, S, R> E.withState(
   block: S.() -> R,
 ): R
   where
-  E : AnchorScope<S> =
+  E : AnchorStateScope<S> =
   stateManager.states
     .value
     .run(block)
@@ -24,6 +24,6 @@ public inline fun <E, S, R> E.withState(
 public inline fun <E, S> E.reduce(
   reducer: S.() -> S,
 ): Unit where
-  E : AnchorScope<S> =
+  E : AnchorStateScope<S> =
   stateManager.states
     .update(reducer)

@@ -9,7 +9,7 @@ public object ExecuteScope
 
 @AnchorDsl
 public suspend fun <E> E.execute(
-  block: ExecuteScope.() -> AnchorEffect<E>,
+  block: ExecuteScope.() -> Anchor<E>,
 ) where
   E : AnchorDslScope {
   supervisorScope {

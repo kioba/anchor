@@ -21,7 +21,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.unit.dp
 import dev.kioba.anchor.AnchorDslScope
-import dev.kioba.anchor.dsl.AnchorEffect
+import dev.kioba.anchor.dsl.Anchor
 import dev.kioba.anchor.execute
 import dev.kioba.anchor.features.main.presentation.data.clicked
 import dev.kioba.anchor.features.main.presentation.data.selectHome
@@ -74,7 +74,7 @@ internal fun MainUi(
 @Composable
 private inline fun <reified E> RowScope.ProfileItem(
   state: MainViewState,
-  noinline onClick: () -> AnchorEffect<E>,
+  noinline onClick: () -> Anchor<E>,
 ) where E : AnchorDslScope {
   BottomNavigationItem(
     selected = state.isProfileSelected(),
@@ -86,7 +86,7 @@ private inline fun <reified E> RowScope.ProfileItem(
 @Composable
 private inline fun <reified E> RowScope.HomeItem(
   state: MainViewState,
-  noinline onClick: () -> AnchorEffect<E>,
+  noinline onClick: () -> Anchor<E>,
 ) where E : AnchorDslScope {
   BottomNavigationItem(
     selected = state.isHomeSelected(),

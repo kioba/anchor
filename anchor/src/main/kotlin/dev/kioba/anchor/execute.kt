@@ -6,21 +6,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import dev.kioba.anchor.compose.AnchorScopeDelegate
 import dev.kioba.anchor.compose.LocalAnchor
-import dev.kioba.anchor.dsl.AnchorEffect
+import dev.kioba.anchor.dsl.Anchor
 
 
-public inline fun <reified S> anchorScope(
+public inline fun <reified S, reified E> anchorScope(
   noinline initialState: () -> S,
-  init: AnchorEffect<AnchorScope<S>>,
-): AnchorScope<S> =
+  noinline effects: () -> E,
+  init: () -> Anchor<AnchorScope<S, E>>,
+): AnchorScope<S, E> =
   AnchorScope(
     initialState = initialState,
-    init = init,
+    effects = effects,
+    init = init(),
   )
 
-
 public inline fun <reified E> Modifier.execute(
-  noinline block: () -> AnchorEffect<E>,
+  noinline block: () -> Anchor<E>,
 ): Modifier where E : AnchorDslScope =
   composed {
     val delegate = LocalAnchor.current
@@ -29,7 +30,7 @@ public inline fun <reified E> Modifier.execute(
 
 @Composable
 public inline fun <reified E> execute(
-  noinline block: () -> AnchorEffect<E>,
+  noinline block: () -> Anchor<E>,
 ): () -> Unit
   where E : AnchorDslScope {
   val delegate: AnchorScopeDelegate = LocalAnchor.current

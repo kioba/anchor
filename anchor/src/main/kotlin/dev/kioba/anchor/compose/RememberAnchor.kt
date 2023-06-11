@@ -11,15 +11,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import dev.kioba.anchor.AnchorDslScope
 import dev.kioba.anchor.AnchorScope
-import dev.kioba.anchor.dsl.AnchorEffect
+import dev.kioba.anchor.dsl.Anchor
 import dev.kioba.anchor.dsl.UnitSignal
 import kotlinx.coroutines.flow.map
 
 @Composable
-public inline fun <reified E, S> RememberAnchorScope(
-  noinline scope: @DisallowComposableCalls () -> E,
+public inline fun <reified C, S> RememberAnchorScope(
+  noinline scope: @DisallowComposableCalls () -> C,
   crossinline content: @Composable (S) -> Unit,
-) where E : AnchorScope<S> {
+) where C : AnchorScope<S, *> {
   val anchorScope = remember(scope) { scope() }
 
   val state by anchorScope.collectViewState()
@@ -38,7 +38,7 @@ public inline fun <reified E, S> RememberAnchorScope(
 @PublishedApi
 internal inline fun <reified E, S> AnchorScopeDelegate.consumeInitial(
   scope: E,
-) where E : AnchorScope<S> {
+) where E : AnchorScope<S, *> {
   LaunchedEffect(key1 = scope) {
     execute(scope.initManager.init)
   }
@@ -47,7 +47,7 @@ internal inline fun <reified E, S> AnchorScopeDelegate.consumeInitial(
 @Composable
 @PublishedApi
 internal inline fun <reified E, S> E.actionChannel(): AnchorScopeDelegate
-  where E : AnchorScope<S> {
+  where E : AnchorScope<S, *> {
   val coroutineScope = rememberCoroutineScope()
   return remember(this) {
     AnchorScopeDelegate { f ->
@@ -61,7 +61,7 @@ internal inline fun <reified E, S> E.actionChannel(): AnchorScopeDelegate
 @Composable
 @PublishedApi
 internal inline fun <reified E, S> E.collectEffects(): State<SignalProvider>
-  where E : AnchorScope<S> =
+  where E : AnchorScope<S, *> =
   signalManager.signals
     .map { SignalProvider { it } }
     .collectAsState(initial = SignalProvider { UnitSignal })
@@ -69,14 +69,14 @@ internal inline fun <reified E, S> E.collectEffects(): State<SignalProvider>
 @Composable
 @PublishedApi
 internal inline fun <reified E, S> E.collectViewState(): State<S>
-  where E : AnchorScope<S> =
+  where E : AnchorScope<S, *> =
   stateManager.states
     .collectAsState()
 
 @Suppress("UNCHECKED_CAST")
 @PublishedApi
 internal fun <E> convert(
-  anchorEffect: AnchorEffect<out AnchorDslScope>,
-): AnchorEffect<E>
+  anchor: Anchor<out AnchorDslScope>,
+): Anchor<E>
   where E : AnchorDslScope =
-  anchorEffect as AnchorEffect<E>
+  anchor as Anchor<E>

@@ -6,7 +6,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 
-public fun interface AnchorEffect<E>
+public fun interface Anchor<E>
   where E : AnchorDslScope {
   context(CoroutineScope)
     public fun run(scope: E)
@@ -16,9 +16,9 @@ public fun interface AnchorEffect<E>
 public fun <E> anchor(
   singleRunKey: Any? = null,
   block: suspend E.() -> Unit,
-): AnchorEffect<E>
+): Anchor<E>
   where E : AnchorDslScope =
-  AnchorEffect { scope ->
+  Anchor { scope ->
     when {
       singleRunKey != null -> {
         val oldJob = scope.cancellationManager.jobs[singleRunKey]
