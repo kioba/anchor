@@ -8,12 +8,12 @@ import kotlinx.coroutines.supervisorScope
 public object ExecuteScope
 
 @AnchorDsl
-public suspend fun <E> E.execute(
+public suspend fun <E> E.anchorWith(
   block: ExecuteScope.() -> Anchor<E>,
 ) where
   E : AnchorDslScope {
   supervisorScope {
     ExecuteScope.block()
-      .run(this@execute)
+      .run(this@anchorWith)
   }
 }

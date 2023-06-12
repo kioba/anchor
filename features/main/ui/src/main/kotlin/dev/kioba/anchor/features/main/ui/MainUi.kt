@@ -1,5 +1,6 @@
 package dev.kioba.anchor.features.main.ui
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.RowScope
@@ -21,9 +22,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.unit.dp
 import dev.kioba.anchor.AnchorDslScope
-import dev.kioba.anchor.dsl.Anchor
-import dev.kioba.anchor.execute
-import dev.kioba.anchor.features.main.presentation.data.clicked
+import dev.kioba.anchor.anchor
+import dev.kioba.anchor.features.main.presentation.data.clear
+import dev.kioba.anchor.features.main.presentation.data.refresh
 import dev.kioba.anchor.features.main.presentation.data.selectHome
 import dev.kioba.anchor.features.main.presentation.data.selectProfile
 import dev.kioba.anchor.features.main.presentation.model.MainTab
@@ -54,17 +55,17 @@ internal fun MainUi(
             .fillMaxSize(),
         ) {
           Greeting(state.details)
-          Button(
-            onClick = execute { clicked() }
-          ) {
-            Text(text = "click")
+          AnimatedVisibility(visible = state.iterationCounter != null) {
+            state.iterationCounter?.let { Greeting(it) }
           }
+          RefreshButton()
+          CancelButton()
         }
       },
       bottomBar = {
         BottomNavigation {
-          HomeItem(state) { selectHome() }
-          ProfileItem(state) { selectProfile() }
+          HomeItem(state, ::selectHome)
+          ProfileItem(state, ::selectProfile)
         }
       },
     )
@@ -72,26 +73,44 @@ internal fun MainUi(
 }
 
 @Composable
+private fun CancelButton() {
+  Button(
+    onClick = anchor(::clear)
+  ) {
+    Text(text = "cancel")
+  }
+}
+
+@Composable
+private fun RefreshButton() {
+  Button(
+    onClick = anchor(::refresh)
+  ) {
+    Text(text = "refresh")
+  }
+}
+
+@Composable
 private inline fun <reified E> RowScope.ProfileItem(
   state: MainViewState,
-  noinline onClick: () -> Anchor<E>,
+  noinline onClick: context(E) () -> Unit,
 ) where E : AnchorDslScope {
   BottomNavigationItem(
     selected = state.isProfileSelected(),
     icon = { ProfileIcon() },
-    onClick = execute(onClick),
+    onClick = anchor(onClick),
   )
 }
 
 @Composable
 private inline fun <reified E> RowScope.HomeItem(
   state: MainViewState,
-  noinline onClick: () -> Anchor<E>,
+  noinline onClick: context(E) () -> Unit,
 ) where E : AnchorDslScope {
   BottomNavigationItem(
     selected = state.isHomeSelected(),
     icon = { HomeIcon() },
-    onClick = execute(onClick),
+    onClick = anchor(onClick),
   )
 }
 

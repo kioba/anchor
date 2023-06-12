@@ -11,8 +11,5 @@ public inline fun <A, E, R> A.effect(
   block: E.() -> R,
 ): R where
   A : AnchorEffectScope<E> =
-//  with(EffectScope) {
     block(effectManager.effectScope)
-//  }
-
 
