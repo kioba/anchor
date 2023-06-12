@@ -1,5 +1,3 @@
-import java.util.Properties
-
 plugins {
   id("com.android.library")
   kotlin("android")
@@ -11,25 +9,17 @@ android {
   namespace = "dev.kioba.anchor"
 }
 
-val localProperties: Properties =
-  Properties()
-    .apply { load(file("../local.properties").inputStream()) }
-
-fun Properties.readGprUser(): String = get("gpr.user") as String
-
-fun Properties.readGprKey(): String = get("gpr.key") as String
-
 publishing {
   repositories {
     maven {
       name = "Anchor"
       url = uri("https://maven.pkg.github.com/kioba/anchor")
-//      authentication {
-//        create<BasicAuthentication>("basic")
-//      }
+      authentication {
+        create<BasicAuthentication>("basic")
+      }
       credentials {
-        username = localProperties.readGprUser()
-        password = localProperties.readGprKey()
+        username = project.findProperty("gpr.user") as String? ?: System.getenv("USERNAME")
+        password = project.findProperty("gpr.key") as String? ?: System.getenv("TOKEN")
       }
     }
   }
@@ -39,7 +29,7 @@ publishing {
     register("gprRelease", MavenPublication::class) {
       groupId = "dev.kioba"
       artifactId = "anchor"
-      version = "0.0.2"
+      version = "0.0.3"
       artifact(mavenArtifactPath)
     }
   }
