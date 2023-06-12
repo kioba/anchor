@@ -1,0 +1,39 @@
+name: 'publish package'
+
+on: workflow_dispatch
+
+jobs:
+  build:
+
+    name: 'build and publish'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: 'checkout project'
+        uses: actions/checkout@v3
+
+      - name: 'set up JDK 17'
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          server-id: github # Value of the distributionManagement/repository/id field of the pom.xml
+          settings-path: ${{ github.workspace }} # location for the settings.xml file
+
+      - name: 'Setup Android SDK'
+        uses: android-actions/setup-android@v2
+
+      - name: 'set up Gradle'
+        uses: gradle/gradle-build-action@v2
+
+      - name: 'execute Gradle build'
+        run: ./gradlew build
+
+      - name: 'Publish to GitHub Packages'
+        run: ./gradlew publish
+        env:
+          USERNAME: ${{ github.actor }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
