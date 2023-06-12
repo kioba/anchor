@@ -14,6 +14,7 @@ import dev.kioba.anchor.AnchorScope
 import dev.kioba.anchor.dsl.Anchor
 import dev.kioba.anchor.dsl.UnitSignal
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
 
 @Composable
 public inline fun <reified C, S> RememberAnchorScope(
@@ -26,6 +27,7 @@ public inline fun <reified C, S> RememberAnchorScope(
   val signal by anchorScope.collectEffects()
   val delegate = anchorScope.actionChannel()
     .apply { consumeInitial(anchorScope) }
+  anchorScope.listenSubscriptions(delegate)
 
   CompositionLocalProvider(
     LocalSignals provides signal,
@@ -57,6 +59,19 @@ internal inline fun <reified E, S> E.actionChannel(): AnchorScopeDelegate
     }
   }
 }
+
+@Composable
+@PublishedApi
+internal inline fun <reified E, S> E.listenSubscriptions(
+  delegate: AnchorScopeDelegate,
+) where E : AnchorScope<S, *> {
+  LaunchedEffect(key1 = this) {
+    subscriptionManager.subscribe()
+      .merge()
+      .collect { delegate.execute(it) }
+  }
+}
+
 
 @Composable
 @PublishedApi

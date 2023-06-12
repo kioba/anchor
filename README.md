@@ -1,9 +1,9 @@
-# anchor
+# ⚓️ anchor
 
 [![GitHub](https://img.shields.io/github/license/kioba/anchor?style=flat-square)](LICENSE)
 
-Anchor is simple and extensible library built on Kotlin's Context receivers with Compose
-integration.
+Anchor is simple and extensible MVI architecture framework built on Kotlin's Context receivers and
+Compose integration.
 
 License
 =======

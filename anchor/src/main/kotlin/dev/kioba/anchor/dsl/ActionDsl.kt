@@ -4,6 +4,7 @@ import dev.kioba.anchor.AnchorDsl
 import dev.kioba.anchor.AnchorDslScope
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
 public fun interface Anchor<E>
@@ -13,22 +14,25 @@ public fun interface Anchor<E>
 }
 
 @AnchorDsl
-public fun <E> anchor(
-  singleRunKey: Any? = null,
+public fun <E> Anchor(
   block: suspend E.() -> Unit,
 ): Anchor<E>
   where E : AnchorDslScope =
-  Anchor { scope ->
-    when {
-      singleRunKey != null -> {
-        val oldJob = scope.cancellationManager.jobs[singleRunKey]
-        scope.cancellationManager.jobs[singleRunKey] = launch {
-          oldJob?.cancelAndJoin()
-          scope.block()
-        }
-      }
+  Anchor { scope -> launch { scope.block() } }
 
-      else -> launch { scope.block() }
+context(E)
+  @AnchorDsl
+  public suspend inline fun <E> cancellable(
+  singleRunKey: Any,
+  crossinline block: suspend E.() -> Unit,
+)
+  where E : AnchorDslScope {
+  val oldJob = cancellationManager.jobs[singleRunKey]
+  cancellationManager.jobs[singleRunKey] = coroutineScope {
+    launch {
+      oldJob?.cancelAndJoin()
+      block(this@E)
     }
   }
+}
 
