@@ -1,6 +1,6 @@
 name: 'publish package'
 
-on: push
+on: workflow_dispatch
 
 jobs:
   build:
