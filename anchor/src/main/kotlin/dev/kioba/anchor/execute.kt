@@ -4,7 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
-import dev.kioba.anchor.compose.AnchorScopeDelegate
+import dev.kioba.anchor.compose.AnchorChannel
 import dev.kioba.anchor.compose.LocalAnchor
 import dev.kioba.anchor.dsl.Anchor
 import dev.kioba.anchor.dsl.SubscriptionsScope
@@ -38,7 +38,7 @@ public inline fun <reified E> executeAnchor(
   noinline block: () -> Anchor<E>,
 ): () -> Unit
   where E : AnchorDslScope {
-  val delegate: AnchorScopeDelegate = LocalAnchor.current
+  val delegate: AnchorChannel = LocalAnchor.current
   return { delegate.execute(block()) }
 }
 
@@ -57,7 +57,7 @@ public inline fun <reified E> anchor(
   noinline block: suspend context(E) () -> Unit,
 ): () -> Unit
   where E : AnchorDslScope {
-  val delegate: AnchorScopeDelegate = LocalAnchor.current
+  val delegate: AnchorChannel = LocalAnchor.current
   return { delegate.execute(Anchor<E> { block(this) }) }
 }
 
@@ -66,6 +66,6 @@ public inline fun <reified E> anchor(
   noinline block: context(E) () -> Unit,
 ): () -> Unit
   where E : AnchorDslScope {
-  val delegate: AnchorScopeDelegate = LocalAnchor.current
+  val delegate: AnchorChannel = LocalAnchor.current
   return { delegate.execute(Anchor<E> { block(this) }) }
 }

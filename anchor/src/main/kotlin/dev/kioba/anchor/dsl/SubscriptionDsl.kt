@@ -15,17 +15,17 @@ import kotlin.reflect.KClass
 
 public object SubscriptionScope
 
-
 @AnchorDsl
 public class SubscriptionsScope<S, E>(
   @PublishedApi
   internal val effectScope: E,
   @PublishedApi
   internal val chain: SharedFlow<Action>,
-  internal val list: MutableList<Flow<Anchor<*>>> = mutableListOf(),
+  private val list: MutableList<Flow<Anchor<*>>> = mutableListOf(),
 ) {
+
   public fun <D, R> Flow<R>.anchorWith(
-    block: (R) -> Anchor<D>,
+    block: suspend (R) -> Anchor<D>,
   ) where D : AnchorDslScope {
     map { value -> block(value) }
       .let { list.add(it) }
@@ -36,6 +36,12 @@ public class SubscriptionsScope<S, E>(
   ) where D : AnchorDslScope {
     anchorWith { Anchor<D> { block(this, it) } }
   }
+
+  public fun <D, R> Flow<R>.anchor(
+    block: suspend context(D) (R) -> Unit,
+  ) where D : AnchorDslScope {
+    anchorWith { Anchor<D> { block(this, it) } }
+  }
 }
 
 public inline fun <S, E, reified R> SubscriptionsScope<S, E>.listen(
@@ -43,7 +49,6 @@ public inline fun <S, E, reified R> SubscriptionsScope<S, E>.listen(
 ): Flow<R> =
   ChainCollector(mutableListOf(ActionType(Created::class)))
     .chain(block)
-
 
 public interface Action
 public object Created : Action

@@ -7,12 +7,12 @@ import dev.kioba.anchor.dsl.Anchor
 
 
 @PublishedApi
-internal fun interface AnchorScopeDelegate {
+internal fun interface AnchorChannel {
   fun execute(anchor: Anchor<out AnchorDslScope>)
 }
 
 @PublishedApi
-internal val LocalAnchor: ProvidableCompositionLocal<AnchorScopeDelegate> =
+internal val LocalAnchor: ProvidableCompositionLocal<AnchorChannel> =
   staticCompositionLocalOf {
-    AnchorScopeDelegate {}
+    AnchorChannel {}
   }
