@@ -50,8 +50,6 @@ proguard/
 # Android Studio
 *.iml
 .idea/*
-.idea/
-/.idea/*
 .navigation/
 captures/
 
