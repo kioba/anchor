@@ -3,95 +3,49 @@ package dev.kioba.anchor.compose
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisallowComposableCalls
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import dev.kioba.anchor.AnchorDslScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.lifecycle.ViewModelStoreOwner
 import dev.kioba.anchor.AnchorScope
-import dev.kioba.anchor.dsl.Anchor
 import dev.kioba.anchor.dsl.UnitSignal
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.merge
 
-@Composable
-public inline fun <reified C, S> RememberAnchorScope(
+context (ViewModelStoreOwner)
+  @Composable
+  public inline fun <reified C, reified S, E> RememberAnchorScope(
   noinline scope: @DisallowComposableCalls () -> C,
+  customKey: String? = null,
   crossinline content: @Composable (S) -> Unit,
-) where C : AnchorScope<S, *> {
-  val anchorScope = remember(scope) { scope() }
+) where
+  C : AnchorScope<S, E> {
+  val anchorScope = rememberViewModel(customKey ?: S::class.qualifiedName!!, scope)
 
   val state by anchorScope.collectViewState()
   val signal by anchorScope.collectEffects()
-  val delegate = anchorScope.actionChannel()
-    .apply { consumeInitial(anchorScope) }
-  anchorScope.listenSubscriptions(delegate)
+  val delegate = rememberUpdatedState(newValue = anchorScope.actionChannel)
 
   CompositionLocalProvider(
     LocalSignals provides signal,
-    LocalAnchor provides delegate,
+    LocalAnchor provides delegate.value,
     content = { content(state) },
   )
 }
 
 @Composable
 @PublishedApi
-internal inline fun <reified E, S> AnchorScopeDelegate.consumeInitial(
-  scope: E,
-) where E : AnchorScope<S, *> {
-  LaunchedEffect(key1 = scope) {
-    execute(scope.initManager.init)
-  }
-}
-
-@Composable
-@PublishedApi
-internal inline fun <reified E, S> E.actionChannel(): AnchorScopeDelegate
-  where E : AnchorScope<S, *> {
-  val coroutineScope = rememberCoroutineScope()
-  return remember(this) {
-    AnchorScopeDelegate { f ->
-      with(coroutineScope) {
-        convert<E>(f).run(this@actionChannel)
-      }
-    }
-  }
-}
-
-@Composable
-@PublishedApi
-internal inline fun <reified E, S> E.listenSubscriptions(
-  delegate: AnchorScopeDelegate,
-) where E : AnchorScope<S, *> {
-  LaunchedEffect(key1 = this) {
-    subscriptionManager.subscribe()
-      .merge()
-      .collect { delegate.execute(it) }
-  }
-}
-
-
-@Composable
-@PublishedApi
-internal inline fun <reified E, S> E.collectEffects(): State<SignalProvider>
+internal inline fun <reified E, S> ContainedScope<E, S, *>.collectEffects(): State<SignalProvider>
   where E : AnchorScope<S, *> =
-  signalManager.signals
+  anchorScope.signalManager
+    .signals
     .map { SignalProvider { it } }
     .collectAsState(initial = SignalProvider { UnitSignal })
 
 @Composable
 @PublishedApi
-internal inline fun <reified E, S> E.collectViewState(): State<S>
+internal inline fun <reified E, S> ContainedScope<E, S, *>.collectViewState(): State<S>
   where E : AnchorScope<S, *> =
-  stateManager.states
+  anchorScope.stateManager
+    .states
     .collectAsState()
-
-@Suppress("UNCHECKED_CAST")
-@PublishedApi
-internal fun <E> convert(
-  anchor: Anchor<out AnchorDslScope>,
-): Anchor<E>
-  where E : AnchorDslScope =
-  anchor as Anchor<E>

@@ -14,6 +14,5 @@ internal class MainActivity : ComponentActivity() {
         MainUi(state)
       }
     }
-
   }
 }
