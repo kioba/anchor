@@ -62,3 +62,7 @@ captures/
 
 # Private key for Flank testing
 /config/flank-gradle-service-account.json
+
+# mkdocs
+/.cache
+/.venv
