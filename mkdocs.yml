@@ -1,0 +1,59 @@
+site_name: Anchor
+theme:
+  name: material
+  favicon: images/anchor.png
+  icon:
+    logo: material/anchor
+  language: en
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - toc.integrate
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.tabs.link
+    - content.code.annotation
+    - content.code.copy
+  palette:
+    - scheme: default
+      toggle:
+        icon: material/toggle-switch-off-outline
+        name: Switch to dark mode
+      primary: teal
+      accent: purple
+    - scheme: slate
+      toggle:
+        icon: material/toggle-switch
+        name: Switch to light mode
+      primary: teal
+      accent: lime
+
+  plugins:
+    - social
+
+extra:
+  social:
+    - icon: fontawesome/brands/github-alt
+      link: https://github.com/kioba
+    - icon: fontawesome/brands/twitter
+      link: https://twitter.com/k10b4
+    - icon: fontawesome/brands/linkedin
+      link: https://www.linkedin.com/in/karoly-somodi-904a6694/
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - admonition
+  - pymdownx.arithmatex:
+      generic: true
+  - footnotes
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.mark
+  - attr_list
+
+copyright: |
+  &copy; 2023 <a href="https://github.com/kioba"  target="_blank" rel="noopener">Karoly Somodi - Kioba</a>

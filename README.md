@@ -8,8 +8,6 @@ Compose integration.
 License
 =======
 
-[![GitHub](https://img.shields.io/github/license/kioba/anchor?style=flat-square)](LICENSE)
-
     Copyright 2023 Karoly Somodi
 
     Licensed under the Apache License, Version 2.0 (the "License");
