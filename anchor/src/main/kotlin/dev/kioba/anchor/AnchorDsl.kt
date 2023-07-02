@@ -1,5 +1,6 @@
 package dev.kioba.anchor
 
+import dev.kioba.anchor.compose.AnchorChannel
 import dev.kioba.anchor.dsl.Action
 import dev.kioba.anchor.dsl.Anchor
 import dev.kioba.anchor.dsl.AnchorSignal
@@ -19,7 +20,7 @@ public class AnchorScope<S, E>(
   initialState: () -> S,
   effectScope: () -> E,
   subscriptions: SubscriptionsScope<S, E>.() -> Unit,
-  init: Anchor<*>,
+  init: Anchor<*>?,
 ) : AnchorStateScope<S>,
   AnchorInitScope,
   AnchorSubscriptionScope<S, E>,
@@ -33,6 +34,13 @@ public class AnchorScope<S, E>(
   override val stateManager: AnchorStateManager<S> = AnchorStateManager(initialState)
   override val subscriptionManager: AnchorSubscriptionManager<S, E> =
     AnchorSubscriptionManager(this, subscriptions)
+
+  internal fun consumeInitial(
+    actionChannel: AnchorChannel
+  ) {
+    initManager.init
+      ?.run(actionChannel::execute)
+  }
 }
 
 public interface AnchorDslScope {
@@ -66,7 +74,7 @@ public class AnchorCancellationManager {
 
 public class AnchorInitManager(
   @PublishedApi
-  internal val init: Anchor<*>,
+  internal val init: Anchor<*>?,
 )
 
 public class AnchorStateManager<S>(

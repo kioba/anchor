@@ -26,12 +26,8 @@ R : AnchorScope<S, E> {
     }
 
   init {
-    consumeInitial()
+    anchorScope.consumeInitial(actionChannel)
     listenSubscriptions()
-  }
-
-  private fun consumeInitial() {
-    actionChannel.execute(anchorScope.initManager.init)
   }
 
   private fun listenSubscriptions() {

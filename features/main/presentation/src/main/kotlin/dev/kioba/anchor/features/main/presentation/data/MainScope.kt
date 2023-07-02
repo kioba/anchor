@@ -4,6 +4,7 @@ import dev.kioba.anchor.AnchorScope
 import dev.kioba.anchor.anchorScope
 import dev.kioba.anchor.dsl.SubscriptionsScope
 import dev.kioba.anchor.features.main.presentation.model.MainViewState
+import kotlinx.coroutines.delay
 
 public typealias MainScope = AnchorScope<MainViewState, MainEffects>
 public typealias MainSubScope = SubscriptionsScope<MainViewState, MainEffects>
@@ -11,7 +12,8 @@ public typealias MainSubScope = SubscriptionsScope<MainViewState, MainEffects>
 public object MainEffects
 
 context(MainEffects)
-  public fun hello(): Int = 1
+  public suspend fun hello(): Int =
+  delay(100).let { 1 }
 
 public fun mainScope(): MainScope =
   anchorScope(

@@ -32,8 +32,9 @@ dependencyResolutionManagement {
 }
 
 include(
-  ":app",
   ":anchor",
-  ":features:main:ui",
+  ":app",
+  ":features:counter",
   ":features:main:presentation",
+  ":features:main:ui",
 )
