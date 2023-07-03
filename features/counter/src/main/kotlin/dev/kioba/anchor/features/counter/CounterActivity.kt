@@ -24,7 +24,7 @@ import androidx.compose.ui.unit.dp
 import dev.kioba.anchor.AnchorScope
 import dev.kioba.anchor.anchor
 import dev.kioba.anchor.anchorScope
-import dev.kioba.anchor.compose.RememberAnchorScope
+import dev.kioba.anchor.compose.RememberAnchor
 import dev.kioba.anchor.dsl.reduce
 
 private data class CounterState(
@@ -53,9 +53,7 @@ public class CounterActivity : ComponentActivity() {
     super.onCreate(savedInstanceState)
     setContent {
       MaterialTheme {
-        RememberAnchorScope(
-          scope = ::counterScope,
-        ) { state ->
+        RememberAnchor(scope = ::counterScope) { state ->
           Scaffold { paddingValues ->
             Box(
               modifier = Modifier

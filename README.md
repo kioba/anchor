@@ -1,12 +1,81 @@
 # ⚓️ anchor
 
 [![GitHub](https://img.shields.io/github/license/kioba/anchor?style=flat-square)](LICENSE)
+[![Website](https://img.shields.io/badge/website-up?style=flat-square)]([website](https://kioba.github.io/anchor/))
+![Twitter Follow](https://img.shields.io/twitter/follow/k10b4?style=flat-square&link=https%3A%2F%2Ftwitter.com%2Fk10b4)
 
-Anchor is simple and extensible MVI architecture framework built on Kotlin's Context receivers and
-Compose integration.
+Anchor is simple and extensible state management architecture built on Kotlin's Context receivers
+with Jetpack Compose integration.
+
+visit [kioba.github.io/anchor/](https://kioba.github.io/anchor/) for more!
+
+Counter
+=======
+
+Counter example to showcase the usage of Anchor architecture. The screen displays a count and the
+ability to increment and decrement the count.
+
+![counter example](https://github.com/kioba/anchor/blob/master/docs/images/counter_example.png)
+
+```kotlin
+// type alias to easily reference our Scope without repeating the type arguments
+typealias CounterScope = AnchorScope<CounterState, Unit>
+
+// function to generate the Scope with the initial state
+fun counterScope(): CounterScope = // 2.
+  anchorScope(initialState = ::CounterState)
+
+// Provide the AnchorScope abilities with a receiver 
+context(CounterScope)
+fun increment() {
+  // modify the view state by incrementing the value
+  reduce { copy(count = count.inc()) }
+}
+
+context(CounterScope)
+fun decrement() {
+  reduce { copy(count = count.dec()) }
+}
+```
+
+```kotlin
+@Composable
+fun CounterUi() {
+  // Scope computations are remembered and retained across configuration changes
+  RememberAnchor(scope = ::counterScope) { state ->
+    Scaffold { paddingValues ->
+      Box(
+        modifier = Modifier
+          .padding(paddingValues)
+          .fillMaxSize()
+      ) {
+        Column(modifier = Modifier.align(Center)) {
+          Text(
+            modifier = Modifier.Companion.align(CenterHorizontally),
+            text = state.count.toString(),
+            style = MaterialTheme.typography.headlineMedium,
+          )
+          Spacer(modifier = Modifier.size(32.dp))
+          Row {
+            Button(
+              // within a RememberAnchor actions can be executed
+              // without the requirement to pass around the scope
+              onClick = anchor(::decrement)
+            ) { DecrementIcon() }
+            Spacer(modifier = Modifier.size(16.dp))
+            Button(
+              onClick = anchor(::increment),
+            ) { IncrementIcon() }
+          }
+        }
+      }
+    }
+  }
+}
+```
 
 License
-=======
+--------
 
     Copyright 2023 Karoly Somodi
 

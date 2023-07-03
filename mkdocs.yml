@@ -1,4 +1,11 @@
 site_name: Anchor
+repo_name: anchor
+repo_url: https://github.com/kioba/anchor
+site_description: "A lightweight architecture for Compose state management"
+
+copyright: |
+  &copy; 2023 <a href="https://github.com/kioba"  target="_blank" rel="noopener">Karoly Somodi - Kioba</a>
+
 theme:
   name: material
   favicon: images/anchor.png
@@ -18,13 +25,13 @@ theme:
   palette:
     - scheme: default
       toggle:
-        icon: material/toggle-switch-off-outline
+        icon: material/brightness-7
         name: Switch to dark mode
       primary: teal
       accent: purple
     - scheme: slate
       toggle:
-        icon: material/toggle-switch
+        icon: material/brightness-4
         name: Switch to light mode
       primary: teal
       accent: lime
@@ -55,5 +62,5 @@ markdown_extensions:
   - pymdownx.mark
   - attr_list
 
-copyright: |
-  &copy; 2023 <a href="https://github.com/kioba"  target="_blank" rel="noopener">Karoly Somodi - Kioba</a>
+nav:
+  - 'Introduction': index.md

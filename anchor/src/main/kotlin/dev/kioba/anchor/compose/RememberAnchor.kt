@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.map
 
 context (ViewModelStoreOwner)
   @Composable
-  public inline fun <reified C, reified S, E> RememberAnchorScope(
+  public inline fun <reified C, reified S, E> RememberAnchor(
   noinline scope: @DisallowComposableCalls () -> C,
   customKey: String? = null,
   crossinline content: @Composable (S) -> Unit,
