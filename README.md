@@ -1,8 +1,8 @@
 # ⚓️ anchor
 
 [![GitHub](https://img.shields.io/github/license/kioba/anchor?style=flat-square)](LICENSE)
-[![Website](https://img.shields.io/badge/website-up?style=flat-square)]([website](https://kioba.github.io/anchor/))
-![Twitter Follow](https://img.shields.io/twitter/follow/k10b4?style=flat-square&link=https%3A%2F%2Ftwitter.com%2Fk10b4)
+![Website](https://img.shields.io/badge/website-up-green?style=flat-square&link=http%3A%2F%2Fkioba.github.io%2Fanchor%2F)
+![Twitter Follow](https://img.shields.io/twitter/follow/k10b4?style=flat-square&link=https%3A%2F%2Ftwitter.com%2Fintent%2Ffollow%3Fscreen_name%3Dk10b4)
 
 Anchor is simple and extensible state management architecture built on Kotlin's Context receivers
 with Jetpack Compose integration.
@@ -22,7 +22,7 @@ ability to increment and decrement the count.
 typealias CounterScope = AnchorScope<CounterState, Unit>
 
 // function to generate the Scope with the initial state
-fun counterScope(): CounterScope = // 2.
+fun counterScope(): CounterScope =
   anchorScope(initialState = ::CounterState)
 
 // Provide the AnchorScope abilities with a receiver 
