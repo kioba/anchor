@@ -1,35 +1,45 @@
 plugins {
-  id("com.android.library")
-  id("org.jetbrains.kotlin.android")
-  id("dev.kioba.anchor")
+    id("com.android.library")
+    id("org.jetbrains.kotlin.android")
+    alias(libs.plugins.jetbrainsCompose)
+    alias(libs.plugins.compose.compiler)
 }
 
 android {
 
-  namespace = "dev.kioba.anchor.features.main.ui"
+    namespace = "dev.kioba.anchor.features.main.ui"
 
-  @Suppress("UnstableApiUsage")
-  buildFeatures {
-    compose = true
-  }
-  composeOptions {
-    kotlinCompilerExtensionVersion = "1.4.7"
-  }
+    buildFeatures {
+        compose = true
+    }
+
+    compileSdk = 34
+
+    defaultConfig {
+        minSdk = 21
+
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        consumerProguardFiles("consumer-rules.pro")
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+    }
 }
 
 dependencies {
 //  implementation("dev.kioba:anchor:0.0.1")
-  implementation("androidx.core:core-ktx:1.10.1")
-  implementation("androidx.compose.ui:ui:1.4.3")
-  implementation("androidx.compose.material:material:1.4.3")
-  implementation("androidx.compose.ui:ui-tooling-preview:1.4.3")
-  implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.1")
-  implementation("androidx.activity:activity-compose:1.7.2")
-  implementation("androidx.activity:activity-ktx:1.7.2")
-  implementation(projects.anchor)
-  implementation(projects.features.main.presentation)
-  implementation("org.jetbrains.kotlin:kotlin-stdlib:1.8.21")
-  debugImplementation("androidx.compose.ui:ui-tooling:1.4.3")
+    debugImplementation(libs.androidx.ui.tooling)
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.activity.ktx)
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.core.ktx)
+    implementation(libs.kotlin.stdlib)
+    implementation(libs.material)
+    implementation(libs.ui)
+    implementation(libs.ui.tooling.preview)
+    implementation(projects.anchor)
+    implementation(projects.features.main.presentation)
 
 //  testImplementation 'junit:junit:4.13.2'
 //  androidTestImplementation 'androidx.test.ext:junit:1.1.5'

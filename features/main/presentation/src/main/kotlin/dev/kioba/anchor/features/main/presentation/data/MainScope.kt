@@ -2,7 +2,7 @@ package dev.kioba.anchor.features.main.presentation.data
 
 import dev.kioba.anchor.AnchorScope
 import dev.kioba.anchor.anchorScope
-import dev.kioba.anchor.dsl.SubscriptionsScope
+import dev.kioba.anchor.SubscriptionsScope
 import dev.kioba.anchor.features.main.presentation.model.MainViewState
 import kotlinx.coroutines.delay
 
@@ -12,7 +12,7 @@ public typealias MainSubScope = SubscriptionsScope<MainViewState, MainEffects>
 public object MainEffects
 
 context(MainEffects)
-  public suspend fun hello(): Int =
+public suspend fun hello(): Int =
   delay(100).let { 1 }
 
 public fun mainScope(): MainScope =

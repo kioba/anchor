@@ -25,7 +25,7 @@ import dev.kioba.anchor.AnchorScope
 import dev.kioba.anchor.anchor
 import dev.kioba.anchor.anchorScope
 import dev.kioba.anchor.compose.RememberAnchor
-import dev.kioba.anchor.dsl.reduce
+import dev.kioba.anchor.reduce
 
 private data class CounterState(
   val count: Int = 0,
@@ -37,12 +37,12 @@ private fun counterScope(): CounterScope =
   anchorScope(initialState = ::CounterState)
 
 context(CounterScope)
-  private fun increment() {
+private fun increment() {
   reduce { copy(count = count.inc()) }
 }
 
 context(CounterScope)
-  private fun decrement() {
+private fun decrement() {
   reduce { copy(count = count.dec()) }
 }
 

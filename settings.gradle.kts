@@ -5,10 +5,11 @@ rootProject.name = "AnchorS"
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 pluginManagement {
+  includeBuild("convention-plugins")
   repositories {
-    gradlePluginPortal()
     google()
     mavenCentral()
+    gradlePluginPortal()
   }
 }
 

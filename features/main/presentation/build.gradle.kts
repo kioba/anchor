@@ -1,18 +1,25 @@
 plugins {
-  id("com.android.library")
-  id("org.jetbrains.kotlin.android")
-  id("dev.kioba.anchor")
+  alias(libs.plugins.androidLibrary)
 }
 
 android {
   namespace = "dev.kioba.anchor.features.main.presentation"
 
-  @Suppress("UnstableApiUsage")
   buildFeatures {
     compose = true
   }
-  composeOptions {
-    kotlinCompilerExtensionVersion = "1.4.7"
+
+  compileSdk = 34
+
+  defaultConfig {
+    minSdk = 21
+
+    testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    consumerProguardFiles("consumer-rules.pro")
+  }
+  compileOptions {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
   }
 
 }
@@ -20,8 +27,8 @@ android {
 dependencies {
   implementation(projects.anchor)
 
-  debugImplementation("androidx.compose.ui:ui-tooling:1.4.3")
-  implementation("androidx.compose.ui:ui:1.4.3")
-  implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.1")
-  implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.1")
+  debugImplementation(libs.androidx.ui.tooling)
+  implementation(libs.ui)
+  implementation(libs.kotlinx.coroutines.android)
+  implementation(libs.kotlinx.coroutines.core)
 }
