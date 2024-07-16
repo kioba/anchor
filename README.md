@@ -1,18 +1,18 @@
 # ⚓️ anchor
 
 [![GitHub](https://img.shields.io/github/license/kioba/anchor?style=flat-square)](LICENSE)
-![Website](https://img.shields.io/badge/website-up-green?style=flat-square&link=http%3A%2F%2Fkioba.github.io%2Fanchor%2F)
-![Twitter Follow](https://img.shields.io/twitter/follow/k10b4?style=flat-square&link=https%3A%2F%2Ftwitter.com%2Fintent%2Ffollow%3Fscreen_name%3Dk10b4)
+[![Website](https://img.shields.io/badge/website-up-green?style=flat-square&link=http%3A%2F%2Fkioba.github.io%2Fanchor%2F)](https://kioba.github.io/anchor/)
+[![Twitter Follow](https://img.shields.io/twitter/follow/k10b4?style=flat-square&link=https%3A%2F%2Ftwitter.com%2Fintent%2Ffollow%3Fscreen_name%3Dk10b4)]()
 
-Anchor is simple and extensible state management architecture built on Kotlin's Context receivers
+Anchor is a simple and extensible state management architecture built on Kotlin's Context receivers
 with Jetpack Compose integration.
 
-visit [kioba.github.io/anchor/](https://kioba.github.io/anchor/) for more!
+Visit [kioba.github.io/anchor/](https://kioba.github.io/anchor/) for more!
 
 Counter
 =======
 
-Counter example to showcase the usage of Anchor architecture. The screen displays a count and the
+A counter example to showcase the usage of Anchor architecture. The screen displays a count, and the
 ability to increment and decrement the count.
 
 ![counter example](https://github.com/kioba/anchor/blob/master/docs/images/counter_example.png)
