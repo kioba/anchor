@@ -2,7 +2,7 @@
 
 [![GitHub](https://img.shields.io/github/license/kioba/anchor?style=flat-square)](LICENSE)
 [![Website](https://img.shields.io/badge/website-up-green?style=flat-square&link=http%3A%2F%2Fkioba.github.io%2Fanchor%2F)](https://kioba.github.io/anchor/)
-[![Twitter Follow](https://img.shields.io/twitter/follow/k10b4?style=flat-square&link=https%3A%2F%2Ftwitter.com%2Fintent%2Ffollow%3Fscreen_name%3Dk10b4)]()
+[![Follow @k10b4](https://img.shields.io/twitter/follow/k10b4?style=flat-square&link=https%3A%2F%2Ftwitter.com%2Fintent%2Ffollow%3Fscreen_name%3Dk10b4)](https://x.com/k10b4)
 
 Anchor is a simple and extensible state management architecture built on Kotlin's Context receivers
 with Jetpack Compose integration.
