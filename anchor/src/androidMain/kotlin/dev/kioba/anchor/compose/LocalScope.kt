@@ -2,13 +2,10 @@ package dev.kioba.anchor.compose
 
 import androidx.compose.runtime.ProvidableCompositionLocal
 import androidx.compose.runtime.staticCompositionLocalOf
-import dev.kioba.anchor.AnchorDslScope
-import dev.kioba.anchor.Anchor
-import dev.kioba.anchor.AnchorChannel
-
+import dev.kioba.anchor.ActionChannel
 
 @PublishedApi
-internal val LocalAnchor: ProvidableCompositionLocal<AnchorChannel> =
+internal val LocalAnchor: ProvidableCompositionLocal<ActionChannel> =
   staticCompositionLocalOf {
-    AnchorChannel {}
+    ActionChannel { }
   }

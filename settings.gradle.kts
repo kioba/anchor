@@ -8,6 +8,7 @@ pluginManagement {
   includeBuild("convention-plugins")
   repositories {
     google()
+    maven("https://maven.pkg.jetbrains.space/public/p/compose/dev")
     mavenCentral()
     gradlePluginPortal()
   }

@@ -8,43 +8,43 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.lifecycle.ViewModelStoreOwner
-import dev.kioba.anchor.AnchorScope
+import dev.kioba.anchor.Anchor
+import dev.kioba.anchor.Effect
 import dev.kioba.anchor.UnitSignal
+import dev.kioba.anchor.ViewState
 import kotlinx.coroutines.flow.map
 
 @Composable
 public inline fun <reified C, reified S, E> ViewModelStoreOwner.RememberAnchor(
   noinline scope: @DisallowComposableCalls () -> C,
   customKey: String? = null,
-  crossinline content: @Composable (S) -> Unit,
+  crossinline content: @Composable C.(S) -> Unit,
 ) where
-  C : AnchorScope<S, E> {
+        C : Anchor<E, S>, E : Effect, S : ViewState {
   val anchorScope = rememberViewModel(customKey ?: S::class.qualifiedName!!, scope)
 
   val state by anchorScope.collectViewState()
-  val signal by anchorScope.collectEffects()
+  val signal by anchorScope.collectSignal()
   val delegate = rememberUpdatedState(newValue = anchorScope.actionChannel)
 
   CompositionLocalProvider(
     LocalSignals provides signal,
     LocalAnchor provides delegate.value,
-    content = { content(state) },
+    content = { anchorScope.anchor.content(state) },
   )
 }
 
 @Composable
 @PublishedApi
-internal inline fun <reified E, S> ContainedScope<E, S, *>.collectEffects(): State<SignalProvider>
-  where E : AnchorScope<S, *> =
-  anchorScope.signalManager
-    .signals
+internal inline fun <reified R, E, S> ContainedScope<R, E, S>.collectSignal(): State<SignalProvider>
+  where R : Anchor<E, S>, E : Effect, S : ViewState =
+  anchor.signals
     .map { SignalProvider { it } }
     .collectAsState(initial = SignalProvider { UnitSignal })
 
 @Composable
 @PublishedApi
-internal inline fun <reified E, S> ContainedScope<E, S, *>.collectViewState(): State<S>
-  where E : AnchorScope<S, *> =
-  anchorScope.stateManager
-    .states
+internal inline fun <reified A, E, S> ContainedScope<A, E, S>.collectViewState(): State<S>
+  where A : Anchor<E, S>, E : Effect, S : ViewState =
+  anchor._viewState
     .collectAsState()

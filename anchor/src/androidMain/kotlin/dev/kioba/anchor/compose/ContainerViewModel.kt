@@ -2,51 +2,42 @@ package dev.kioba.anchor.compose
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import dev.kioba.anchor.AnchorDslScope
-import dev.kioba.anchor.AnchorScope
+import dev.kioba.anchor.Action
+import dev.kioba.anchor.ActionChannel
 import dev.kioba.anchor.Anchor
-import dev.kioba.anchor.AnchorChannel
+import dev.kioba.anchor.Effect
+import dev.kioba.anchor.ViewState
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.launch
 
 @PublishedApi
-internal class ContainerViewModel<R, S, E>(
-  override val anchorScope: R,
-) : ViewModel(), ContainedScope<R, S, E> where
-R : AnchorScope<S, E> {
-
+internal class ContainerViewModel<R, E, S>(
+  override val anchor: R,
+) : ViewModel(),
+  ContainedScope<R, E, S> where
+        R : Anchor<E, S>, E : Effect, S : ViewState {
   override val coroutineScope: CoroutineScope
     get() = viewModelScope
 
-  override val actionChannel: AnchorChannel =
-    AnchorChannel { f ->
-      with(coroutineScope) {
-        convert<R>(f).run { anchorScope }
-      }
+  override val actionChannel: ActionChannel =
+    ActionChannel { f ->
+      execute(f)
     }
 
   init {
-    anchorScope.consumeInitial(actionChannel)
-    listenSubscriptions()
-  }
-
-  private fun listenSubscriptions() {
     coroutineScope.launch {
-      anchorScope.subscriptionManager
-        .subscribe()
-        .merge()
-        .collect(actionChannel::execute)
+      anchor.consumeInitial()
+      with(anchor) {
+        subscribe()
+      }
     }
   }
-
-
 }
 
 @Suppress("UNCHECKED_CAST")
 @PublishedApi
-internal fun <E> convert(
-  anchor: Anchor<out AnchorDslScope>,
-): Anchor<E>
-  where E : AnchorDslScope =
-  anchor as Anchor<E>
+internal fun <R, E, S> convert(
+  capture: Action<out Anchor<*, *>>,
+): Action<R>
+  where R : Anchor<E, S>, E : Effect, S : ViewState =
+  capture as Action<R>
