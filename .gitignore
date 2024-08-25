@@ -66,3 +66,46 @@ captures/
 # mkdocs
 /.cache
 /.venv
+
+### General
+.gradle
+**/build
+**/*.db
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.ipr
+*.hprof
+out/
+.fleet/
+
+### iOS Xcode generated ###
+iOSDemoApp/iOSDemoApp.xcodeproj/*
+!iOSDemoApp/iOSDemoApp.xcodeproj/project.pbxproj
+/.build
+/Packages
+xcuserdata/
+DerivedData/
+.swiftpm/configuration/registries.json
+.swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
+.netrc
+Package.resolved
+
+### Firebase ###
+/androidApp/google-services.json
+iOSDemoApp/iOSDemoApp/GoogleService-Info.plist
+
+
+### Kotlin Multiplatform Samples ###
+.kotlin
+**/build/
+xcuserdata
+!src/**/build/
+captures
+*.xcodeproj/*
+!*.xcodeproj/project.pbxproj
+!*.xcodeproj/xcshareddata/
+!*.xcodeproj/project.xcworkspace/
+!*.xcworkspace/contents.xcworkspacedata
+**/xcshareddata/WorkspaceSettings.xcsettings

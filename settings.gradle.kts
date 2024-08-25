@@ -1,14 +1,16 @@
 import java.lang.System.getProperty
 
-rootProject.name = "AnchorS"
+rootProject.name = "Anchor"
 
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 pluginManagement {
+  includeBuild("convention-plugins")
   repositories {
-    gradlePluginPortal()
     google()
+    maven("https://maven.pkg.jetbrains.space/public/p/compose/dev")
     mavenCentral()
+    gradlePluginPortal()
   }
 }
 
