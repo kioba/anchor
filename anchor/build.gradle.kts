@@ -8,8 +8,6 @@ plugins {
   alias(libs.plugins.compose.compiler)
   alias(libs.plugins.jetbrainsCompose)
   alias(libs.plugins.kmpNativeCoroutines)
-
-//  id("module.publication")
 }
 
 kotlin {

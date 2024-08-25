@@ -1,3 +1,6 @@
+
+rootProject.name = "Anchor"
+
 pluginManagement {
   repositories {
     google()
