@@ -1,6 +1,6 @@
 import java.lang.System.getProperty
 
-rootProject.name = "Anchor"
+rootProject.name = "AnchorS"
 
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 

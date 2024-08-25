@@ -1,5 +1,5 @@
 
-rootProject.name = "Anchor"
+rootProject.name = "AnchorS"
 
 pluginManagement {
   repositories {
