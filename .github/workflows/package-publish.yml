@@ -32,12 +32,9 @@ jobs:
         with:
           xcode-version: latest-stable
 
-      - name: Add Gradle Properties
-        run: |
-        env:
-          GITHUB_PACKAGES_USER_NAME: ${{ github.actor }}
-          GITHUB_PACKAGES_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Publish To GitHub Packages
         run: |
           ./gradlew publishAllPublicationsToGithubPackagesRepository
+        env:
+          ORG_GRADLE_PROJECT_githubPackagesUsername: ${{ github.actor }}
+          ORG_GRADLE_PROJECT_githubPackagesPassword: ${{ secrets.GITHUB_TOKEN }}
