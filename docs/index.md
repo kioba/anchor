@@ -33,7 +33,7 @@ to use a published package from the github packages repository.
 3. Add the package dependencies to your build.gradle.kts file
 
     ```kotlin
-    implementation("dev.kioba:anchor:0.0.4")
+    implementation("dev.kioba:anchor:0.0.5")
     ```
 
 ## Counter example
