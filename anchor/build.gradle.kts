@@ -4,10 +4,10 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
   alias(libs.plugins.kotlinMultiplatform)
   alias(libs.plugins.androidLibrary)
-  `maven-publish`
   alias(libs.plugins.compose.compiler)
   alias(libs.plugins.jetbrainsCompose)
   alias(libs.plugins.kmpNativeCoroutines)
+  alias(libs.plugins.vaniktechMavenPublish)
 }
 
 kotlin {
@@ -17,7 +17,7 @@ kotlin {
   jvm("desktop")
 
   androidTarget {
-    publishLibraryVariants("release")
+    publishLibraryVariants("release", "debug")
     @OptIn(ExperimentalKotlinGradlePluginApi::class)
     compilerOptions {
       jvmTarget.set(JvmTarget.JVM_17)
@@ -96,28 +96,43 @@ android {
   }
 }
 
+mavenPublishing {
+  coordinates(
+    groupId = "dev.kioba",
+    artifactId = "anchor",
+    version = "0.0.5",
+  )
+
+  pom {
+    name.set("Architecture based on UDF design and Functional Programming for Multiplatform applications")
+    description.set("Architecture based on UDF design and Functional Programming for Multiplatform applications")
+    inceptionYear.set("2023")
+    url.set("https://github.com/kioba/anchor")
+    licenses {
+      license {
+        name.set("Apache-2.0")
+        url.set("https://opensource.org/licenses/Apache-2.0")
+      }
+    }
+    developers {
+      developer {
+        id.set("kioba")
+        name.set("Kioba Somodi")
+        email.set("kioba@hey.com")
+      }
+    }
+    scm {
+      url.set("https://github.com/kioba/anchor")
+    }
+  }
+}
+
 publishing {
   repositories {
     maven {
-      name = "Anchor"
+      name = "githubPackages"
       url = uri("https://maven.pkg.github.com/kioba/anchor")
-      authentication {
-        create<BasicAuthentication>("basic")
-      }
-      credentials {
-        username = project.findProperty("gpr.user") as String? ?: System.getenv("USERNAME")
-        password = project.findProperty("gpr.key") as String? ?: System.getenv("TOKEN")
-      }
-    }
-  }
-  val mavenArtifactId = "${project.name}-release.aar"
-  val mavenArtifactPath = "${layout.buildDirectory}/outputs/aar/$mavenArtifactId"
-  publications {
-    register("gprRelease", MavenPublication::class) {
-      groupId = "dev.kioba"
-      artifactId = "anchor"
-      version = "0.0.5"
-      artifact(mavenArtifactPath)
+      credentials(PasswordCredentials::class)
     }
   }
 }
