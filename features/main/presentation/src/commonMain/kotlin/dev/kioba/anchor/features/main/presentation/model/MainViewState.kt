@@ -5,16 +5,17 @@ import dev.kioba.anchor.ViewState
 public data class MainViewState(
   val title: String,
   val details: String,
+  val hundreds: Int = 0,
   val iterationCounter: String? = null,
   val selectedTab: MainTab = MainTab.Home,
 ) : ViewState
 
 public sealed class MainTab {
-  data object Home : MainTab()
+  public data object Home : MainTab()
 
-  data object CounterTab : MainTab()
+  public data object CounterTab : MainTab()
 
-  data object QuackTab : MainTab()
+  public data object QuackTab : MainTab()
 }
 
 public fun MainViewState.isQuackSelected(): Boolean =

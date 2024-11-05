@@ -1,6 +1,6 @@
 import java.lang.System.getProperty
 
-rootProject.name = "AnchorS"
+rootProject.name = "anchor"
 
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
@@ -35,6 +35,7 @@ dependencyResolutionManagement {
 
 include(
   ":anchor",
+  ":anchor-test",
   ":app",
   ":features:counter",
   ":features:main:presentation",

@@ -1,16 +1,11 @@
 plugins {
   kotlin("android")
   alias(libs.plugins.androidLibrary)
-  alias(libs.plugins.jetbrainsCompose)
-  alias(libs.plugins.compose.compiler)
+  alias(libs.plugins.composeCompiler)
 }
 
 android {
   namespace = "dev.kioba.anchor.features.counter"
-
-  buildFeatures {
-    compose = true
-  }
 
   compileSdk = 34
 
@@ -20,15 +15,22 @@ android {
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     consumerProguardFiles("consumer-rules.pro")
   }
+
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_17
     targetCompatibility = JavaVersion.VERSION_17
   }
+  kotlinOptions {
+    jvmTarget = JavaVersion.VERSION_17.toString()
+  }
+}
+
+kotlin {
+  explicitApi()
 }
 
 dependencies {
 
-  debugImplementation(libs.androidx.ui.tooling)
   implementation(libs.androidx.activity.compose)
   implementation(libs.androidx.activity.ktx)
   implementation(libs.androidx.lifecycle.runtime.ktx)
@@ -42,4 +44,13 @@ dependencies {
   implementation(libs.ui)
   implementation(libs.ui.tooling.preview)
   implementation(projects.anchor)
+
+  debugImplementation(libs.androidx.ui.tooling)
+
+  testImplementation(libs.kotlin.test)
+  testImplementation(projects.anchorTest)
+}
+
+tasks.withType<Test> {
+  useJUnitPlatform()
 }

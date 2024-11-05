@@ -4,8 +4,8 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
   alias(libs.plugins.kotlinMultiplatform)
   alias(libs.plugins.androidLibrary)
-  alias(libs.plugins.jetbrainsCompose)
-  alias(libs.plugins.compose.compiler)
+  alias(libs.plugins.composeMultiplatform)
+  alias(libs.plugins.composeCompiler)
 }
 
 kotlin {
@@ -21,10 +21,6 @@ kotlin {
 android {
 
   namespace = "dev.kioba.anchor.features.main.ui"
-
-  buildFeatures {
-    compose = true
-  }
 
   compileSdk = 34
 

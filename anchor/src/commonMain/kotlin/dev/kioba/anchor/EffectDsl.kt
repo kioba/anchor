@@ -16,7 +16,7 @@ public suspend inline fun <E, R> Anchor<E, *>.effect(
 
 @AnchorDsl
 public suspend inline fun <E, S> Anchor<E, S>.anchor(
-  f: Anchor<E, S>.() -> Action<Anchor<E, S>>,
+  f: Anchor<E, S>.() -> AnchorOf<Anchor<E, S>>,
 ) where E : Effect, S : ViewState {
   with(f()) {
     execute()

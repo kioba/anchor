@@ -6,6 +6,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.painterResource
 import dev.kioba.anchor.compose.anchor
+import dev.kioba.anchor.features.main.presentation.data.MainAnchor
 import dev.kioba.anchor.features.main.presentation.data.selectCounter
 import dev.kioba.anchor.features.main.presentation.data.selectHome
 import dev.kioba.anchor.features.main.presentation.data.selectQuack
@@ -32,7 +33,7 @@ internal fun RowScope.HomeItem(
   NavigationBarItem(
     selected = state.isHomeSelected(),
     icon = { HomeIcon() },
-    onClick = anchor(::selectHome),
+    onClick = anchor(receiver = MainAnchor::selectHome),
   )
 }
 

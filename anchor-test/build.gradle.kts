@@ -4,8 +4,6 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
   alias(libs.plugins.kotlinMultiplatform)
   alias(libs.plugins.androidLibrary)
-  alias(libs.plugins.composeCompiler)
-  alias(libs.plugins.composeMultiplatform)
   alias(libs.plugins.kmpNativeCoroutines)
   alias(libs.plugins.vaniktechMavenPublish)
 }
@@ -31,7 +29,7 @@ kotlin {
   ).forEach { iosTarget ->
     iosTarget.binaries {
       framework {
-        baseName = "anchor"
+        baseName = "anchor-test"
         isStatic = true
         binaryOption("bundleId", "dev.kioba.anchor")
         binaryOption("bundleVersion", "2")
@@ -43,10 +41,9 @@ kotlin {
     val commonMain by getting {
       dependencies {
         implementation(libs.kotlinx.coroutines.core)
-        implementation(compose.runtime)
-        implementation(compose.foundation)
-        implementation(compose.material)
-        implementation(compose.components.resources)
+        implementation(libs.kotlinx.coroutines.test)
+        implementation(libs.kotlin.test)
+        api(projects.anchor)
       }
     }
     val commonTest by getting {
@@ -56,31 +53,22 @@ kotlin {
     }
     val androidMain by getting {
       dependencies {
-        implementation(libs.ui)
-        implementation(libs.androidx.foundation)
-        implementation(libs.androidx.runtime)
-        implementation(libs.androidx.lifecycle.viewmodel.ktx)
-        implementation(libs.androidx.lifecycle.runtime.ktx)
-        implementation(libs.androidx.lifecycle.common)
       }
     }
 
     val androidUnitTest by getting {
       dependencies {
-        implementation(libs.junit)
       }
     }
     val androidInstrumentedTest by getting {
       dependencies {
-        implementation(libs.androidx.junit)
-        implementation(libs.androidx.espresso.core)
       }
     }
   }
 }
 
 android {
-  namespace = "dev.kioba.anchor"
+  namespace = "dev.kioba.anchor.test"
 
   compileSdk = 34
 
@@ -100,7 +88,7 @@ android {
 mavenPublishing {
   coordinates(
     groupId = "dev.kioba",
-    artifactId = "anchor",
+    artifactId = "anchor-test",
     version = "0.0.6",
   )
 

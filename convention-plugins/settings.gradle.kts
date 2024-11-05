@@ -1,5 +1,5 @@
 
-rootProject.name = "AnchorS"
+rootProject.name = "convention-plugins"
 
 pluginManagement {
   repositories {

@@ -6,14 +6,14 @@ espressoCore = "3.6.1"
 foundation = "1.6.8"
 junit = "4.13.2"
 junitVersion = "1.2.1"
-kotlin = "2.0.20"
+kotlin = "2.0.21"
 compose-plugin = "1.6.11"
 android-minSdk = "21"
 android-compileSdk = "34"
-kotlinxCoroutinesAndroid = "1.8.1"
-kotlinxCoroutines = "1.9.0-RC"
+kotlinxCoroutinesAndroid = "1.9.0"
+kotlinxCoroutines = "1.9.0"
 kotlinxSerializationCoreJvm = "1.6.3"
-kotlinxSerializationJson = "1.5.1"
+kotlinxSerializationJson = "1.6.3"
 lifecycleRuntimeKtx = "2.8.4"
 material = "1.6.8"
 material3 = "1.2.1"
@@ -42,6 +42,7 @@ junit = { module = "junit:junit", version.ref = "junit" }
 kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlin" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinxCoroutinesAndroid" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinxCoroutines" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }
 material = { module = "androidx.compose.material:material", version.ref = "material" }
@@ -52,9 +53,9 @@ androidx-material3-android = { group = "androidx.compose.material3", name = "mat
 [plugins]
 androidLibrary = { id = "com.android.library", version.ref = "agp" }
 
-jetbrainsCompose = { id = "org.jetbrains.compose", version.ref = "compose-plugin" }
+composeCompiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+composeMultiplatform = { id = "org.jetbrains.compose", version.ref = "compose-plugin" }
 
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
-compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kmpNativeCoroutines = { id = "com.rickclephas.kmp.nativecoroutines", version.ref = "kmpNativeCoroutines" }
 vaniktechMavenPublish = { id = "com.vanniktech.maven.publish", version.ref = "maven-publish" }

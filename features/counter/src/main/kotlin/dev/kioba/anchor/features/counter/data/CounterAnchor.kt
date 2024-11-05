@@ -2,12 +2,19 @@ package dev.kioba.anchor.features.counter.data
 
 import dev.kioba.anchor.Anchor
 import dev.kioba.anchor.EmptyEffect
-import dev.kioba.anchor.features.counter.model.CounterState
+import dev.kioba.anchor.ViewState
 
-internal typealias CounterAnchor = Anchor<EmptyEffect, CounterState>
+internal typealias CounterEffect = EmptyEffect
+internal typealias CounterAnchor = Anchor<CounterEffect, CounterState>
 
-internal fun counterAnchor(): CounterAnchor =
+internal fun counterAnchor(
+  effect: CounterEffect = CounterEffect,
+): CounterAnchor =
   CounterAnchor(
     initialState = ::CounterState,
-    effectScope = { EmptyEffect },
+    effectScope = { effect },
   )
+
+public data class CounterState(
+  val count: Int = 0,
+) : ViewState

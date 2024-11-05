@@ -2,9 +2,10 @@ package dev.kioba.anchor.compose
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import dev.kioba.anchor.Action
 import dev.kioba.anchor.ActionChannel
 import dev.kioba.anchor.Anchor
+import dev.kioba.anchor.AnchorOf
+import dev.kioba.anchor.AnchorRuntime
 import dev.kioba.anchor.Effect
 import dev.kioba.anchor.ViewState
 import kotlinx.coroutines.CoroutineScope
@@ -24,10 +25,12 @@ internal class ContainerViewModel<R, E, S>(
       execute(f)
     }
 
+  val runtime: AnchorRuntime<E, S> = AnchorRuntime(anchor)
+
   init {
     coroutineScope.launch {
-      anchor.consumeInitial()
-      with(anchor) {
+      runtime.consumeInitial()
+      with(runtime) {
         subscribe()
       }
     }
@@ -37,7 +40,7 @@ internal class ContainerViewModel<R, E, S>(
 @Suppress("UNCHECKED_CAST")
 @PublishedApi
 internal fun <R, E, S> convert(
-  capture: Action<out Anchor<*, *>>,
-): Action<R>
+  capture: AnchorOf<out Anchor<*, *>>,
+): AnchorOf<R>
   where R : Anchor<E, S>, E : Effect, S : ViewState =
-  capture as Action<R>
+  capture as AnchorOf<R>

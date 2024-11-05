@@ -1,6 +1,6 @@
 package dev.kioba.anchor
 
-import com.rickclephas.kmp.nativecoroutines.NativeCoroutinesState
+import com.rickclephas.kmp.nativecoroutines.NativeCoroutinesRefinedState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
@@ -14,53 +14,60 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onSubscription
 
-public class Anchor<E, S>(
-  public val initialState: () -> S,
-  effectScope: () -> E,
-  private val init: (() -> Action<Anchor<E, S>>)? = null,
-  private val subscriptions: (suspend SubscriptionsScope<E, S>.() -> Unit)? = null,
+public data class Anchor<E, S>(
+  internal val initialState: () -> S,
+  internal val effectScope: () -> E,
+  internal val init: (() -> AnchorOf<Anchor<E, S>>)? = null,
+  internal val subscriptions: (suspend SubscriptionsScope<E, S>.() -> Unit)? = null,
 ) where E : Effect, S : ViewState {
+  @PublishedApi
+  internal val effects: E = effectScope()
+
   @PublishedApi
   @Suppress("ktlint:standard:backing-property-naming", "PropertyName")
   internal val _viewState: MutableStateFlow<S> = MutableStateFlow(initialState())
-
-  @NativeCoroutinesState
-  public val viewState: StateFlow<S> = _viewState.asStateFlow()
 
   @PublishedApi
   @Suppress("ktlint:standard:backing-property-naming", "PropertyName")
   internal val _signals: MutableSharedFlow<Signal> = MutableSharedFlow()
 
-  public val signals: SharedFlow<Signal> = _signals.asSharedFlow()
+  @PublishedApi
+  @Suppress("ktlint:standard:backing-property-naming", "PropertyName")
+  internal val _emitter: MutableSharedFlow<Event> = MutableSharedFlow()
 
   @PublishedApi
   internal val jobs: MutableMap<Any, Job> = mutableMapOf()
 
-  @PublishedApi
-  internal val emitter: MutableSharedFlow<Event> = MutableSharedFlow()
+  @NativeCoroutinesRefinedState
+  public val viewState: StateFlow<S> = _viewState.asStateFlow()
 
+  public val signals: SharedFlow<Signal> = _signals.asSharedFlow()
+
+  public val emitter: SharedFlow<Event> = _emitter.asSharedFlow()
+}
+
+internal class AnchorRuntime<E, S>(
+  val anchor: Anchor<E, S>,
+) where E : Effect, S : ViewState {
   @PublishedApi
   internal val chain: SharedFlow<Event> =
-    emitter
+    anchor._emitter
       .asSharedFlow()
       .onSubscription { emit(Created) }
 
-  @PublishedApi
-  internal val effects: E = effectScope()
-
   internal suspend fun consumeInitial() {
     when {
-      init != null ->
-        with(init.invoke()) {
-          execute()
+      anchor.init != null ->
+        with(anchor.init.invoke()) {
+          anchor.execute()
         }
     }
   }
 
   private suspend fun <T : Event> SharedFlow<T>.handlers(): List<Flow<*>> =
-    subscriptions
+    anchor.subscriptions
       ?.let { function ->
-        SubscriptionsScope(this, anchor = this@Anchor)
+        SubscriptionsScope(this, anchor = anchor)
           .apply { function() }
       }?.flows
       .orEmpty()

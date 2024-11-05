@@ -15,25 +15,26 @@ public class SubscriptionsScope<E, S>(
   @PublishedApi
   internal val flows: MutableList<Flow<*>> = mutableListOf(),
 ) where E : Effect, S : ViewState {
-  @AnchorDsl
-  public inline fun <I> Flow<I>.anchor(
-    noinline block: Anchor<E, S>.(I) -> Unit,
-  ): Flow<I> =
-    onEach { value -> anchor.block(value) }
+  public val effect: E = anchor.effects
 
   @AnchorDsl
-  public inline fun <I> Flow<I>.anchor(
-    noinline block: (I) -> Action<Anchor<E, S>>,
+  public fun <I> Flow<I>.anchor(
+    effect: Anchor<E, S>.(I) -> Unit,
+  ): Flow<I> =
+    onEach { value -> anchor.effect(value) }
+
+  @AnchorDsl
+  public fun <I> Flow<I>.anchor(
+    block: (I) -> AnchorOf<Anchor<E, S>>,
   ): Flow<I> =
     onEach { value -> with(block(value)) { anchor.execute() } }
 
   @AnchorDsl
   public suspend inline fun <reified A> listen(
-    crossinline block: E.(Flow<A>) -> Flow<*>,
+    crossinline block: (Flow<A>) -> Flow<*>,
   ) where A : Event {
     wrap {
-      anchor.effects
-        .block(filterIsInstance())
+      block(filterIsInstance())
     }
   }
 
@@ -49,5 +50,5 @@ public class SubscriptionsScope<E, S>(
 public suspend inline fun <R, E, S> R.emit(
   f: SubscriptionScope.() -> Event,
 ): Unit where R : Anchor<E, S>, E : Effect, S : ViewState =
-  emitter
+  _emitter
     .emit(SubscriptionScope.f())

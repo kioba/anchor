@@ -3,10 +3,16 @@ package dev.kioba.anchor
 @PublishedApi
 internal fun interface ActionChannel {
   fun execute(
-    capture: Action<out Anchor<*, *>>,
+    capture: AnchorOf<out Anchor<*, *>>,
   )
 }
 
-public fun interface Action<E> {
-  public suspend fun E.execute()
+public fun interface AnchorOf<A> {
+  public suspend fun A.execute()
 }
+
+@AnchorDsl
+public fun <E, S> anchorScope(
+  block: suspend Anchor<E, S>.() -> Unit,
+): AnchorOf<Anchor<E, S>> where E : Effect, S : ViewState =
+  AnchorOf(block)
