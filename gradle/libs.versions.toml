@@ -1,5 +1,5 @@
 [versions]
-activityKtx = "1.9.1"
+activityKtx = "1.9.3"
 agp = "8.5.2"
 coreKtx = "1.13.1"
 espressoCore = "3.6.1"
