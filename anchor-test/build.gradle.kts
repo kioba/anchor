@@ -70,10 +70,10 @@ kotlin {
 android {
   namespace = "dev.kioba.anchor.test"
 
-  compileSdk = 34
+  compileSdk = libs.versions.android.compileSdk.get().toInt()
 
   defaultConfig {
-    minSdk = 21
+    minSdk = libs.versions.android.minSdk.get().toInt()
   }
   composeOptions {
     kotlinCompilerExtensionVersion = "1.5.15"
