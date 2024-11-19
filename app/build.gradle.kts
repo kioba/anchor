@@ -18,12 +18,12 @@ kotlin {
 }
 
 android {
-  compileSdk = 34
+  compileSdk = libs.versions.android.compileSdk.get().toInt()
 
   defaultConfig {
     applicationId = "dev.kioba.anchor"
-    minSdk = 26
-    targetSdk = 34
+    minSdk = libs.versions.android.minSdk.get().toInt()
+    targetSdk = libs.versions.android.targetSdk.get().toInt()
     versionCode = 1
     versionName = "1.0"
 

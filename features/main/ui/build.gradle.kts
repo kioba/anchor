@@ -22,10 +22,10 @@ android {
 
   namespace = "dev.kioba.anchor.features.main.ui"
 
-  compileSdk = 34
+  compileSdk = libs.versions.android.compileSdk.get().toInt()
 
   defaultConfig {
-    minSdk = 21
+    minSdk = libs.versions.android.minSdk.get().toInt()
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     consumerProguardFiles("consumer-rules.pro")
@@ -37,7 +37,6 @@ android {
 }
 
 dependencies {
-  //  implementation("dev.kioba:anchor:0.0.1")
   debugImplementation(libs.androidx.ui.tooling)
   implementation(libs.androidx.activity.compose)
   implementation(libs.androidx.activity.ktx)
@@ -50,10 +49,4 @@ dependencies {
   implementation(projects.anchor)
   implementation(projects.features.counter)
   implementation(projects.features.main.presentation)
-
-//  testImplementation 'junit:junit:4.13.2'
-//  androidTestImplementation 'androidx.test.ext:junit:1.1.5'
-//  androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
-//  androidTestImplementation "androidx.compose.ui:ui-test-junit4:1.4.3"
-//  debugImplementation "androidx.compose.ui:ui-tooling:1.4.3"
 }
