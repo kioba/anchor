@@ -1,0 +1,28 @@
+name: 'pr check'
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+      - main
+jobs:
+  pr_check:
+    name: 'build and test'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: checkout project
+        uses: actions/checkout@v4
+
+      - name: set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: run tests
+        run: ./gradlew check --no-daemon

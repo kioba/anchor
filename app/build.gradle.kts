@@ -73,3 +73,7 @@ dependencies {
 
   testImplementation(libs.junit)
 }
+
+tasks.withType<Test> {
+  useJUnitPlatform()
+}
