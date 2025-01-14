@@ -16,7 +16,7 @@ internal class ContainerViewModel<R, E, S>(
   override val anchor: R,
 ) : ViewModel(),
   ContainedScope<R, E, S> where
-        R : Anchor<E, S>, E : Effect, S : ViewState {
+R : AnchorRuntime<E, S>, E : Effect, S : ViewState {
   override val coroutineScope: CoroutineScope
     get() = viewModelScope
 
@@ -25,12 +25,10 @@ internal class ContainerViewModel<R, E, S>(
       execute(f)
     }
 
-  val runtime: AnchorRuntime<E, S> = AnchorRuntime(anchor)
-
   init {
     coroutineScope.launch {
-      runtime.consumeInitial()
-      with(runtime) {
+      anchor.consumeInitial()
+      with(anchor) {
         subscribe()
       }
     }

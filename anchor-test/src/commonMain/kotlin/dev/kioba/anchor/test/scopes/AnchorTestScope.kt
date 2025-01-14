@@ -1,28 +1,17 @@
 package dev.kioba.anchor.test.scopes
 
 import dev.kioba.anchor.Anchor
-import dev.kioba.anchor.AnchorOf
 import dev.kioba.anchor.Effect
+import dev.kioba.anchor.RememberAnchorScope
+import dev.kioba.anchor.SubscriptionsScope
 import dev.kioba.anchor.ViewState
 import dev.kioba.anchor.test.AnchorTestDsl
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.drop
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.merge
-import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.test.TestCoroutineScheduler
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
-import kotlin.test.assertNotNull
 
 public class AnchorTestScope<E : Effect, S : ViewState>(
   @PublishedApi
-  internal val backgroundScope: CoroutineScope,
-  @PublishedApi
-  internal val testScheduler: TestCoroutineScheduler,
+  internal val anchorFactory: RememberAnchorScope.() -> Anchor<E, S>,
 ) {
   @PublishedApi
   internal val givenScope: GivenScopeImpl<E, S> = GivenScopeImpl()
@@ -31,7 +20,7 @@ public class AnchorTestScope<E : Effect, S : ViewState>(
   internal val verifyScope: VerifyScopeImpl<E, S> = VerifyScopeImpl()
 
   @PublishedApi
-  internal lateinit var action: () -> AnchorOf<Anchor<E, S>>
+  internal lateinit var action: suspend Anchor<E, S>.() -> Unit
 
   @AnchorTestDsl
   public inline fun given(
@@ -43,7 +32,7 @@ public class AnchorTestScope<E : Effect, S : ViewState>(
   @AnchorTestDsl
   public fun on(
     @Suppress("UNUSED_PARAMETER") description: String,
-    anchorOf: () -> AnchorOf<Anchor<E, S>>,
+    anchorOf: suspend Anchor<E, S>.() -> Unit,
   ) {
     action = anchorOf
   }
@@ -57,31 +46,26 @@ public class AnchorTestScope<E : Effect, S : ViewState>(
   }
 }
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @PublishedApi
 internal suspend inline fun <reified E : Effect, reified S : ViewState> AnchorTestScope<E, S>.assert() {
-  val initialState = givenScope.assertInitialState()
-  val effectScope = givenScope.assertEffectScope()
-  val anchor =
-    Anchor(
-      initialState = { initialState },
-      effectScope = { effectScope },
-    )
-
-  val actualActions = mutableListOf<VerifyAction>()
-  backgroundScope.launch(context = UnconfinedTestDispatcher(testScheduler)) {
-    merge(
-      anchor.viewState.drop(1).map { ReducerAction<S> { it } },
-      anchor.signals.map { SignalAction { it } },
-      anchor.emitter.map { EventAction { it } },
-    ).toList(actualActions)
+  val rememberAnchorScope = object : RememberAnchorScope {
+    @Suppress("UNCHECKED_CAST")
+    override fun <E : Effect, S : ViewState> create(
+      effectScope: () -> E,
+      initialState: () -> S,
+      init: (suspend Anchor<E, S>.() -> Unit)?,
+      subscriptions: (suspend SubscriptionsScope<E, S>.() -> Unit)?
+    ): Anchor<E, S> =
+      AnchorTestRuntime(
+        givenScope.effectScope as? E ?: effectScope(),
+        givenScope.initState as? S ?: initialState(),
+      )
   }
+  val anchor: AnchorTestRuntime<E, S> = rememberAnchorScope.anchorFactory() as AnchorTestRuntime<E, S>
 
-  with(action()) {
-    anchor.execute()
-  }
+  anchor.action()
 
-  assertEvents<E, S>(actualActions, initialState, effectScope)
+  assertEvents<E, S>(anchor.verifyActions, anchor.initState, anchor.effectScope)
 }
 
 @PublishedApi
@@ -125,37 +109,3 @@ internal inline fun <reified E : Effect, reified S : ViewState> AnchorTestScope<
       }
     }
 }
-
-@PublishedApi
-internal inline fun <reified S> GivenScopeImpl<*, S>.assertInitialState(): S where S : ViewState =
-  assertNotNull(
-    actual = initState,
-    message = initialStateMessage<S>(),
-  )
-
-@PublishedApi
-internal inline fun <reified E> GivenScopeImpl<E, *>.assertEffectScope(): E where E : Effect =
-  assertNotNull(
-    actual = effectScope,
-    message = effectScopeMessage<E>(),
-  ).also { scope -> effects.forEach { f -> scope.f() } }
-
-@PublishedApi
-internal inline fun <reified S> initialStateMessage(): String where S : ViewState =
-  """
-  Initial State has not been provided!
-  given {
-    initialState { ${S::class.simpleName}() }
-  }
-  Initial State was null
-  """.trimIndent()
-
-@PublishedApi
-internal inline fun <reified E> effectScopeMessage(): String where E : Effect =
-  """
-  Effect Scope has not been provided!
-  given {
-    effectScope { ${E::class.simpleName}() }
-  }
-  Effect Scope was null
-  """.trimIndent()

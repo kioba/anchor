@@ -23,6 +23,7 @@ import dev.kioba.anchor.compose.HandleSignal
 import dev.kioba.anchor.compose.RememberAnchor
 import dev.kioba.anchor.compose.anchor
 import dev.kioba.anchor.features.counter.R
+import dev.kioba.anchor.features.counter.data.CounterAnchor
 import dev.kioba.anchor.features.counter.data.counterAnchor
 import dev.kioba.anchor.features.counter.data.decrement
 import dev.kioba.anchor.features.counter.data.increment
@@ -33,7 +34,7 @@ public fun ViewModelStoreOwner.CounterPage(
   paddingValues: PaddingValues,
   snackbarHostState: SnackbarHostState,
 ) {
-  RememberAnchor(scope = ::counterAnchor) { state ->
+  RememberAnchor(scope = { counterAnchor() }) { state ->
     HandleSignal<CounterSignal> {
       val message =
         when (it) {
@@ -44,10 +45,9 @@ public fun ViewModelStoreOwner.CounterPage(
     }
 
     Box(
-      modifier =
-        Modifier
-          .padding(paddingValues)
-          .fillMaxSize(),
+      modifier = Modifier
+        .padding(paddingValues)
+        .fillMaxSize(),
     ) {
       Column(modifier = Modifier.align(Alignment.Center)) {
         Text(
@@ -58,11 +58,11 @@ public fun ViewModelStoreOwner.CounterPage(
         Spacer(modifier = Modifier.size(32.dp))
         Row {
           Button(
-            onClick = anchor(::decrement),
+            onClick = anchor(CounterAnchor::decrement),
           ) { DecrementIcon() }
           Spacer(modifier = Modifier.size(16.dp))
           Button(
-            onClick = anchor(::increment),
+            onClick = anchor(CounterAnchor::increment),
           ) { IncrementIcon() }
         }
       }

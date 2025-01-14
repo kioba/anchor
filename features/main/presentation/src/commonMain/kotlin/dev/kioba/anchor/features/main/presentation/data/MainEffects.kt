@@ -1,62 +1,44 @@
 package dev.kioba.anchor.features.main.presentation.data
 
-import dev.kioba.anchor.AnchorOf
-import dev.kioba.anchor.anchorScope
-import dev.kioba.anchor.cancellable
-import dev.kioba.anchor.effect
-import dev.kioba.anchor.emit
 import dev.kioba.anchor.features.main.presentation.model.MainEvent
-import dev.kioba.anchor.reduce
-import dev.kioba.anchor.withState
 import kotlinx.coroutines.delay
 
-public fun sayHi(): AnchorOf<MainAnchor> =
-  anchorScope {
-    cancellable("Initial") {
-      reduce { copy(details = "Hello Android!") }
-    }
+public suspend fun MainAnchor.sayHi() {
+  cancellable("Initial") {
+    reduce { copy(details = "Hello Android!") }
   }
+}
 
-public fun clear(): AnchorOf<MainAnchor> =
-  anchorScope {
-    val value = effect { delayWithEffect() }
-    emit { MainEvent.Cancel }
-    reduce {
-      copy(
-        details = "cleared",
-        iterationCounter = null,
-      )
-    }
+public suspend fun MainAnchor.clear() {
+  val value = effect { delayWithEffect() }
+  emit { MainEvent.Cancel }
+  reduce {
+    copy(
+      details = "cleared",
+      iterationCounter = null,
+    )
   }
+}
 
-public fun refresh(): AnchorOf<MainAnchor> =
-  anchorScope {
-    emit { MainEvent.Refresh }
-  }
+public suspend fun MainAnchor.refresh(): Unit =
+  emit { MainEvent.Refresh }
 
-public suspend fun MainAnchor.selectHome() {
+public fun MainAnchor.selectHome() {
   reduce { updateHomeSelected() }
 }
 
-public fun selectCounter(): AnchorOf<MainAnchor> =
-  anchorScope {
-    reduce { updateCounterSelected() }
-  }
+public fun MainAnchor.selectCounter(): Unit =
+  reduce { updateCounterSelected() }
 
-public fun selectQuack(): AnchorOf<MainAnchor> =
-  anchorScope {
-    reduce { updateProfileSelected() }
-  }
+public fun MainAnchor.selectQuack(): Unit =
+  reduce { updateProfileSelected() }
 
-public fun iterationCounter(
+public fun MainAnchor.iterationCounter(
   value: Int,
-): AnchorOf<MainAnchor> =
-  anchorScope {
-    reduce { copy(details = "refreshed") }
-    reduce {
-      copy(iterationCounter = value.toString())
-    }
-  }
+) {
+  reduce { copy(details = "refreshed") }
+  reduce { copy(iterationCounter = value.toString()) }
+}
 
 public fun MainAnchor.hundreds(): Int =
   withState { hundreds }

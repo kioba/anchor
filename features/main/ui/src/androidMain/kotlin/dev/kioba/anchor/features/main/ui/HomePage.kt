@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.kioba.anchor.compose.anchor
+import dev.kioba.anchor.features.main.presentation.data.MainAnchor
 import dev.kioba.anchor.features.main.presentation.data.clear
 import dev.kioba.anchor.features.main.presentation.data.refresh
 import dev.kioba.anchor.features.main.presentation.model.MainViewState
@@ -45,7 +46,7 @@ internal fun HomePage(
 @Composable
 private fun CancelButton() {
   Button(
-    onClick = anchor(::clear),
+    onClick = anchor(MainAnchor::clear),
   ) {
     Text(text = "cancel")
   }
@@ -54,7 +55,7 @@ private fun CancelButton() {
 @Composable
 private fun RefreshButton() {
   Button(
-    onClick = anchor(::refresh),
+    onClick = anchor(MainAnchor::refresh),
   ) {
     Text(text = "refresh")
   }

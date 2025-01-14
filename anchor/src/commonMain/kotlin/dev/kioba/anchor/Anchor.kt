@@ -1,80 +1,76 @@
 package dev.kioba.anchor
 
-import com.rickclephas.kmp.nativecoroutines.NativeCoroutinesRefinedState
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.merge
-import kotlinx.coroutines.flow.onSubscription
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
+import kotlin.coroutines.CoroutineContext
 
-public data class Anchor<E, S>(
-  internal val initialState: () -> S,
-  internal val effectScope: () -> E,
-  internal val init: (() -> AnchorOf<Anchor<E, S>>)? = null,
-  internal val subscriptions: (suspend SubscriptionsScope<E, S>.() -> Unit)? = null,
-) where E : Effect, S : ViewState {
-  @PublishedApi
-  internal val effects: E = effectScope()
+@AnchorDsl
+public interface Anchor<E, S>
+  : MutableStateAnchor<S>,
+  EffectAnchor<E>,
+  CancellableAnchor<E, S>,
+  SubscriptionAnchor,
+  SignalAnchor
+  where
+E : Effect,
+S : ViewState
 
-  @PublishedApi
-  @Suppress("ktlint:standard:backing-property-naming", "PropertyName")
-  internal val _viewState: MutableStateFlow<S> = MutableStateFlow(initialState())
+@AnchorDsl
+public interface StateAnchor<S> where S : ViewState {
+  @AnchorDsl
+  public val state: S
 
-  @PublishedApi
-  @Suppress("ktlint:standard:backing-property-naming", "PropertyName")
-  internal val _signals: MutableSharedFlow<Signal> = MutableSharedFlow()
-
-  @PublishedApi
-  @Suppress("ktlint:standard:backing-property-naming", "PropertyName")
-  internal val _emitter: MutableSharedFlow<Event> = MutableSharedFlow()
-
-  @PublishedApi
-  internal val jobs: MutableMap<Any, Job> = mutableMapOf()
-
-  @NativeCoroutinesRefinedState
-  public val viewState: StateFlow<S> = _viewState.asStateFlow()
-
-  public val signals: SharedFlow<Signal> = _signals.asSharedFlow()
-
-  public val emitter: SharedFlow<Event> = _emitter.asSharedFlow()
+  @AnchorDsl
+  public fun <R> withState(
+    block: S.() -> R,
+  ): R =
+    state.run(block)
 }
 
-internal class AnchorRuntime<E, S>(
-  val anchor: Anchor<E, S>,
-) where E : Effect, S : ViewState {
-  @PublishedApi
-  internal val chain: SharedFlow<Event> =
-    anchor._emitter
-      .asSharedFlow()
-      .onSubscription { emit(Created) }
+@AnchorDsl
+public interface MutableStateAnchor<S> : StateAnchor<S> where S : ViewState {
+  @AnchorDsl
+  public fun reduce(
+    reducer: S.() -> S,
+  )
+}
 
-  internal suspend fun consumeInitial() {
-    when {
-      anchor.init != null ->
-        with(anchor.init.invoke()) {
-          anchor.execute()
-        }
-    }
-  }
+@AnchorDsl
+public interface EffectAnchor<E> where E : Effect {
+  @AnchorDsl
+  public suspend fun <R> effect(
+    coroutineContext: CoroutineContext = Dispatchers.IO,
+    block: suspend E.() -> R,
+  ): R
+}
 
-  private suspend fun <T : Event> SharedFlow<T>.handlers(): List<Flow<*>> =
-    anchor.subscriptions
-      ?.let { function ->
-        SubscriptionsScope(this, anchor = anchor)
-          .apply { function() }
-      }?.flows
-      .orEmpty()
+@AnchorDsl
+public interface CancellableAnchor<E, S> where E : Effect, S : ViewState {
+  @AnchorDsl
+  public suspend fun cancellable(
+    key: Any,
+    block: suspend Anchor<E, S>.() -> Unit,
+  )
+}
 
-  public suspend fun CoroutineScope.subscribe(): Job =
-    chain
-      .handlers()
-      .merge()
-      .launchIn(this)
+@AnchorDsl
+public object SubscriptionScope
+
+@AnchorDsl
+public interface SubscriptionAnchor {
+  @AnchorDsl
+  public suspend fun emit(
+    block: SubscriptionScope.() -> Event,
+  )
+}
+
+@AnchorDsl
+public object SignalScope
+
+@AnchorDsl
+public interface SignalAnchor {
+  @AnchorDsl
+  public suspend fun post(
+    block: SignalScope.() -> Signal,
+  )
 }

@@ -22,7 +22,7 @@ internal fun RowScope.QuackItem(
   NavigationBarItem(
     selected = state.isQuackSelected(),
     icon = { QuackIcon() },
-    onClick = anchor(::selectQuack),
+    onClick = anchor(MainAnchor::selectQuack),
   )
 }
 
@@ -33,7 +33,7 @@ internal fun RowScope.HomeItem(
   NavigationBarItem(
     selected = state.isHomeSelected(),
     icon = { HomeIcon() },
-    onClick = anchor(receiver = MainAnchor::selectHome),
+    onClick = anchor(block = MainAnchor::selectHome),
   )
 }
 
@@ -44,7 +44,7 @@ internal fun RowScope.CounterItem(
   NavigationBarItem(
     selected = state.isCounterSelected(),
     icon = { CounterIcon() },
-    onClick = anchor(::selectCounter),
+    onClick = anchor(MainAnchor::selectCounter),
   )
 }
 

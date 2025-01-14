@@ -29,4 +29,4 @@ internal fun MainSubScope.refresh(
         MainEvent.Refresh -> effect.helloListening()
         MainEvent.Cancel -> emptyFlow()
       }
-    }.anchor(::iterationCounter)
+    }.anchor(MainAnchor::iterationCounter)
