@@ -2,6 +2,7 @@ package dev.kioba.anchor.features.main.presentation.data
 
 import dev.kioba.anchor.Anchor
 import dev.kioba.anchor.Effect
+import dev.kioba.anchor.RememberAnchorScope
 import dev.kioba.anchor.SubscriptionsScope
 import dev.kioba.anchor.features.main.presentation.model.MainViewState
 
@@ -16,10 +17,10 @@ internal fun mainViewState() =
     details = "Hey",
   )
 
-public fun mainAnchor(): MainAnchor =
-  Anchor(
+public fun RememberAnchorScope.mainAnchor(): MainAnchor =
+  create(
     initialState = ::mainViewState,
     effectScope = { MainEffect },
-    init = ::sayHi,
+    init = MainAnchor::sayHi,
     subscriptions = MainSubScope::subscriptions,
   )

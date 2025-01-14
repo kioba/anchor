@@ -6,7 +6,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStoreOwner
-import dev.kioba.anchor.Anchor
+import dev.kioba.anchor.AnchorRuntime
 import dev.kioba.anchor.Effect
 import dev.kioba.anchor.ViewState
 
@@ -16,7 +16,7 @@ import dev.kioba.anchor.ViewState
 internal inline fun <reified R, E, S> ViewModelStoreOwner.rememberViewModel(
   key: String,
   noinline factory: @DisallowComposableCalls () -> R,
-): ContainedScope<R, E, S> where R : Anchor<E, S>, E : Effect, S : ViewState {
+): ContainedScope<R, E, S> where R : AnchorRuntime<E, S>, E : Effect, S : ViewState {
   val scopeFactory = rememberUpdatedState(newValue = factory)
 
   return remember(key1 = key) {

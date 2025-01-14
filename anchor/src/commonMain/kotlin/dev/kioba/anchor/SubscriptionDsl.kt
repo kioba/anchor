@@ -4,18 +4,16 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.onEach
 
-public object SubscriptionScope
-
 @AnchorDsl
 public class SubscriptionsScope<E, S>(
   @PublishedApi
   internal val chain: Flow<Event>,
   @PublishedApi
   internal val anchor: Anchor<E, S>,
+  public val effect: E,
   @PublishedApi
   internal val flows: MutableList<Flow<*>> = mutableListOf(),
 ) where E : Effect, S : ViewState {
-  public val effect: E = anchor.effects
 
   @AnchorDsl
   public fun <I> Flow<I>.anchor(
@@ -45,10 +43,3 @@ public class SubscriptionsScope<E, S>(
     flows.add(chain.func())
   }
 }
-
-@AnchorDsl
-public suspend inline fun <R, E, S> R.emit(
-  f: SubscriptionScope.() -> Event,
-): Unit where R : Anchor<E, S>, E : Effect, S : ViewState =
-  _emitter
-    .emit(SubscriptionScope.f())
