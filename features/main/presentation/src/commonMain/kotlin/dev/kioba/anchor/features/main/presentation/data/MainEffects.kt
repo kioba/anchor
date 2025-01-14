@@ -10,7 +10,7 @@ public suspend fun MainAnchor.sayHi() {
 }
 
 public suspend fun MainAnchor.clear() {
-  val value = effect { delayWithEffect() }
+  effect { delayWithEffect() }
   emit { MainEvent.Cancel }
   reduce {
     copy(
