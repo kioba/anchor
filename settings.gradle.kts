@@ -38,6 +38,7 @@ include(
   ":anchor-test",
   ":app",
   ":features:counter",
+  ":features:config",
   ":features:main:presentation",
   ":features:main:ui",
 )

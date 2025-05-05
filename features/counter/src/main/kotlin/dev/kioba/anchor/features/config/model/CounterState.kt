@@ -1,4 +1,4 @@
-package dev.kioba.anchor.features.counter.model
+package dev.kioba.anchor.features.config.model
 
 // @Immutable
 // public data class CounterState(

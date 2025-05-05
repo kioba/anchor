@@ -15,11 +15,11 @@ public sealed class MainTab {
 
   public data object CounterTab : MainTab()
 
-  public data object QuackTab : MainTab()
+  public data object ConfigTab : MainTab()
 }
 
 public fun MainViewState.isQuackSelected(): Boolean =
-  selectedTab is MainTab.QuackTab
+  selectedTab is MainTab.ConfigTab
 
 public fun MainViewState.isCounterSelected(): Boolean =
   selectedTab is MainTab.CounterTab

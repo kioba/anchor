@@ -1,4 +1,4 @@
-package dev.kioba.anchor.features.counter.ui
+package dev.kioba.anchor.features.config.ui
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,12 +22,12 @@ import androidx.lifecycle.ViewModelStoreOwner
 import dev.kioba.anchor.compose.HandleSignal
 import dev.kioba.anchor.compose.RememberAnchor
 import dev.kioba.anchor.compose.anchor
+import dev.kioba.anchor.features.config.data.CounterAnchor
+import dev.kioba.anchor.features.config.data.counterAnchor
+import dev.kioba.anchor.features.config.data.decrement
+import dev.kioba.anchor.features.config.data.increment
+import dev.kioba.anchor.features.config.model.CounterSignal
 import dev.kioba.anchor.features.counter.R
-import dev.kioba.anchor.features.counter.data.CounterAnchor
-import dev.kioba.anchor.features.counter.data.counterAnchor
-import dev.kioba.anchor.features.counter.data.decrement
-import dev.kioba.anchor.features.counter.data.increment
-import dev.kioba.anchor.features.counter.model.CounterSignal
 
 @Composable
 public fun ViewModelStoreOwner.CounterPage(
