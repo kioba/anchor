@@ -13,7 +13,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.lifecycle.ViewModelStoreOwner
-import dev.kioba.anchor.features.counter.ui.CounterPage
+import dev.kioba.anchor.features.config.ui.ConfigPage
+import dev.kioba.anchor.features.config.ui.CounterPage
 import dev.kioba.anchor.features.main.presentation.model.MainTab
 import dev.kioba.anchor.features.main.presentation.model.MainViewState
 
@@ -39,7 +40,7 @@ public fun ViewModelStoreOwner.MainUi(
           when (targetState) {
             MainTab.Home -> HomePage(paddingValues, state)
             MainTab.CounterTab -> CounterPage(paddingValues, snackbarHostState)
-            MainTab.QuackTab -> HomePage(paddingValues, state)
+            MainTab.ConfigTab -> ConfigPage(paddingValues)
           }
         }
       },

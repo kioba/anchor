@@ -6,7 +6,6 @@ import androidx.compose.runtime.DisallowComposableCalls
 import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.lifecycle.ViewModelStoreOwner
 import dev.kioba.anchor.Anchor
 import dev.kioba.anchor.AnchorRuntime
@@ -15,13 +14,14 @@ import dev.kioba.anchor.RememberAnchorScope
 import dev.kioba.anchor.SubscriptionsScope
 import dev.kioba.anchor.UnitSignal
 import dev.kioba.anchor.ViewState
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.map
 
 @Composable
 public inline fun <reified S, E> ViewModelStoreOwner.RememberAnchor(
   noinline scope: @DisallowComposableCalls RememberAnchorScope.() -> Anchor<E, S>,
   customKey: String? = null,
-  crossinline content: @Composable Anchor<E, S>.(S) -> Unit,
+  crossinline content: @Composable (S) -> Unit,
 ) where E : Effect, S : ViewState {
   val rememberAnchorScope = object : RememberAnchorScope {
     override fun <E : Effect, S : ViewState> create(
@@ -44,12 +44,11 @@ public inline fun <reified S, E> ViewModelStoreOwner.RememberAnchor(
 
   val state by anchorScope.collectViewState()
   val signal by anchorScope.collectSignal()
-  val delegate = rememberUpdatedState(newValue = anchorScope.actionChannel)
 
   CompositionLocalProvider(
     LocalSignals provides signal,
-    LocalAnchor provides delegate.value,
-    content = { anchorScope.anchor.content(state) },
+    LocalAnchor provides anchorScope::execute,
+    content = { content(state) },
   )
 }
 
@@ -66,4 +65,4 @@ internal inline fun <reified R, E, S> ContainedScope<R, E, S>.collectSignal(): S
 internal inline fun <reified R, E, S> ContainedScope<R, E, S>.collectViewState(): State<S>
   where R : AnchorRuntime<E, S>, E : Effect, S : ViewState =
   anchor._viewState
-    .collectAsState()
+    .collectAsState(Dispatchers.Main.immediate)

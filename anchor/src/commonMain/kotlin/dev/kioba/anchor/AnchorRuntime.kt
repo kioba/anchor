@@ -52,7 +52,7 @@ internal class AnchorRuntime<E, S>(
     .onSubscription { emit(Created) }
 
   internal suspend fun consumeInitial() {
-    init?.invoke(this)
+    init?.invoke(this@AnchorRuntime)
   }
 
   private suspend fun <T : Event> SharedFlow<T>.handlers(): Flow<Any?> =

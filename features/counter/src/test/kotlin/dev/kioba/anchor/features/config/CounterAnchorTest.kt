@@ -1,12 +1,12 @@
-package dev.kioba.anchor.features.counter
+package dev.kioba.anchor.features.config
 
 import dev.kioba.anchor.RememberAnchorScope
-import dev.kioba.anchor.features.counter.data.CounterAnchor
-import dev.kioba.anchor.features.counter.data.CounterState
-import dev.kioba.anchor.features.counter.data.counterAnchor
-import dev.kioba.anchor.features.counter.data.decrement
-import dev.kioba.anchor.features.counter.data.increment
-import dev.kioba.anchor.features.counter.model.CounterSignal
+import dev.kioba.anchor.features.config.data.CounterAnchor
+import dev.kioba.anchor.features.config.data.CounterState
+import dev.kioba.anchor.features.config.data.counterAnchor
+import dev.kioba.anchor.features.config.data.decrement
+import dev.kioba.anchor.features.config.data.increment
+import dev.kioba.anchor.features.config.model.CounterSignal
 import dev.kioba.anchor.test.runAnchorTest
 import kotlin.test.Test
 

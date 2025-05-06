@@ -1,6 +1,6 @@
-package dev.kioba.anchor.features.counter.data
+package dev.kioba.anchor.features.config.data
 
-import dev.kioba.anchor.features.counter.model.CounterSignal
+import dev.kioba.anchor.features.config.model.CounterSignal
 
 internal suspend fun CounterAnchor.increment() {
   reduce { copy(count = count.inc()) }

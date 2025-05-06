@@ -16,6 +16,6 @@ internal fun MainViewState.updateCounterSelected(): MainViewState =
 
 internal fun MainViewState.updateProfileSelected(): MainViewState =
   copy(
-    selectedTab = MainTab.QuackTab,
+    selectedTab = MainTab.ConfigTab,
     details = "Profiles",
   )
