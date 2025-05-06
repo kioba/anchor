@@ -15,7 +15,7 @@ internal interface ContainedScope<R, E, S> where R : Anchor<E, S>, E : Effect, S
 
 @PublishedApi
 internal fun <R, E, S> ContainedScope<R, E, S>.execute(
-  f: suspend Anchor<*, *>.() -> Unit,
+  block: suspend Anchor<*, *>.() -> Unit,
 ) where R : Anchor<E, S>, E : Effect, S : ViewState {
-  coroutineScope.launch(Dispatchers.Default) { anchor.f() }
+  coroutineScope.launch(Dispatchers.Default) { anchor.block() }
 }

@@ -11,6 +11,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.ViewModelStoreOwner
@@ -31,14 +35,17 @@ public fun ViewModelStoreOwner.ConfigPage(
         .padding(paddingValues)
         .fillMaxSize(),
     ) {
-      val text: TextFieldState = rememberTextFieldState(state.text.orEmpty())
-      text.edit {
-        anchor(ConfigAnchor::updateText)(originalText.toString())
+      val textFieldState: TextFieldState = rememberTextFieldState(state.text.orEmpty())
+      val updateText by rememberUpdatedState(anchor(ConfigAnchor::updateText))
+      LaunchedEffect(textFieldState) {
+        snapshotFlow { textFieldState.text }
+          .collect { text -> updateText(text.toString()) }
       }
-      Column(modifier = Modifier.align(Alignment.Center)) {
+
+      Column(modifier = Modifier.align(Alignment.TopCenter)) {
         OutlinedTextField(
           modifier = Modifier.align(Alignment.CenterHorizontally),
-          state = text,
+          state = textFieldState,
         )
         Text(
           modifier = Modifier.align(Alignment.CenterHorizontally),

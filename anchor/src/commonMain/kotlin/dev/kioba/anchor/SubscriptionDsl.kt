@@ -21,12 +21,6 @@ public class SubscriptionsScope<E, S>(
   ): Flow<I> =
     onEach { value -> anchor.effect(value) }
 
-//  @AnchorDsl
-//  public fun <I> Flow<I>.anchor(
-//    block: (I) -> AnchorOf<Anchor<E, S>>,
-//  ): Flow<I> =
-//    onEach { value -> with(block(value)) { anchor.execute() } }
-
   @AnchorDsl
   public suspend inline fun <reified A> listen(
     crossinline block: (Flow<A>) -> Flow<*>,
