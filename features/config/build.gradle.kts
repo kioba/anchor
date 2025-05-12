@@ -1,26 +1,11 @@
-import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-
 plugins {
-  alias(libs.plugins.kotlinMultiplatform)
+  kotlin("android")
   alias(libs.plugins.androidLibrary)
-  alias(libs.plugins.composeMultiplatform)
   alias(libs.plugins.composeCompiler)
 }
 
-kotlin {
-  androidTarget {
-    publishLibraryVariants("release")
-    @OptIn(ExperimentalKotlinGradlePluginApi::class)
-    compilerOptions {
-      jvmTarget.set(JvmTarget.JVM_17)
-    }
-  }
-}
-
 android {
-
-  namespace = "dev.kioba.anchor.features.main.ui"
+  namespace = "dev.kioba.anchor.features.config"
 
   compileSdk = libs.versions.android.compileSdk.get().toInt()
 
@@ -30,24 +15,42 @@ android {
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     consumerProguardFiles("consumer-rules.pro")
   }
+
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_17
     targetCompatibility = JavaVersion.VERSION_17
   }
+  kotlinOptions {
+    jvmTarget = JavaVersion.VERSION_17.toString()
+  }
+}
+
+kotlin {
+  explicitApi()
 }
 
 dependencies {
-  debugImplementation(libs.androidx.ui.tooling)
+
   implementation(libs.androidx.activity.compose)
   implementation(libs.androidx.activity.ktx)
   implementation(libs.androidx.lifecycle.runtime.ktx)
-  implementation(libs.androidx.material3.android)
+  implementation(libs.androidx.material3)
   implementation(libs.core.ktx)
+  implementation(libs.jetbrains.kotlinx.serialization.core.jvm)
   implementation(libs.kotlin.stdlib)
+  implementation(libs.kotlinx.coroutines.android)
+  implementation(libs.kotlinx.coroutines.core)
+  implementation(libs.kotlinx.serialization.json)
   implementation(libs.ui)
   implementation(libs.ui.tooling.preview)
   implementation(projects.anchor)
-  implementation(projects.features.counter)
-  implementation(projects.features.config)
-  implementation(projects.features.main.presentation)
+
+  debugImplementation(libs.androidx.ui.tooling)
+
+  testImplementation(libs.kotlin.test)
+  testImplementation(projects.anchorTest)
+}
+
+tasks.withType<Test> {
+  useJUnitPlatform()
 }

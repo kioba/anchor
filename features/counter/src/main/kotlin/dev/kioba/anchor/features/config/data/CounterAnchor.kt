@@ -1,4 +1,4 @@
-package dev.kioba.anchor.features.counter.data
+package dev.kioba.anchor.features.config.data
 
 import dev.kioba.anchor.Anchor
 import dev.kioba.anchor.EmptyEffect
