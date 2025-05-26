@@ -20,7 +20,7 @@ material = "1.7.7"
 ui = "1.8.1"
 material3 = "1.4.0-alpha13"
 runtime = "1.7.8"
-kmpNativeCoroutines = "1.0.0-ALPHA-41"
+kmpNativeCoroutines = "1.0.0-ALPHA-43-kotlin-2.2.0-RC"
 material3Android = "1.3.1"
 maven-publish = "0.30.0"
 
