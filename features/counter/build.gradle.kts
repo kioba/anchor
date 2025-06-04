@@ -17,11 +17,11 @@ android {
   }
 
   compileOptions {
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
   }
   kotlinOptions {
-    jvmTarget = JavaVersion.VERSION_17.toString()
+    jvmTarget = JavaVersion.VERSION_11.toString()
   }
 }
 
@@ -31,21 +31,20 @@ kotlin {
 
 dependencies {
 
-  implementation(libs.androidx.activity.compose)
-  implementation(libs.androidx.activity.ktx)
-  implementation(libs.androidx.lifecycle.runtime.ktx)
-  implementation(libs.androidx.material3)
-  implementation(libs.core.ktx)
-  implementation(libs.jetbrains.kotlinx.serialization.core.jvm)
+  implementation(libs.compose.activity)
+  implementation(libs.android.activity)
+  implementation(libs.compose.material3)
+  implementation(libs.android.core)
+  implementation(libs.kotlin.serializationCore)
   implementation(libs.kotlin.stdlib)
-  implementation(libs.kotlinx.coroutines.android)
-  implementation(libs.kotlinx.coroutines.core)
-  implementation(libs.kotlinx.serialization.json)
-  implementation(libs.ui)
-  implementation(libs.ui.tooling.preview)
+  implementation(libs.kotlin.coroutinesAndroid)
+  implementation(libs.kotlin.coroutinesCore)
+  implementation(libs.kotlin.serializationJson)
+  implementation(libs.compose.ui)
+  implementation(libs.compose.uiToolingPreview)
   implementation(projects.anchor)
 
-  debugImplementation(libs.androidx.ui.tooling)
+  debugImplementation(libs.compose.uiTooling)
 
   testImplementation(libs.kotlin.test)
   testImplementation(projects.anchorTest)

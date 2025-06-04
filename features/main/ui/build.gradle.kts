@@ -1,4 +1,3 @@
-import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -11,9 +10,8 @@ plugins {
 kotlin {
   androidTarget {
     publishLibraryVariants("release")
-    @OptIn(ExperimentalKotlinGradlePluginApi::class)
     compilerOptions {
-      jvmTarget.set(JvmTarget.JVM_17)
+      jvmTarget.set(JvmTarget.JVM_11)
     }
   }
 }
@@ -31,21 +29,20 @@ android {
     consumerProguardFiles("consumer-rules.pro")
   }
   compileOptions {
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
   }
 }
 
 dependencies {
-  debugImplementation(libs.androidx.ui.tooling)
-  implementation(libs.androidx.activity.compose)
-  implementation(libs.androidx.activity.ktx)
-  implementation(libs.androidx.lifecycle.runtime.ktx)
-  implementation(libs.androidx.material3.android)
-  implementation(libs.core.ktx)
+  debugImplementation(libs.compose.uiTooling)
+  implementation(libs.compose.activity)
+  implementation(libs.android.activity)
+  implementation(libs.compose.material3Android)
+  implementation(libs.android.core)
   implementation(libs.kotlin.stdlib)
-  implementation(libs.ui)
-  implementation(libs.ui.tooling.preview)
+  implementation(libs.compose.ui)
+  implementation(libs.compose.uiToolingPreview)
   implementation(projects.anchor)
   implementation(projects.features.counter)
   implementation(projects.features.config)

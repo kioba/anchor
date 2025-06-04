@@ -1,4 +1,3 @@
-import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -6,21 +5,18 @@ plugins {
   alias(libs.plugins.androidLibrary)
   alias(libs.plugins.composeCompiler)
   alias(libs.plugins.composeMultiplatform)
-  alias(libs.plugins.kmpNativeCoroutines)
   alias(libs.plugins.vaniktechMavenPublish)
 }
 
 kotlin {
-  jvmToolchain(jdkVersion = 17)
   explicitApi()
 
   jvm("desktop")
 
   androidTarget {
     publishLibraryVariants("release", "debug")
-    @OptIn(ExperimentalKotlinGradlePluginApi::class)
     compilerOptions {
-      jvmTarget.set(JvmTarget.JVM_17)
+      jvmTarget.set(JvmTarget.JVM_11)
     }
   }
 
@@ -42,11 +38,13 @@ kotlin {
   sourceSets {
     val commonMain by getting {
       dependencies {
-        implementation(libs.kotlinx.coroutines.core)
+        implementation(libs.kotlin.coroutinesCore)
         implementation(compose.runtime)
         implementation(compose.foundation)
         implementation(compose.material)
+        implementation(compose.ui)
         implementation(compose.components.resources)
+        implementation(libs.lifecycle.viewmodel.compose)
       }
     }
     val commonTest by getting {
@@ -55,14 +53,7 @@ kotlin {
       }
     }
     val androidMain by getting {
-      dependencies {
-        implementation(libs.ui)
-        implementation(libs.androidx.foundation)
-        implementation(libs.androidx.runtime)
-        implementation(libs.androidx.lifecycle.viewmodel.ktx)
-        implementation(libs.androidx.lifecycle.runtime.ktx)
-        implementation(libs.androidx.lifecycle.common)
-      }
+      dependencies {}
     }
 
     val androidUnitTest by getting {
@@ -72,8 +63,8 @@ kotlin {
     }
     val androidInstrumentedTest by getting {
       dependencies {
-        implementation(libs.androidx.junit)
-        implementation(libs.androidx.espresso.core)
+        implementation(libs.android.junit)
+        implementation(libs.espresso.core)
       }
     }
   }
@@ -92,8 +83,8 @@ android {
   }
 
   compileOptions {
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
   }
 }
 

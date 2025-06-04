@@ -1,8 +1,7 @@
-import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
-  id("com.android.application")
+  alias(libs.plugins.androidApplication)
   alias(libs.plugins.kotlinMultiplatform)
   alias(libs.plugins.composeMultiplatform)
   alias(libs.plugins.composeCompiler)
@@ -10,9 +9,8 @@ plugins {
 
 kotlin {
   androidTarget {
-    @OptIn(ExperimentalKotlinGradlePluginApi::class)
     compilerOptions {
-      jvmTarget.set(JvmTarget.JVM_17)
+      jvmTarget.set(JvmTarget.JVM_11)
     }
   }
 }
@@ -39,8 +37,8 @@ android {
     }
   }
   compileOptions {
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
   }
   packaging {
     resources {
@@ -52,24 +50,23 @@ android {
 
 dependencies {
 
-  androidTestImplementation(libs.androidx.espresso.core)
-  androidTestImplementation(libs.androidx.junit)
-  androidTestImplementation(libs.androidx.ui.test.junit4)
+  androidTestImplementation(libs.espresso.core)
+  androidTestImplementation(libs.android.junit)
+  androidTestImplementation(libs.compose.junitTest)
 
-  debugImplementation(libs.androidx.ui.tooling)
+  debugImplementation(libs.compose.uiTooling)
 
-  implementation(libs.androidx.activity.compose)
-  implementation(libs.androidx.activity.ktx)
-  implementation(libs.androidx.lifecycle.runtime.ktx)
-  implementation(libs.core.ktx)
+  implementation(libs.android.activity)
+  implementation(libs.android.core)
+  implementation(libs.compose.activity)
+  implementation(libs.compose.material3)
+  implementation(libs.compose.ui)
+  implementation(libs.compose.uiToolingPreview)
   implementation(libs.kotlin.stdlib)
-  implementation(libs.material)
-  implementation(libs.ui)
-  implementation(libs.ui.tooling.preview)
   implementation(projects.anchor)
   implementation(projects.features.counter)
-  implementation(projects.features.main.ui)
   implementation(projects.features.main.presentation)
+  implementation(projects.features.main.ui)
 
   testImplementation(libs.junit)
 }

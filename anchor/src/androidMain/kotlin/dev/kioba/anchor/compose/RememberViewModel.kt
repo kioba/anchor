@@ -7,6 +7,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStoreOwner
 import dev.kioba.anchor.AnchorRuntime
+import dev.kioba.anchor.ContainedScope
 import dev.kioba.anchor.Effect
 import dev.kioba.anchor.ViewState
 

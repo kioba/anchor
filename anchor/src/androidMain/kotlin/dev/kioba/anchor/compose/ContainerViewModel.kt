@@ -3,6 +3,7 @@ package dev.kioba.anchor.compose
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.kioba.anchor.AnchorRuntime
+import dev.kioba.anchor.ContainedScope
 import dev.kioba.anchor.Effect
 import dev.kioba.anchor.ViewState
 import kotlinx.coroutines.CoroutineScope

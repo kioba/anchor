@@ -1,7 +1,5 @@
 import java.lang.System.getProperty
 
-rootProject.name = "anchorS"
-
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 pluginManagement {
@@ -33,12 +31,12 @@ dependencyResolutionManagement {
   }
 }
 
-include(
-  ":anchor",
-  ":anchor-test",
-  ":app",
-  ":features:counter",
-  ":features:config",
-  ":features:main:presentation",
-  ":features:main:ui",
-)
+rootProject.name = "anchorS"
+include(":anchor")
+include(":anchor-test")
+include(":androidApp")
+include(":features:config")
+include(":features:counter")
+include(":features:main:presentation")
+include(":features:main:ui")
+include(":umbrella")
