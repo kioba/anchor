@@ -1,26 +1,39 @@
 package dev.kioba.anchor
 
-import kotlinx.coroutines.CoroutineScope
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.ViewModelStoreOwner
+import dev.kioba.anchor.viewmodel.ContainerViewModel
+import dev.kioba.anchor.viewmodel.containerViewModelFactory
 
-public inline fun <reified S, E> rememberAnchor(
-  noinline scope: RememberAnchorScope.() -> Anchor<E, S>,
+@Suppress("UNCHECKED_CAST")
+public fun <S, E> rememberAnchor(
+  scope: (RememberAnchorScope) -> Anchor<E, S>,
   customKey: String? = null,
-  crossinline content: (S) -> Unit,
-) where E : Effect, S : ViewState {
-  val anchorScope: ContainedScope<AnchorRuntime<E, S>, E, S> =
-    ContainerViewModel(AnchorRuntimeScope.scope() as AnchorRuntime<E, S>, Dispatchers.Main.immediate)
+): Anchor<E, S>
+  where
+  E : Effect,
+  S : ViewState {
+  val storeOwner = object : ViewModelStoreOwner {
+    override val viewModelStore = ViewModelStore()
+  }
+  val factory = containerViewModelFactory { scope(AnchorRuntimeScope) as AnchorRuntime<E, S> }
+  val provider = ViewModelProvider.create(storeOwner, factory)
+  val anchorScope = when {
+    customKey != null -> provider[customKey, ContainerViewModel::class]
+    else -> provider[ContainerViewModel::class]
+  } as ContainerViewModel<E, S>
 
-//      customKey ?: S::class.qualifiedName.orEmpty()
+//  anchorScope.coroutineScope.launch {
+//    anchorScope.anchor._viewState
+//      .collect { state -> states(state) }
+//  }
+//
+//  anchorScope.coroutineScope.launch {
+//    anchorScope.anchor.signals
+//      .map { SignalProvider { it } }
+//      .collect { signalProvider -> /*signals(signalProvider.provide())*/ }
+//  }
 
-  val state by anchorScope.collectViewState()
-  val signal by anchorScope.collectSignal()
-
-  content(state)
+  return anchorScope.anchor
 }
-
-@PublishedApi
-internal class ContainerViewModel<E, S>(
-  override val anchor: AnchorRuntime<E, S>,
-  override val coroutineScope: CoroutineScope
-) : ContainedScope<AnchorRuntime<E, S>, E, S>
-  where E : Effect, S : ViewState

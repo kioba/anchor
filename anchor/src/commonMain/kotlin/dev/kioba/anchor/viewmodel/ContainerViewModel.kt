@@ -1,4 +1,4 @@
-package dev.kioba.anchor.compose
+package dev.kioba.anchor.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -11,11 +11,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 @PublishedApi
-internal class ContainerViewModel<R, E, S>(
-  override val anchor: R,
+internal class ContainerViewModel<E, S>(
+  override val anchor: AnchorRuntime<E, S>,
 ) : ViewModel(),
-  ContainedScope<R, E, S> where
-R : AnchorRuntime<E, S>, E : Effect, S : ViewState {
+  ContainedScope<AnchorRuntime<E, S>, E, S>
+  where
+E : Effect,
+S : ViewState {
 
   override val coroutineScope: CoroutineScope = viewModelScope
 

@@ -15,10 +15,10 @@ internal class AnchorTestRuntime<E, S>(
   internal val effectScope: E,
   @PublishedApi
   internal val initState: S,
-) : Anchor<E, S> where E : Effect, S : ViewState {
+) : Anchor<E, S>() where E : Effect, S : ViewState {
 
   val verifyActions = mutableListOf<VerifyAction>()
-  var currentState = initState
+  private var currentState = initState
 
   override val state: S
     get() = currentState

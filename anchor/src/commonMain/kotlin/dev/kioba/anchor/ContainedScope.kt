@@ -5,7 +5,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 @PublishedApi
-internal interface ContainedScope<R, E, S> where R : Anchor<E, S>, E : Effect, S : ViewState {
+internal interface ContainedScope<R, E, S>
+  where
+R : Anchor<E, S>,
+E : Effect,
+S : ViewState {
   val anchor: R
   val coroutineScope: CoroutineScope
 }

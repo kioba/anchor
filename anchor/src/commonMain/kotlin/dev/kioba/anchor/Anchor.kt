@@ -2,11 +2,23 @@ package dev.kioba.anchor
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlin.coroutines.CoroutineContext
 
+public abstract class AnchorSink<E, S> : Anchor<E, S>()
+  where
+E : Effect,
+S : ViewState {
+
+  public abstract val viewState: StateFlow<S>
+
+  public abstract val signals: SharedFlow<Signal>
+
+}
+
 @AnchorDsl
-public interface Anchor<E, S>
-  : MutableStateAnchor<S>,
+public abstract class Anchor<E, S> : MutableStateAnchor<S>,
   EffectAnchor<E>,
   CancellableAnchor<E, S>,
   SubscriptionAnchor,

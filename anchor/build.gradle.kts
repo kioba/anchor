@@ -6,6 +6,7 @@ plugins {
   alias(libs.plugins.composeCompiler)
   alias(libs.plugins.composeMultiplatform)
   alias(libs.plugins.vaniktechMavenPublish)
+  id("co.touchlab.skie") version "0.10.2"
 }
 
 kotlin {
@@ -39,12 +40,8 @@ kotlin {
     val commonMain by getting {
       dependencies {
         implementation(libs.kotlin.coroutinesCore)
-        implementation(compose.runtime)
-        implementation(compose.foundation)
-        implementation(compose.material)
-        implementation(compose.ui)
-        implementation(compose.components.resources)
-        implementation(libs.lifecycle.viewmodel.compose)
+        implementation(libs.lifecycle.viewmodel)
+        implementation(libs.lifecycle.rumtime)
       }
     }
     val commonTest by getting {
@@ -53,7 +50,13 @@ kotlin {
       }
     }
     val androidMain by getting {
-      dependencies {}
+      dependencies {
+        implementation(compose.components.resources)
+        implementation(compose.runtime)
+        implementation(compose.foundation)
+        implementation(compose.material)
+        implementation(compose.ui)
+      }
     }
 
     val androidUnitTest by getting {

@@ -21,15 +21,18 @@ import kotlin.coroutines.CoroutineContext
 
 @PublishedApi
 internal class AnchorRuntime<E, S>(
-  public val initialStateBuilder: () -> S,
-  public val effectBuilder: () -> E,
+  public val initialState: () -> S,
+  public val effectScope: () -> E,
   internal val init: (suspend Anchor<E, S>.() -> Unit)? = null,
   internal val subscriptions: (suspend SubscriptionsScope<E, S>.() -> Unit)? = null,
-) : Anchor<E, S> where E : Effect, S : ViewState {
+) : AnchorSink<E, S>()
+  where
+E : Effect,
+S : ViewState {
 
   @PublishedApi
   @Suppress("ktlint:standard:backing-property-naming", "PropertyName")
-  internal val _viewState: MutableStateFlow<S> = MutableStateFlow(initialStateBuilder())
+  internal val _viewState: MutableStateFlow<S> = MutableStateFlow(initialState())
 
   @PublishedApi
   @Suppress("ktlint:standard:backing-property-naming", "PropertyName")
@@ -42,13 +45,13 @@ internal class AnchorRuntime<E, S>(
   @PublishedApi
   internal val jobs: MutableMap<Any, Job> = mutableMapOf()
 
-  internal val effect = effectBuilder()
+  internal val effect = effectScope()
 
-  public val viewState: StateFlow<S> = _viewState.asStateFlow()
+  override val viewState: StateFlow<S> = _viewState.asStateFlow()
 
-  public val signals: SharedFlow<Signal> = _signals.asSharedFlow()
+  override val signals: SharedFlow<Signal> = _signals.asSharedFlow()
 
-  public val emitter: SharedFlow<Event> = _emitter.asSharedFlow()
+  private val emitter: SharedFlow<Event> = _emitter.asSharedFlow()
     .onSubscription { emit(Created) }
 
   internal suspend fun consumeInitial() {

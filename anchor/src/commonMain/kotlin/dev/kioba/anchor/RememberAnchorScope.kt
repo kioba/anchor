@@ -17,8 +17,8 @@ public object AnchorRuntimeScope : RememberAnchorScope {
     subscriptions: (suspend SubscriptionsScope<E, S>.() -> Unit)?
   ): Anchor<E, S> =
     AnchorRuntime(
-      initialStateBuilder = initialState,
-      effectBuilder = effectScope,
+      initialState = initialState,
+      effectScope = effectScope,
       init = init,
       subscriptions = subscriptions,
     )
