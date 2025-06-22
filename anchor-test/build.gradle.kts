@@ -2,7 +2,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
   alias(libs.plugins.kotlinMultiplatform)
-  alias(libs.plugins.androidLibrary)
+  alias(libs.plugins.android.library)
   alias(libs.plugins.vaniktechMavenPublish)
 //  id("co.touchlab.skie") version "0.10.2"
 
@@ -50,15 +50,6 @@ kotlin {
       }
     }
     val androidMain by getting {
-      dependencies {
-      }
-    }
-
-    val androidUnitTest by getting {
-      dependencies {
-      }
-    }
-    val androidInstrumentedTest by getting {
       dependencies {
       }
     }

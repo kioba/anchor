@@ -13,7 +13,7 @@ S : ViewState {
 
   public abstract val viewState: StateFlow<S>
 
-  public abstract val signals: SharedFlow<Signal>
+  public abstract val signals: SharedFlow<SignalProvider>
 
 }
 

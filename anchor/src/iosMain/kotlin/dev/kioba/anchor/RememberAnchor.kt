@@ -25,11 +25,6 @@ public fun <S, E> rememberAnchor(
   } as ContainerViewModel<E, S>
 
 //  anchorScope.coroutineScope.launch {
-//    anchorScope.anchor._viewState
-//      .collect { state -> states(state) }
-//  }
-//
-//  anchorScope.coroutineScope.launch {
 //    anchorScope.anchor.signals
 //      .map { SignalProvider { it } }
 //      .collect { signalProvider -> /*signals(signalProvider.provide())*/ }

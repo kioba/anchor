@@ -20,7 +20,6 @@ import dev.kioba.anchor.execute
 import dev.kioba.anchor.viewmodel.ContainerViewModel
 import dev.kioba.anchor.viewmodel.containerViewModelFactory
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.map
 
 @Composable
 public inline fun <reified S, E> RememberAnchor(
@@ -51,8 +50,7 @@ public inline fun <reified S, E> RememberAnchor(
 internal inline fun <reified R, E, S> ContainedScope<R, E, S>.collectSignal(): State<SignalProvider>
   where R : AnchorRuntime<E, S>, E : Effect, S : ViewState =
   anchor.signals
-    .map { SignalProvider { it } }
-    .collectAsState(initial = SignalProvider { UnitSignal })
+    .collectAsState(initial = SignalProvider { UnitSignal }, Dispatchers.Main.immediate)
 
 @Composable
 @PublishedApi

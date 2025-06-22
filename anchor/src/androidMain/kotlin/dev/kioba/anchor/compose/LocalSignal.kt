@@ -18,8 +18,8 @@ public inline fun <reified T> HandleSignal(
   noinline f: suspend (T) -> Unit,
 ) {
   val signalProvider = LocalSignals.current
-  when (val effect = signalProvider.provide()) {
+  when (val signal = signalProvider.provide()) {
     is UnitSignal -> Unit
-    is T -> LaunchedEffect(signalProvider) { f(effect) }
+    is T -> LaunchedEffect(signalProvider) { f(signal) }
   }
 }

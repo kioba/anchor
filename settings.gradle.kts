@@ -1,5 +1,8 @@
 import java.lang.System.getProperty
 
+include(":features:resources")
+
+
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 pluginManagement {
@@ -37,6 +40,5 @@ include(":anchor-test")
 include(":androidApp")
 include(":features:config")
 include(":features:counter")
-include(":features:main:presentation")
-include(":features:main:ui")
+include(":features:main")
 include(":umbrella")

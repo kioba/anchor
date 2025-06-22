@@ -1,53 +1,78 @@
 plugins {
-  kotlin("android")
-  alias(libs.plugins.androidLibrary)
-  alias(libs.plugins.composeCompiler)
-}
+  alias(libs.plugins.android.multiplatformLibrary)
+  alias(libs.plugins.kotlinMultiplatform)
+  alias(libs.plugins.compose.compiler)
+  alias(libs.plugins.compose.multiplatform)
 
-android {
-  namespace = "dev.kioba.anchor.features.counter"
-
-  compileSdk = libs.versions.android.compileSdk.get().toInt()
-
-  defaultConfig {
-    minSdk = libs.versions.android.minSdk.get().toInt()
-
-    testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-    consumerProguardFiles("consumer-rules.pro")
-  }
-
-  compileOptions {
-    sourceCompatibility = JavaVersion.VERSION_11
-    targetCompatibility = JavaVersion.VERSION_11
-  }
-  kotlinOptions {
-    jvmTarget = JavaVersion.VERSION_11.toString()
-  }
+  id("co.touchlab.skie") version "0.10.2"
 }
 
 kotlin {
   explicitApi()
-}
 
-dependencies {
+  androidLibrary {
+    namespace = "dev.kioba.anchor.features.counter"
+    compileSdk = libs.versions.android.compileSdk.get().toInt()
+    minSdk = libs.versions.android.minSdk.get().toInt()
 
-  implementation(libs.compose.activity)
-  implementation(libs.android.activity)
-  implementation(libs.compose.material3)
-  implementation(libs.android.core)
-  implementation(libs.kotlin.serializationCore)
-  implementation(libs.kotlin.stdlib)
-  implementation(libs.kotlin.coroutinesAndroid)
-  implementation(libs.kotlin.coroutinesCore)
-  implementation(libs.kotlin.serializationJson)
-  implementation(libs.compose.ui)
-  implementation(libs.compose.uiToolingPreview)
-  implementation(projects.anchor)
+    @Suppress("UnstableApiUsage")
+    withHostTestBuilder {}.configure {}
 
-  debugImplementation(libs.compose.uiTooling)
+    compilations.configureEach {
+      compilerOptions.configure {
+        jvmTarget.set(
+          org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11
+        )
+      }
+    }
 
-  testImplementation(libs.kotlin.test)
-  testImplementation(projects.anchorTest)
+  }
+
+  listOf(
+    iosX64(),
+    iosArm64(),
+    iosSimulatorArm64()
+  ).forEach {
+    it.binaries.framework {
+      isStatic = true
+    }
+  }
+
+  sourceSets {
+    androidMain {
+      dependencies {
+
+        implementation(libs.android.core)
+        implementation(libs.compose.activity)
+        implementation(libs.compose.material3)
+        implementation(libs.compose.ui)
+
+        implementation(libs.kotlin.coroutinesAndroid)
+
+        implementation(libs.kotlin.serializationCore)
+        implementation(libs.kotlin.serializationJson)
+
+        implementation(libs.compose.uiTooling)
+        implementation(libs.compose.uiToolingPreview)
+
+        implementation(projects.features.resources)
+      }
+    }
+
+    getByName("androidHostTest") {
+      dependencies {
+        implementation(libs.kotlin.test)
+        implementation(projects.anchorTest)
+      }
+    }
+
+    commonMain {
+      dependencies {
+        implementation(libs.kotlin.coroutinesCore)
+        implementation(projects.anchor)
+      }
+    }
+  }
 }
 
 tasks.withType<Test> {

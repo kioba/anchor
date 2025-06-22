@@ -36,7 +36,7 @@ S : ViewState {
 
   @PublishedApi
   @Suppress("ktlint:standard:backing-property-naming", "PropertyName")
-  internal val _signals: MutableSharedFlow<Signal> = MutableSharedFlow()
+  internal val _signals: MutableSharedFlow<SignalProvider> = MutableSharedFlow()
 
   @PublishedApi
   @Suppress("ktlint:standard:backing-property-naming", "PropertyName")
@@ -49,7 +49,7 @@ S : ViewState {
 
   override val viewState: StateFlow<S> = _viewState.asStateFlow()
 
-  override val signals: SharedFlow<Signal> = _signals.asSharedFlow()
+  override val signals: SharedFlow<SignalProvider> = _signals.asSharedFlow()
 
   private val emitter: SharedFlow<Event> = _emitter.asSharedFlow()
     .onSubscription { emit(Created) }
@@ -102,8 +102,10 @@ S : ViewState {
 
   override suspend fun post(
     block: SignalScope.() -> Signal
-  ): Unit =
-    _signals.emit(SignalScope.block())
+  ) {
+    val signal = SignalScope.block()
+    _signals.emit(SignalProvider { signal })
+  }
 
   override suspend fun emit(
     block: SubscriptionScope.() -> Event

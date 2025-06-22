@@ -1,10 +1,10 @@
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import com.android.build.api.dsl.androidLibrary
 
 plugins {
+  alias(libs.plugins.android.multiplatformLibrary)
   alias(libs.plugins.kotlinMultiplatform)
-  alias(libs.plugins.androidLibrary)
-  alias(libs.plugins.composeCompiler)
-  alias(libs.plugins.composeMultiplatform)
+  alias(libs.plugins.compose.compiler)
+  alias(libs.plugins.compose.multiplatform)
   alias(libs.plugins.vaniktechMavenPublish)
   id("co.touchlab.skie") version "0.10.2"
 }
@@ -14,12 +14,28 @@ kotlin {
 
   jvm("desktop")
 
-  androidTarget {
-    publishLibraryVariants("release", "debug")
-    compilerOptions {
-      jvmTarget.set(JvmTarget.JVM_11)
+  androidLibrary {
+    namespace = "dev.kioba.anchor"
+
+    compileSdk = libs.versions.android.compileSdk.get().toInt()
+    minSdk = libs.versions.android.minSdk.get().toInt()
+
+    @Suppress("UnstableApiUsage")
+    withHostTestBuilder {}.configure {}
+    @Suppress("UnstableApiUsage")
+    withDeviceTestBuilder {
+      sourceSetTreeName = "test"
+    }
+
+    compilations.configureEach {
+      compilerOptions.configure {
+        jvmTarget.set(
+          org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11
+        )
+      }
     }
   }
+
 
   listOf(
     iosX64(),
@@ -37,21 +53,23 @@ kotlin {
   }
 
   sourceSets {
-    val commonMain by getting {
+    commonMain {
       dependencies {
         implementation(libs.kotlin.coroutinesCore)
         implementation(libs.lifecycle.viewmodel)
         implementation(libs.lifecycle.rumtime)
       }
     }
-    val commonTest by getting {
+
+    commonTest {
       dependencies {
         implementation(libs.kotlin.test)
       }
     }
-    val androidMain by getting {
+
+
+    androidMain {
       dependencies {
-        implementation(compose.components.resources)
         implementation(compose.runtime)
         implementation(compose.foundation)
         implementation(compose.material)
@@ -59,35 +77,18 @@ kotlin {
       }
     }
 
-    val androidUnitTest by getting {
+    androidUnitTest {
       dependencies {
         implementation(libs.junit)
       }
     }
-    val androidInstrumentedTest by getting {
+
+    androidInstrumentedTest {
       dependencies {
         implementation(libs.android.junit)
         implementation(libs.espresso.core)
       }
     }
-  }
-}
-
-android {
-  namespace = "dev.kioba.anchor"
-
-  compileSdk = libs.versions.android.compileSdk.get().toInt()
-
-  defaultConfig {
-    minSdk = libs.versions.android.minSdk.get().toInt()
-  }
-  composeOptions {
-    kotlinCompilerExtensionVersion = "1.5.15"
-  }
-
-  compileOptions {
-    sourceCompatibility = JavaVersion.VERSION_11
-    targetCompatibility = JavaVersion.VERSION_11
   }
 }
 
