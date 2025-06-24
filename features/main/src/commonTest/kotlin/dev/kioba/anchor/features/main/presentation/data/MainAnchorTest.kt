@@ -1,7 +1,12 @@
 package dev.kioba.anchor.features.main.presentation.data
 
 import dev.kioba.anchor.RememberAnchorScope
+import dev.kioba.anchor.features.main.data.MainAnchor
+import dev.kioba.anchor.features.main.data.MainEffect
 import dev.kioba.anchor.features.main.data.clear
+import dev.kioba.anchor.features.main.data.mainAnchor
+import dev.kioba.anchor.features.main.data.mainViewState
+import dev.kioba.anchor.features.main.data.refresh
 import dev.kioba.anchor.features.main.data.sayHi
 import dev.kioba.anchor.features.main.model.MainEvent
 import dev.kioba.anchor.test.runAnchorTest
@@ -40,7 +45,7 @@ class MainAnchorTest {
     runAnchorTest(RememberAnchorScope::mainAnchor) {
       given("the initial state started to count up") {
         initialState { mainViewState() }
-        effectScope { MainEffect }
+        effectScope { MainEffect() }
       }
 
       on("setting the details page", MainAnchor::refresh)

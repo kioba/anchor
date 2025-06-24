@@ -5,13 +5,17 @@ plugins {
   kotlin("android")
 }
 
-android {
-  namespace = "dev.kioba.features.resources"
+kotlin {
+  explicitApi()
+}
 
+android {
+
+  namespace = "dev.kioba.features.resources"
   compileSdk = libs.versions.android.compileSdk.get().toInt()
 
   defaultConfig {
-  minSdk = libs.versions.android.minSdk.get().toInt()
+    minSdk = libs.versions.android.minSdk.get().toInt()
   }
 
   compileOptions {
