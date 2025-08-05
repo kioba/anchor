@@ -6,7 +6,7 @@ plugins {
   alias(libs.plugins.compose.compiler)
   alias(libs.plugins.compose.multiplatform)
   alias(libs.plugins.vaniktechMavenPublish)
-  id("co.touchlab.skie") version "0.10.4"
+  id("co.touchlab.skie") version "0.10.5"
 }
 
 kotlin {
