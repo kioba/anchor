@@ -12,7 +12,7 @@ maven-publish = "0.34.0"
 # Library versions
 activityKtx = "1.10.1"
 coreKtx = "1.16.0"
-kotlin = "2.1.20"
+kotlin = "2.2.10"
 kotlinxCoroutines = "1.10.2"
 kotlinxCoroutinesAndroid = "1.10.2"
 kotlinxSerializationCoreJvm = "1.9.0"
