@@ -119,14 +119,14 @@ S : ViewState {
     key: Any,
     block: suspend Anchor<E, S>.() -> Unit,
   ) {
-    jobsMutex.withLock {
-      // Cancel and remove old job if it exists
-      val oldJob = jobs.remove(key)
-      oldJob?.cancelAndJoin()
+    coroutineScope {
+      val jobToWait = jobsMutex.withLock {
+        // Cancel and remove old job if it exists
+        val oldJob = jobs.remove(key)
+        oldJob?.cancelAndJoin()
 
-      // Create and store new job atomically
-      val newJob = coroutineScope {
-        launch {
+        // Create new job (don't wait while holding lock!)
+        val newJob = launch {
           try {
             block()
           } finally {
@@ -136,10 +136,13 @@ S : ViewState {
             }
           }
         }
+
+        // Store the new job while still holding the lock
+        newJob.also { jobs[key] = it }
       }
 
-      // Store the new job while still holding the lock
-      jobs[key] = newJob
+      // Wait for the job to complete (outside the lock)
+      jobToWait.join()
     }
   }
 
