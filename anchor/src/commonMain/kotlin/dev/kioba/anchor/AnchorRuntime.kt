@@ -16,6 +16,8 @@ import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onSubscription
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
 
@@ -42,8 +44,18 @@ S : ViewState {
   @Suppress("ktlint:standard:backing-property-naming", "PropertyName")
   internal val _emitter: MutableSharedFlow<Event> = MutableSharedFlow()
 
+  /**
+   * Map storing cancellable jobs keyed by their identifier.
+   * Access is guarded by [jobsMutex] to prevent race conditions.
+   */
   @PublishedApi
   internal val jobs: MutableMap<Any, Job> = mutableMapOf()
+
+  /**
+   * Mutex protecting access to the [jobs] map to ensure thread-safe
+   * job cancellation and prevent race conditions.
+   */
+  private val jobsMutex = Mutex()
 
   internal val effect = effectScope()
 
@@ -86,18 +98,58 @@ S : ViewState {
       effect.block()
     }
 
+  /**
+   * Executes a cancellable operation identified by [key].
+   *
+   * If a previous operation with the same key is still running, it will be cancelled
+   * before the new operation starts. This is useful for debouncing operations like
+   * search queries where only the latest request should run.
+   *
+   * Thread-safe: Uses a mutex to prevent race conditions when multiple cancellable
+   * operations with the same key are triggered concurrently.
+   *
+   * Memory-safe: Completed jobs are automatically cleaned up from the jobs map in all
+   * scenarios - successful completion, exceptions, or cancellation. The cleanup uses
+   * identity comparison to ensure a job only removes itself, never a newer job that
+   * may have replaced it.
+   *
+   * @param key Identifier for this cancellable operation. Operations with the same
+   *        key will cancel each other.
+   * @param block The operation to execute. If a previous operation with the same key
+   *        is running, it will be cancelled before this block executes.
+   */
   override suspend fun cancellable(
     key: Any,
     block: suspend Anchor<E, S>.() -> Unit,
   ) {
-    val oldJob = jobs[key]
-    jobs[key] =
-      coroutineScope {
-        launch {
-          oldJob?.cancelAndJoin()
-          block()
+    coroutineScope {
+      val jobToWait = jobsMutex.withLock {
+        // Cancel and remove old job if it exists
+        val oldJob = jobs.remove(key)
+        oldJob?.cancelAndJoin()
+
+        // Create new job (don't wait while holding lock!)
+        val newJob = launch {
+          try {
+            block()
+          } finally {
+            // Clean up completed job to prevent memory leak
+            // Only remove if this job is still the current one for this key
+            jobsMutex.withLock {
+              if (jobs[key] === coroutineContext[Job]) {
+                jobs.remove(key)
+              }
+            }
+          }
         }
+
+        // Store the new job while still holding the lock
+        newJob.also { jobs[key] = it }
       }
+
+      // Wait for the job to complete (outside the lock)
+      jobToWait.join()
+    }
   }
 
   override suspend fun post(
