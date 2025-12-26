@@ -42,10 +42,8 @@ public fun <A> anchor(
   where A : Anchor<out Effect, out ViewState> {
   val scope = LocalAnchor.current
   return {
-    // Safe cast: A is constrained to be an Anchor subtype, and scope is provided
-    // by the nearest RememberAnchor which guarantees the correct anchor type
     @Suppress("UNCHECKED_CAST")
-    scope.execute(block as suspend Anchor<*, *>.() -> Unit)
+    scope.execute{ (this as A).block() }
   }
 }
 
