@@ -85,6 +85,9 @@ public fun <A, I> anchor(
   where A : Anchor<out Effect, out ViewState> {
   val scope = LocalAnchor.current
   return { i ->
+    // Safe cast: A is constrained to be an Anchor subtype, and scope is provided
+    // by the nearest RememberAnchor which guarantees the correct anchor type.
+    // Cast happens on each invocation because block requires receiver type A.
     @Suppress("UNCHECKED_CAST")
     scope.execute { (this as A).block(i) }
   }
@@ -126,6 +129,9 @@ public fun <A, I, O> anchor(
   where A : Anchor<out Effect, out ViewState> {
   val scope = LocalAnchor.current
   return { i, o ->
+    // Safe cast: A is constrained to be an Anchor subtype, and scope is provided
+    // by the nearest RememberAnchor which guarantees the correct anchor type.
+    // Cast happens on each invocation because block requires receiver type A.
     @Suppress("UNCHECKED_CAST")
     scope.execute { (this as A).block(i, o) }
   }
@@ -152,6 +158,9 @@ public fun <A, I, O, T> anchor(
   where A : Anchor<out Effect, out ViewState> {
   val scope = LocalAnchor.current
   return { i, o, t ->
+    // Safe cast: A is constrained to be an Anchor subtype, and scope is provided
+    // by the nearest RememberAnchor which guarantees the correct anchor type.
+    // Cast happens on each invocation because block requires receiver type A.
     @Suppress("UNCHECKED_CAST")
     scope.execute { (this as A).block(i, o, t) }
   }
