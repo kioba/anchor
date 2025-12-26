@@ -108,7 +108,10 @@ S : ViewState {
    * Thread-safe: Uses a mutex to prevent race conditions when multiple cancellable
    * operations with the same key are triggered concurrently.
    *
-   * Memory-safe: Completed jobs are automatically cleaned up from the jobs map.
+   * Memory-safe: Completed jobs are automatically cleaned up from the jobs map in all
+   * scenarios - successful completion, exceptions, or cancellation. The cleanup uses
+   * identity comparison to ensure a job only removes itself, never a newer job that
+   * may have replaced it.
    *
    * @param key Identifier for this cancellable operation. Operations with the same
    *        key will cancel each other.
@@ -131,8 +134,11 @@ S : ViewState {
             block()
           } finally {
             // Clean up completed job to prevent memory leak
+            // Only remove if this job is still the current one for this key
             jobsMutex.withLock {
-              jobs.remove(key)
+              if (jobs[key] === coroutineContext[Job]) {
+                jobs.remove(key)
+              }
             }
           }
         }
