@@ -3,9 +3,9 @@ package dev.kioba.anchor
 /**
  * Provides safe access to execute actions on an Anchor instance.
  *
- * This interface is typically used internally by the [anchor] composable functions to
- * execute user-defined actions within a [RememberAnchor] scope. Most users will not
- * interact with this interface directly, but instead use the [anchor] helper functions.
+ * This interface is typically used internally by the `anchor()` composable functions
+ * to execute user-defined actions within a [RememberAnchor] scope. Most users will not
+ * interact with this interface directly, but instead use the `anchor()` helper functions.
  *
  * As a fun interface, implementations can be created using lambda syntax, enabling
  * clean, concise code:
@@ -25,7 +25,7 @@ public fun interface AnchorScope<out E : Effect, out S : ViewState> {
   /**
    * Executes an action on the underlying Anchor instance.
    *
-   * This is called internally when UI events trigger actions created by the [anchor]
+   * This is called internally when UI events trigger actions created by the `anchor()`
    * composable functions.
    *
    * @param block The action to execute with the Anchor as receiver
