@@ -32,20 +32,23 @@ import dev.kioba.features.resources.ResourcesR
 public fun CounterPage(
   paddingValues: PaddingValues,
   snackbarHostState: SnackbarHostState,
+  modifier: Modifier = Modifier,
 ) {
-  RememberAnchor(scope = { counterAnchor() }) { state ->
+  RememberAnchor(scope = { counterAnchor() }) {
     HandleSignal<CounterSignal> { signal ->
-      val message = when (signal) {
-        CounterSignal.Decrement -> "Decremented"
-        CounterSignal.Increment -> "Incremented"
-      }
+      val message =
+        when (signal) {
+          CounterSignal.Decrement -> "Decremented"
+          CounterSignal.Increment -> "Incremented"
+        }
       snackbarHostState.showSnackbar(message = message)
     }
 
     Box(
-      modifier = Modifier
-        .padding(paddingValues)
-        .fillMaxSize(),
+      modifier =
+        modifier
+          .padding(paddingValues)
+          .fillMaxSize(),
     ) {
       Column(modifier = Modifier.align(Alignment.Center)) {
         Text(

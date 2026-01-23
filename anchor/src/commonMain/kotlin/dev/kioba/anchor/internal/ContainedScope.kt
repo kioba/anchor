@@ -1,5 +1,8 @@
-package dev.kioba.anchor
+package dev.kioba.anchor.internal
 
+import dev.kioba.anchor.Anchor
+import dev.kioba.anchor.Effect
+import dev.kioba.anchor.ViewState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch

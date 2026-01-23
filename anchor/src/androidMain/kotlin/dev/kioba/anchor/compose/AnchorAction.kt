@@ -43,7 +43,7 @@ public fun <A> anchor(
   val scope = LocalAnchor.current
   return {
     @Suppress("UNCHECKED_CAST")
-    scope.execute{ (this as A).block() }
+    scope.execute { (this as A).block() }
   }
 }
 

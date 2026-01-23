@@ -3,6 +3,7 @@ package dev.kioba.anchor
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
+import dev.kioba.anchor.internal.AnchorRuntime
 import dev.kioba.anchor.viewmodel.ContainerViewModel
 import dev.kioba.anchor.viewmodel.containerViewModelFactory
 

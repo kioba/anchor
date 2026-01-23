@@ -16,8 +16,8 @@ internal class MainActivity : ComponentActivity() {
     enableEdgeToEdge()
     super.onCreate(savedInstanceState)
     setContent {
-      RememberAnchor(RememberAnchorScope::mainAnchor) { state ->
-        MainUi(state)
+      RememberAnchor(RememberAnchorScope::mainAnchor) {
+        MainUi()
       }
     }
   }
