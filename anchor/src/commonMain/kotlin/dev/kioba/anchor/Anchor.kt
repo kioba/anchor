@@ -48,12 +48,6 @@ S : ViewState
 public interface StateAnchor<S> where S : ViewState {
   @AnchorDsl
   public val state: S
-
-  @AnchorDsl
-  public fun <R> withState(
-    block: S.() -> R,
-  ): R =
-    state.run(block)
 }
 
 @AnchorDsl
@@ -83,23 +77,13 @@ public interface CancellableAnchor<E, S> where E : Effect, S : ViewState {
 }
 
 @AnchorDsl
-public object SubscriptionScope
-
-@AnchorDsl
 public interface SubscriptionAnchor {
   @AnchorDsl
-  public suspend fun emit(
-    block: SubscriptionScope.() -> Event,
-  )
+  public fun emit(event: Event)
 }
-
-@AnchorDsl
-public object SignalScope
 
 @AnchorDsl
 public interface SignalAnchor {
   @AnchorDsl
-  public suspend fun post(
-    block: SignalScope.() -> Signal,
-  )
+  public fun post(signal: Signal)
 }

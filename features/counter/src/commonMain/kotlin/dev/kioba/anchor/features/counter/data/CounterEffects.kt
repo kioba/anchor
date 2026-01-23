@@ -2,12 +2,12 @@ package dev.kioba.anchor.features.counter.data
 
 import dev.kioba.anchor.features.counter.model.CounterSignal
 
-public suspend fun CounterAnchor.increment() {
+public fun CounterAnchor.increment() {
   reduce { copy(count = count.inc()) }
-  post { CounterSignal.Increment }
+  post(CounterSignal.Increment)
 }
 
-public suspend fun CounterAnchor.decrement() {
+public fun CounterAnchor.decrement() {
   reduce { copy(count = count.dec()) }
-  post { CounterSignal.Decrement }
+  post(CounterSignal.Decrement)
 }

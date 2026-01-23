@@ -4,8 +4,6 @@ import dev.kioba.anchor.Anchor
 import dev.kioba.anchor.Effect
 import dev.kioba.anchor.Event
 import dev.kioba.anchor.Signal
-import dev.kioba.anchor.SignalScope
-import dev.kioba.anchor.SubscriptionScope
 import dev.kioba.anchor.ViewState
 import kotlin.coroutines.CoroutineContext
 
@@ -23,16 +21,12 @@ internal class AnchorTestRuntime<E, S>(
   override val state: S
     get() = currentState
 
-  override suspend fun post(
-    block: SignalScope.() -> Signal
-  ) {
-    verifyActions.add(SignalAction { block(SignalScope) })
+  override fun post(signal: Signal) {
+    verifyActions.add(SignalAction { signal })
   }
 
-  override suspend fun emit(
-    block: SubscriptionScope.() -> Event,
-  ) {
-    verifyActions.add(EventAction { block(SubscriptionScope) })
+  override fun emit(event: Event) {
+    verifyActions.add(EventAction { event })
   }
 
   override suspend fun cancellable(

@@ -6,8 +6,6 @@ import dev.kioba.anchor.Created
 import dev.kioba.anchor.Effect
 import dev.kioba.anchor.Event
 import dev.kioba.anchor.Signal
-import dev.kioba.anchor.SignalScope
-import dev.kioba.anchor.SubscriptionScope
 import dev.kioba.anchor.SubscriptionsScope
 import dev.kioba.anchor.ViewState
 import kotlinx.coroutines.CoroutineScope
@@ -62,7 +60,9 @@ S : ViewState {
 
   @PublishedApi
   @Suppress("ktlint:standard:backing-property-naming", "PropertyName")
-  internal val _emitter: MutableSharedFlow<Event> = MutableSharedFlow()
+  internal val _emitter: MutableSharedFlow<Event> = MutableSharedFlow(
+    extraBufferCapacity = 64
+  )
 
   /**
    * Map storing cancellable jobs keyed by their identifier.
@@ -175,18 +175,13 @@ S : ViewState {
     }
   }
 
-  override suspend fun post(
-    block: SignalScope.() -> Signal
-  ) {
-    val signal = SignalScope.block()
+  override fun post(signal: Signal) {
     val event = SignalEvent(signal, nextSignalId())
-    _signals.emit(signal)
-    _signalEvents.emit(event)
+    _signals.tryEmit(signal)
+    _signalEvents.tryEmit(event)
   }
 
-  override suspend fun emit(
-    block: SubscriptionScope.() -> Event
-  ): Unit =
-    _emitter
-      .emit(SubscriptionScope.block())
+  override fun emit(event: Event) {
+    _emitter.tryEmit(event)
+  }
 }

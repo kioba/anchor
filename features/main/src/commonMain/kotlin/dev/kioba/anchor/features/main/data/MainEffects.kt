@@ -11,7 +11,7 @@ public suspend fun MainAnchor.sayHi() {
 
 public suspend fun MainAnchor.clear() {
   effect { delayWithEffect() }
-  emit { MainEvent.Cancel }
+  emit(MainEvent.Cancel)
   reduce {
     copy(
       details = "cleared",
@@ -20,8 +20,8 @@ public suspend fun MainAnchor.clear() {
   }
 }
 
-public suspend fun MainAnchor.refresh(): Unit =
-  emit { MainEvent.Refresh }
+public fun MainAnchor.refresh(): Unit =
+  emit(MainEvent.Refresh)
 
 public fun MainAnchor.selectHome() {
   reduce { updateHomeSelected() }
@@ -41,7 +41,7 @@ public fun MainAnchor.iterationCounter(
 }
 
 public fun MainAnchor.hundreds(): Int =
-  withState { hundreds }
+  state.hundreds
 
 @Suppress("UnusedReceiverParameter")
 public suspend fun MainEffect.delayWithEffect(): Int =
