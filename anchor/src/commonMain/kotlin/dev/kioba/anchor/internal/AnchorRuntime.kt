@@ -49,10 +49,7 @@ internal class AnchorRuntime<E, S>(
   @PublishedApi
   @Suppress("ktlint:standard:backing-property-naming", "PropertyName")
   internal val _signals: MutableSharedFlow<SignalProvider> =
-    MutableSharedFlow(
-      replay = 1,
-      extraBufferCapacity = 64,
-    )
+    MutableSharedFlow(extraBufferCapacity = 64)
 
   @PublishedApi
   @Suppress("ktlint:standard:backing-property-naming", "PropertyName")

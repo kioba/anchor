@@ -91,9 +91,10 @@ public fun <S : ViewState> PreviewAnchor(
  * ```kotlin
  * @Composable
  * fun CounterScreen() {
- *   RememberAnchor(scope = { counterAnchor() }) { state ->
+ *   RememberAnchor(scope = { counterAnchor() }) {
  *     Column {
- *       Text("Count: ${state.count}")
+ *       val count = collectState { it.count }
+ *       Text("Count: $count")
  *       Button(onClick = anchor(CounterAnchor::increment)) {
  *         Text("Increment")
  *       }
@@ -126,11 +127,12 @@ public inline fun <reified S, E> RememberAnchor(
       factory = containerViewModelFactory { AnchorRuntimeScope.scope() as AnchorRuntime<E, S> },
     )
 
-  val stateFlow = anchorScope.anchor.viewState
+  val stateFlow = remember(anchorScope) { anchorScope.anchor.viewState }
+  val signalFlow = remember(anchorScope) { anchorScope.anchor.signals }
   val compositionScope = remember(stateFlow) { AnchorStateScopeImpl(stateFlow) }
 
   CompositionLocalProvider(
-    LocalSignals provides anchorScope.anchor.signals,
+    LocalSignals provides signalFlow,
     LocalAnchor provides AnchorScope(anchorScope),
     content = { compositionScope.content() },
   )
