@@ -55,6 +55,7 @@ kotlin {
   sourceSets {
     commonMain {
       dependencies {
+        implementation(libs.kotlin.atomicfu)
         implementation(libs.kotlin.coroutinesCore)
         implementation(libs.lifecycle.viewmodel)
         implementation(libs.lifecycle.rumtime)

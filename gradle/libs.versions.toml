@@ -15,6 +15,7 @@ coreKtx = "1.16.0"
 kotlin = "2.2.10"
 kotlinxCoroutines = "1.10.2"
 kotlinxCoroutinesAndroid = "1.10.2"
+atomicfu = "0.27.0"
 kotlinxSerializationCoreJvm = "1.9.0"
 kotlinxSerializationJson = "1.9.0"
 
@@ -57,6 +58,7 @@ kotlin-coroutinesTest = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-tes
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 
 # Kotlin libraries
+kotlin-atomicfu = { module = "org.jetbrains.kotlinx:atomicfu", version.ref = "atomicfu" }
 kotlin-coroutinesAndroid = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinxCoroutinesAndroid" }
 kotlin-coroutinesCore = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinxCoroutines" }
 kotlin-serializationCore = { module = "org.jetbrains.kotlinx:kotlinx-serialization-core-jvm", version.ref = "kotlinxSerializationCoreJvm" }

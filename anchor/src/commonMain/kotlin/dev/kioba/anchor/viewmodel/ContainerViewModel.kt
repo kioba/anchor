@@ -2,10 +2,10 @@ package dev.kioba.anchor.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import dev.kioba.anchor.AnchorRuntime
-import dev.kioba.anchor.ContainedScope
 import dev.kioba.anchor.Effect
 import dev.kioba.anchor.ViewState
+import dev.kioba.anchor.internal.AnchorRuntime
+import dev.kioba.anchor.internal.ContainedScope
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch

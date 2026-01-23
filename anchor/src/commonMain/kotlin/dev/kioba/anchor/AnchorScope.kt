@@ -1,5 +1,8 @@
 package dev.kioba.anchor
 
+import dev.kioba.anchor.internal.ContainedScope
+import dev.kioba.anchor.internal.execute
+
 /**
  * Provides safe access to execute actions on an Anchor instance.
  *

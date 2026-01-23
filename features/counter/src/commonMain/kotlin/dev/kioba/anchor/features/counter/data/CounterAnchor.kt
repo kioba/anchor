@@ -5,8 +5,7 @@ import dev.kioba.anchor.Effect
 import dev.kioba.anchor.RememberAnchorScope
 import dev.kioba.anchor.ViewState
 
-public class CounterEffect: Effect
-public abstract class CounterAnchorType: CounterAnchor()
+public class CounterEffect : Effect
 public typealias CounterAnchor = Anchor<CounterEffect, CounterState>
 
 public data class CounterState(

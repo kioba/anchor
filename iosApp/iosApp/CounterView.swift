@@ -8,7 +8,7 @@ struct CounterView: View {
   var body: some View {
       CounterUi(
         state: $viewModel.state,
-        signals: $viewModel.singal,
+        signals: $viewModel.signal,
         anchor: $viewModel.anchor,
       )
         .enviromentAnchor(viewModel)

@@ -9,7 +9,7 @@ with Jetpack Compose integration.
 
 Visit [kioba.github.io/anchor/](https://kioba.github.io/anchor/) for more!
 
-Counter
+Counter Example
 =======
 
 A counter example to showcase the usage of Anchor architecture. The screen displays a count, and the
@@ -17,56 +17,57 @@ ability to increment and decrement the count.
 
 ![counter example](https://github.com/kioba/anchor/blob/master/docs/images/counter_example.png)
 
+### 1. Define your State and Anchor
+
 ```kotlin
-// type alias to easily reference our Scope without repeating the type arguments
-typealias CounterScope = AnchorScope<CounterState, Unit>
+// Define your state
+data class CounterState(val count: Int = 0) : ViewState
 
-// function to generate the Scope with the initial state
-fun counterScope(): CounterScope =
-  anchorScope(initialState = ::CounterState)
+// Type alias for easy reference
+typealias CounterAnchor = Anchor<EmptyEffect, CounterState>
 
-// Provide the AnchorScope abilities with a receiver 
-context(CounterScope)
-fun increment() {
-  // modify the view state by incrementing the value
-  reduce { copy(count = count.inc()) }
+// Factory function to create the anchor
+fun RememberAnchorScope.counterAnchor(): CounterAnchor =
+  create(
+    initialState = ::CounterState,
+    effectScope = { EmptyEffect }
+  )
+```
+
+### 2. Define your Actions
+
+```kotlin
+// Use context receivers or simple extension functions
+fun CounterAnchor.increment() {
+  reduce { copy(count = count + 1) }
 }
 
-context(CounterScope)
-fun decrement() {
-  reduce { copy(count = count.dec()) }
+fun CounterAnchor.decrement() {
+  reduce { copy(count = count - 1) }
 }
 ```
+
+### 3. Build your UI
 
 ```kotlin
 @Composable
 fun CounterUi() {
-  // Scope computations are remembered and retained across configuration changes
-  RememberAnchor(scope = ::counterScope) { state ->
-    Scaffold { paddingValues ->
-      Box(
-        modifier = Modifier
-          .padding(paddingValues)
-          .fillMaxSize()
-      ) {
-        Column(modifier = Modifier.align(Center)) {
-          Text(
-            modifier = Modifier.Companion.align(CenterHorizontally),
-            text = state.count.toString(),
-            style = MaterialTheme.typography.headlineMedium,
-          )
-          Spacer(modifier = Modifier.size(32.dp))
-          Row {
-            Button(
-              // within a RememberAnchor actions can be executed
-              // without the requirement to pass around the scope
-              onClick = anchor(::decrement)
-            ) { DecrementIcon() }
-            Spacer(modifier = Modifier.size(16.dp))
-            Button(
-              onClick = anchor(::increment),
-            ) { IncrementIcon() }
-          }
+  // RememberAnchor handles ViewModel-scoped state retention
+  RememberAnchor(RememberAnchorScope::counterAnchor) {
+    // Access state with automatic recomposition optimization
+    val count by collectState { it.count }
+
+    Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
+      Text(
+        text = count.toString(),
+        style = MaterialTheme.typography.headlineMedium,
+      )
+      Row {
+        Button(onClick = anchor(CounterAnchor::decrement)) {
+          Text("-")
+        }
+        Button(onClick = anchor(CounterAnchor::increment)) {
+          Text("+")
         }
       }
     }
@@ -74,10 +75,19 @@ fun CounterUi() {
 }
 ```
 
+Performance Best Practices
+--------------------------
+
+Anchor is designed for performance. To prevent unnecessary full-tree recompositions:
+
+1.  **Use `collectState { ... }`**: Instead of using the `state` parameter directly, use `collectState` to observe only the specific fields your composable needs.
+2.  **Granular UI**: Break down your UI into smaller composables and pass only the required data or use `collectState` within them.
+3.  **One-shot Signals**: Use `HandleSignal<T> { ... }` for events like navigation or showing snackbars. Signals are delivered exactly once and do not trigger recomposition.
+
 License
 --------
 
-    Copyright 2023 Karoly Somodi
+    Copyright 2025 Karoly Somodi
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.

@@ -1,5 +1,15 @@
-package dev.kioba.anchor
+package dev.kioba.anchor.internal
 
+import dev.kioba.anchor.Anchor
+import dev.kioba.anchor.AnchorSink
+import dev.kioba.anchor.Created
+import dev.kioba.anchor.Effect
+import dev.kioba.anchor.Event
+import dev.kioba.anchor.Signal
+import dev.kioba.anchor.SignalScope
+import dev.kioba.anchor.SubscriptionScope
+import dev.kioba.anchor.SubscriptionsScope
+import dev.kioba.anchor.ViewState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
@@ -38,7 +48,17 @@ S : ViewState {
 
   @PublishedApi
   @Suppress("ktlint:standard:backing-property-naming", "PropertyName")
-  internal val _signals: MutableSharedFlow<SignalProvider> = MutableSharedFlow()
+  internal val _signals: MutableSharedFlow<Signal> = MutableSharedFlow(
+    replay = 1,
+    extraBufferCapacity = 64
+  )
+
+  @PublishedApi
+  @Suppress("ktlint:standard:backing-property-naming", "PropertyName")
+  internal val _signalEvents: MutableSharedFlow<SignalEvent> = MutableSharedFlow(
+    replay = 1,
+    extraBufferCapacity = 64
+  )
 
   @PublishedApi
   @Suppress("ktlint:standard:backing-property-naming", "PropertyName")
@@ -61,7 +81,10 @@ S : ViewState {
 
   override val viewState: StateFlow<S> = _viewState.asStateFlow()
 
-  override val signals: SharedFlow<SignalProvider> = _signals.asSharedFlow()
+  override val signals: SharedFlow<Signal> = _signals.asSharedFlow()
+
+  @PublishedApi
+  internal val signalEvents: SharedFlow<SignalEvent> = _signalEvents.asSharedFlow()
 
   private val emitter: SharedFlow<Event> = _emitter.asSharedFlow()
     .onSubscription { emit(Created) }
@@ -156,7 +179,9 @@ S : ViewState {
     block: SignalScope.() -> Signal
   ) {
     val signal = SignalScope.block()
-    _signals.emit(SignalProvider { signal })
+    val event = SignalEvent(signal, nextSignalId())
+    _signals.emit(signal)
+    _signalEvents.emit(event)
   }
 
   override suspend fun emit(

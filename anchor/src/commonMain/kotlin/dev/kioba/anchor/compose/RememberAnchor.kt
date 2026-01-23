@@ -6,17 +6,16 @@ import androidx.compose.runtime.DisallowComposableCalls
 import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.kioba.anchor.Anchor
-import dev.kioba.anchor.AnchorRuntime
 import dev.kioba.anchor.AnchorRuntimeScope
 import dev.kioba.anchor.AnchorScope
-import dev.kioba.anchor.ContainedScope
 import dev.kioba.anchor.Effect
 import dev.kioba.anchor.RememberAnchorScope
-import dev.kioba.anchor.SignalProvider
-import dev.kioba.anchor.UnitSignal
 import dev.kioba.anchor.ViewState
+import dev.kioba.anchor.internal.AnchorRuntime
+import dev.kioba.anchor.internal.ContainedScope
 import dev.kioba.anchor.viewmodel.ContainerViewModel
 import dev.kioba.anchor.viewmodel.containerViewModelFactory
 import kotlinx.coroutines.Dispatchers
@@ -25,52 +24,20 @@ import kotlinx.coroutines.Dispatchers
  * Sets up Anchor state management within a Composable, providing automatic lifecycle management
  * and state retention across configuration changes.
  *
- * This composable integrates Anchor with Jetpack Compose by:
- * - Creating or retrieving a ViewModel-scoped Anchor instance
- * - Collecting state updates and triggering recomposition
- * - Providing signal handling capabilities
- * - Making action functions available via [anchor]
- *
- * The Anchor instance is retained across configuration changes (like screen rotation) through
- * ViewModel integration, ensuring your state persists throughout the component lifecycle.
+ * This version is optimized for performance as it does not collect the full state by default.
+ * Use [AnchorCompositionScope.collectState] to observe only the necessary parts of the state.
  *
  * @param S The ViewState type representing your UI state
  * @param E The Effect type providing dependencies for side effects
  * @param scope Factory function that creates the Anchor instance. Called only once per ViewModel.
  * @param customKey Optional key for ViewModel storage. Defaults to the qualified name of S.
- *        Use this when you need multiple instances of the same state type in the same scope.
- * @param content Composable content that receives the current state and can use [anchor] to
- *        create action callbacks and [HandleSignal] to handle one-time events.
- *
- * @sample
- * ```kotlin
- * @Composable
- * fun CounterScreen() {
- *   RememberAnchor(scope = { counterAnchor() }) { state ->
- *     Column {
- *       Text("Count: ${state.count}")
- *       Button(onClick = anchor(CounterAnchor::increment)) {
- *         Text("Increment")
- *       }
- *       HandleSignal<CounterSignal> { signal ->
- *         when (signal) {
- *           CounterSignal.Increment -> showSnackbar("Incremented!")
- *         }
- *       }
- *     }
- *   }
- * }
- * ```
- *
- * @see anchor For creating action callbacks
- * @see HandleSignal For handling one-time events
- * @see dev.kioba.anchor.Anchor For the core state management interface
+ * @param content Composable content that receives the [AnchorCompositionScope].
  */
 @Composable
 public inline fun <reified S, E> RememberAnchor(
   noinline scope: @DisallowComposableCalls RememberAnchorScope.() -> Anchor<E, S>,
   customKey: String? = null,
-  crossinline content: @Composable (S) -> Unit,
+  crossinline content: @Composable AnchorCompositionScope<S>.() -> Unit,
 ) where E : Effect, S : ViewState {
   val key = customKey ?: S::class.qualifiedName.orEmpty()
 
@@ -80,26 +47,46 @@ public inline fun <reified S, E> RememberAnchor(
       factory = containerViewModelFactory { AnchorRuntimeScope.scope() as AnchorRuntime<E, S> }
     )
 
-  val state by anchorScope.collectViewState()
-  val signal by anchorScope.collectSignal()
+  val stateFlow = anchorScope.anchor.viewState
+  val compositionScope = remember(stateFlow) { AnchorCompositionScopeImpl(stateFlow) }
 
   CompositionLocalProvider(
-    LocalSignals provides signal,
+    LocalSignals provides anchorScope.anchor.signalEvents,
     LocalAnchor provides AnchorScope(anchorScope),
-    content = { content(state) },
+    content = { compositionScope.content() },
   )
 }
 
 /**
- * Collects signal emissions from the Anchor as Compose State.
- * Signals are collected on the Main.immediate dispatcher to ensure timely UI updates.
+ * Sets up Anchor state management within a Composable.
+ *
+ * This version passes the state directly to the content block for convenience,
+ * but will recompose the entire content block on every state update.
  */
 @Composable
-@PublishedApi
-internal inline fun <reified R, E, S> ContainedScope<R, E, S>.collectSignal(): State<SignalProvider>
-  where R : AnchorRuntime<E, S>, E : Effect, S : ViewState =
-  anchor.signals
-    .collectAsState(initial = SignalProvider { UnitSignal }, Dispatchers.Main.immediate)
+public inline fun <reified S, E> RememberAnchor(
+  noinline scope: @DisallowComposableCalls RememberAnchorScope.() -> Anchor<E, S>,
+  customKey: String? = null,
+  crossinline content: @Composable AnchorCompositionScope<S>.(S) -> Unit,
+) where E : Effect, S : ViewState {
+  val key = customKey ?: S::class.qualifiedName.orEmpty()
+
+  val anchorScope: ContainerViewModel<E, S> =
+    viewModel(
+      key = key,
+      factory = containerViewModelFactory { AnchorRuntimeScope.scope() as AnchorRuntime<E, S> }
+    )
+
+  val stateFlow = anchorScope.anchor.viewState
+  val state by stateFlow.collectAsState(Dispatchers.Main.immediate)
+  val compositionScope = remember(stateFlow) { AnchorCompositionScopeImpl(stateFlow) }
+
+  CompositionLocalProvider(
+    LocalSignals provides anchorScope.anchor.signalEvents,
+    LocalAnchor provides AnchorScope(anchorScope),
+    content = { compositionScope.content(state) },
+  )
+}
 
 /**
  * Collects view state from the Anchor as Compose State.
