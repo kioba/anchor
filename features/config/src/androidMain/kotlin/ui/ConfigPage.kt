@@ -27,12 +27,14 @@ import dev.kioba.anchor.features.counter.data.updateText
 @Composable
 public fun ConfigPage(
   paddingValues: PaddingValues,
+  modifier: Modifier = Modifier,
 ) {
-  RememberAnchor(RememberAnchorScope::configAnchor) { state ->
+  RememberAnchor(RememberAnchorScope::configAnchor) {
     Box(
-      modifier = Modifier
-        .padding(paddingValues)
-        .fillMaxSize(),
+      modifier =
+        modifier
+          .padding(paddingValues)
+          .fillMaxSize(),
     ) {
       val textFieldState: TextFieldState = rememberTextFieldState(state.text.orEmpty())
       val updateText by rememberUpdatedState(anchor(ConfigAnchor::updateText))
