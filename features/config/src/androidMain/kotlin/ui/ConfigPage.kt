@@ -27,11 +27,12 @@ import dev.kioba.anchor.features.counter.data.updateText
 @Composable
 public fun ConfigPage(
   paddingValues: PaddingValues,
+  modifier: Modifier = Modifier,
 ) {
   RememberAnchor(RememberAnchorScope::configAnchor) {
     Box(
       modifier =
-        Modifier
+        modifier
           .padding(paddingValues)
           .fillMaxSize(),
     ) {

@@ -34,8 +34,8 @@ import kotlin.coroutines.CoroutineContext
 
 @PublishedApi
 internal class AnchorRuntime<E, S>(
-  public val initialState: () -> S,
-  public val effectScope: () -> E,
+  val initialState: () -> S,
+  val effectScope: () -> E,
   internal val init: (suspend Anchor<E, S>.() -> Unit)? = null,
   internal val subscriptions: (suspend SubscriptionsScope<E, S>.() -> Unit)? = null,
 ) : AnchorSink<E, S>()
@@ -92,17 +92,17 @@ internal class AnchorRuntime<E, S>(
       .flows
       .merge()
 
-  public suspend fun CoroutineScope.subscribe(): Job =
+  suspend fun CoroutineScope.subscribe(): Job =
     emitter
       .handlers()
       .launchIn(this)
 
   // DSL
 
-  public override val state: S
+  override val state: S
     get() = _viewState.value
 
-  public override fun reduce(
+  override fun reduce(
     reducer: S.() -> S,
   ): Unit =
     _viewState.update(reducer)
