@@ -105,9 +105,21 @@ For comprehensive details, check out our documentation:
 
 ---
 
+## 🤝 Contributing
+
+Contributions are welcome! If you'd like to help improve Anchor, feel free to:
+
+- **Submit a Pull Request**: Found a bug or have a feature idea? We'd love to see your code!
+- **Open an Issue**: Report bugs or suggest enhancements via the [GitHub Issues](https://github.com/kioba/anchor/issues) page.
+- **Join the Discussion**: Share your thoughts and feedback to help shape the future of the library.
+
+When contributing, please ensure your code follows the existing style and includes appropriate tests.
+
+---
+
 ## 📄 License
 
-    Copyright 2023 Karoly Somodi
+    Copyright 2025 Karoly Somodi
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
