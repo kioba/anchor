@@ -6,7 +6,6 @@ import dev.kioba.anchor.features.main.model.MainViewState
 internal fun MainViewState.updateHomeSelected(): MainViewState =
   copy(
     selectedTab = MainTab.Home,
-    details = "Hello Android!",
   )
 
 internal fun MainViewState.updateCounterSelected(): MainViewState =

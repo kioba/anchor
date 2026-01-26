@@ -1,5 +1,16 @@
-package dev.kioba.anchor
+package dev.kioba.anchor.internal
 
+import dev.kioba.anchor.Anchor
+import dev.kioba.anchor.AnchorSink
+import dev.kioba.anchor.Created
+import dev.kioba.anchor.Effect
+import dev.kioba.anchor.Event
+import dev.kioba.anchor.Signal
+import dev.kioba.anchor.SignalProvider
+import dev.kioba.anchor.SignalScope
+import dev.kioba.anchor.SubscriptionScope
+import dev.kioba.anchor.SubscriptionsScope
+import dev.kioba.anchor.ViewState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
@@ -23,22 +34,22 @@ import kotlin.coroutines.CoroutineContext
 
 @PublishedApi
 internal class AnchorRuntime<E, S>(
-  public val initialState: () -> S,
-  public val effectScope: () -> E,
+  val initialState: () -> S,
+  val effectScope: () -> E,
   internal val init: (suspend Anchor<E, S>.() -> Unit)? = null,
   internal val subscriptions: (suspend SubscriptionsScope<E, S>.() -> Unit)? = null,
 ) : AnchorSink<E, S>()
   where
-E : Effect,
-S : ViewState {
-
+        E : Effect,
+        S : ViewState {
   @PublishedApi
   @Suppress("ktlint:standard:backing-property-naming", "PropertyName")
   internal val _viewState: MutableStateFlow<S> = MutableStateFlow(initialState())
 
   @PublishedApi
   @Suppress("ktlint:standard:backing-property-naming", "PropertyName")
-  internal val _signals: MutableSharedFlow<SignalProvider> = MutableSharedFlow()
+  internal val _signals: MutableSharedFlow<SignalProvider> =
+    MutableSharedFlow(extraBufferCapacity = 64)
 
   @PublishedApi
   @Suppress("ktlint:standard:backing-property-naming", "PropertyName")
@@ -63,8 +74,10 @@ S : ViewState {
 
   override val signals: SharedFlow<SignalProvider> = _signals.asSharedFlow()
 
-  private val emitter: SharedFlow<Event> = _emitter.asSharedFlow()
-    .onSubscription { emit(Created) }
+  private val emitter: SharedFlow<Event> =
+    _emitter
+      .asSharedFlow()
+      .onSubscription { emit(Created) }
 
   internal suspend fun consumeInitial() {
     init?.invoke(this@AnchorRuntime)
@@ -76,19 +89,20 @@ S : ViewState {
       .flows
       .merge()
 
-  public suspend fun CoroutineScope.subscribe(): Job =
+  suspend fun CoroutineScope.subscribe(): Job =
     emitter
       .handlers()
       .launchIn(this)
 
   // DSL
 
-  public override val state: S
+  override val state: S
     get() = _viewState.value
 
-  public override fun reduce(
+  override fun reduce(
     reducer: S.() -> S,
-  ): Unit = _viewState.update(reducer)
+  ): Unit =
+    _viewState.update(reducer)
 
   override suspend fun <R> effect(
     coroutineContext: CoroutineContext,
@@ -123,29 +137,31 @@ S : ViewState {
     block: suspend Anchor<E, S>.() -> Unit,
   ) {
     coroutineScope {
-      val jobToWait = jobsMutex.withLock {
-        // Cancel and remove old job if it exists
-        val oldJob = jobs.remove(key)
-        oldJob?.cancelAndJoin()
+      val jobToWait =
+        jobsMutex.withLock {
+          // Cancel and remove old job if it exists
+          val oldJob = jobs.remove(key)
+          oldJob?.cancelAndJoin()
 
-        // Create new job (don't wait while holding lock!)
-        val newJob = launch {
-          try {
-            block()
-          } finally {
-            // Clean up completed job to prevent memory leak
-            // Only remove if this job is still the current one for this key
-            jobsMutex.withLock {
-              if (jobs[key] === coroutineContext[Job]) {
-                jobs.remove(key)
+          // Create new job (don't wait while holding lock!)
+          val newJob =
+            launch {
+              try {
+                block()
+              } finally {
+                // Clean up completed job to prevent memory leak
+                // Only remove if this job is still the current one for this key
+                jobsMutex.withLock {
+                  if (jobs[key] === coroutineContext[Job]) {
+                    jobs.remove(key)
+                  }
+                }
               }
             }
-          }
-        }
 
-        // Store the new job while still holding the lock
-        newJob.also { jobs[key] = it }
-      }
+          // Store the new job while still holding the lock
+          newJob.also { jobs[key] = it }
+        }
 
       // Wait for the job to complete (outside the lock)
       jobToWait.join()
@@ -153,14 +169,14 @@ S : ViewState {
   }
 
   override suspend fun post(
-    block: SignalScope.() -> Signal
+    block: SignalScope.() -> Signal,
   ) {
     val signal = SignalScope.block()
     _signals.emit(SignalProvider { signal })
   }
 
   override suspend fun emit(
-    block: SubscriptionScope.() -> Event
+    block: SubscriptionScope.() -> Event,
   ): Unit =
     _emitter
       .emit(SubscriptionScope.block())

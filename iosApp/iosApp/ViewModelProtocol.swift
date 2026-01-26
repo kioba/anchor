@@ -12,11 +12,11 @@ extension SwiftSignalProvider: Equatable {
 
 class SwiftSignalProvider: SignalProvider {
   let signal: Signal
-  
+
   init(signal: Signal) {
     self.signal = signal
   }
-  
+
   func provide() -> any Signal {
     signal
   }
@@ -28,30 +28,30 @@ final class ViewModel<E, S>: ObservableObject where E: Effect, S: ViewState {
   @Published var state: S
   @Published var singal: SwiftSignalProvider
 
-  
+
   typealias E = E
   typealias S = S
-  
+
   init(factory: @escaping (any RememberAnchorScope) -> shared.Anchor<E, S>) {
 
     let localAnchor = RememberAnchorKt.rememberAnchor(
       scope: { scope in factory(scope) as! shared.Anchor<any Effect, any ViewState> },
       customKey: nil,
     )  as! shared.Anchor<E, S>
-    
+
     self.sink = localAnchor  as! shared.AnchorSink<E, S>
     self.anchor = { fun in Task { try await fun(skie(localAnchor)) } }
     self.state = localAnchor.state as! S
     self.singal = SwiftSignalProvider(signal: UnitSignal())
   }
-  
+
   @MainActor
   func collectState() async {
     for await value in sink.viewState {
       state = value
     }
   }
-  
+
   @MainActor
   func collectSignals() async {
     for await value in sink.signals {
