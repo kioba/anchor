@@ -119,7 +119,7 @@ When contributing, please ensure your code follows the existing style and includ
 
 ## 📄 License
 
-    Copyright 2025 Karoly Somodi
+    Copyright 2026 Karoly Somodi
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
