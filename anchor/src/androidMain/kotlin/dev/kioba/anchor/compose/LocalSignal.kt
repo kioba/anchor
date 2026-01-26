@@ -13,10 +13,29 @@ import dev.kioba.anchor.SignalProvider
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 
+/**
+ * CompositionLocal providing the stream of signals from the current Anchor.
+ */
 @PublishedApi
 internal val LocalSignals: ProvidableCompositionLocal<Flow<SignalProvider>> =
   staticCompositionLocalOf { emptyFlow() }
 
+/**
+ * Handles one-time [Signal]s emitted by an Anchor.
+ *
+ * This Composable listens to the signal stream and executes the [block] when a signal of type [T] is received.
+ * It uses [LaunchedEffect] to ensure the block is executed in a coroutine scope tied to the Composable's lifecycle.
+ *
+ * @param T The type of [Signal] to handle.
+ * @param block The suspend function to execute when a signal of type [T] is received.
+ *
+ * Example:
+ * ```kotlin
+ * HandleSignal<CounterSignal.ShowError> { signal ->
+ *   snackbarHostState.showSnackbar(signal.message)
+ * }
+ * ```
+ */
 @Suppress("ModifierRequired")
 @Composable
 public inline fun <reified T : Signal> HandleSignal(
