@@ -22,7 +22,7 @@ internal fun RowScope.QuackItem(
 ) {
   NavigationBarItem(
     selected = state.isTextInputSelected(),
-    icon = { textInput() },
+    icon = { TextInput() },
     onClick = anchor(MainAnchor::selectQuack),
   )
 }
@@ -50,7 +50,7 @@ internal fun RowScope.CounterItem(
 }
 
 @Composable
-private fun textInput() {
+private fun TextInput() {
   Icon(
     painter = painterResource(ResourcesR.ic_lightbulb),
     contentDescription = "text input",

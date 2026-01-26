@@ -6,26 +6,46 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlin.coroutines.CoroutineContext
 
+@DslMarker
+internal annotation class AnchorDsl
+
+public interface ViewState
+
+public interface Effect
+
+public object EmptyEffect : Effect
+
+public interface Signal
+
+public object UnitSignal : Signal
+
+public interface Event
+
+public object Created : Event
+
+public fun interface SignalProvider {
+  public fun provide(): Signal
+}
+
 public abstract class AnchorSink<E, S> : Anchor<E, S>()
   where
-E : Effect,
-S : ViewState {
-
+        E : Effect,
+        S : ViewState {
   public abstract val viewState: StateFlow<S>
 
   public abstract val signals: SharedFlow<SignalProvider>
-
 }
 
 @AnchorDsl
-public abstract class Anchor<E, S> : MutableStateAnchor<S>,
+public abstract class Anchor<E, S> :
+  MutableStateAnchor<S>,
   EffectAnchor<E>,
   CancellableAnchor<E, S>,
   SubscriptionAnchor,
   SignalAnchor
   where
-E : Effect,
-S : ViewState
+        E : Effect,
+        S : ViewState
 
 @AnchorDsl
 public interface StateAnchor<S> where S : ViewState {
