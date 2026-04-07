@@ -3,9 +3,6 @@ import com.android.build.api.dsl.androidLibrary
 plugins {
   alias(libs.plugins.android.multiplatformLibrary)
   alias(libs.plugins.kotlinMultiplatform)
-  alias(libs.plugins.compose.multiplatform)
-  alias(libs.plugins.compose.compiler)
-
   id("co.touchlab.skie") version "0.10.6"
 }
 
