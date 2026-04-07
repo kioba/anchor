@@ -15,9 +15,6 @@ kotlin {
     compileSdk = libs.versions.android.compileSdk.get().toInt()
     minSdk = libs.versions.android.minSdk.get().toInt()
 
-    @Suppress("UnstableApiUsage")
-    withHostTestBuilder {}.configure {}
-
     compilations.configureEach {
       compilerOptions.configure {
         jvmTarget.set(
@@ -56,13 +53,6 @@ kotlin {
         implementation(libs.compose.uiToolingPreview)
 
         implementation(projects.features.resources)
-      }
-    }
-
-    getByName("androidHostTest") {
-      dependencies {
-        implementation(libs.kotlin.test)
-        implementation(projects.anchorTest)
       }
     }
 

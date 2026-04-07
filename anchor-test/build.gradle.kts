@@ -1,8 +1,8 @@
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import com.android.build.api.dsl.androidLibrary
 
 plugins {
   alias(libs.plugins.kotlinMultiplatform)
-  alias(libs.plugins.android.library)
+  alias(libs.plugins.android.multiplatformLibrary)
   id("dev.kioba.publish")
 }
 
@@ -11,10 +11,17 @@ kotlin {
 
   jvm("desktop")
 
-  androidTarget {
-    publishLibraryVariants("release", "debug")
-    compilerOptions {
-      jvmTarget.set(JvmTarget.JVM_11)
+  androidLibrary {
+    namespace = "dev.kioba.anchor.test"
+    compileSdk = libs.versions.android.compileSdk.get().toInt()
+    minSdk = libs.versions.android.minSdk.get().toInt()
+
+    compilations.configureEach {
+      compilerOptions.configure {
+        jvmTarget.set(
+          org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11
+        )
+      }
     }
   }
 
@@ -34,7 +41,7 @@ kotlin {
   }
 
   sourceSets {
-    val commonMain by getting {
+    commonMain {
       dependencies {
         implementation(libs.kotlin.coroutinesCore)
         implementation(libs.kotlin.coroutinesTest)
@@ -42,33 +49,10 @@ kotlin {
         api(projects.anchor)
       }
     }
-    val commonTest by getting {
+    commonTest {
       dependencies {
         implementation(libs.kotlin.test)
       }
     }
-    val androidMain by getting {
-      dependencies {
-      }
-    }
   }
 }
-
-android {
-  namespace = "dev.kioba.anchor.test"
-
-  compileSdk = libs.versions.android.compileSdk.get().toInt()
-
-  defaultConfig {
-    minSdk = libs.versions.android.minSdk.get().toInt()
-  }
-  composeOptions {
-    kotlinCompilerExtensionVersion = "1.5.15"
-  }
-
-  compileOptions {
-    sourceCompatibility = JavaVersion.VERSION_11
-    targetCompatibility = JavaVersion.VERSION_11
-  }
-}
-
