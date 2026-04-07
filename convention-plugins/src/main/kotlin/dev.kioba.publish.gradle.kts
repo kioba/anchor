@@ -17,7 +17,10 @@ mavenPublishing {
     )
 
     publishToMavenCentral()
-    signAllPublications()
+
+    if (project.findProperty("signingInMemoryKey")?.toString()?.isNotBlank() == true) {
+        signAllPublications()
+    }
 
     pom {
         name.set("Architecture based on UDF design and Functional Programming for Multiplatform applications")
