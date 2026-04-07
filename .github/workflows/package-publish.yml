@@ -12,7 +12,7 @@ jobs:
     name: 'build and publish'
     runs-on: macos-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
 
     steps:
@@ -68,3 +68,21 @@ jobs:
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.GPG_SECRET_KEY }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.GPG_PASSWORD }}
+
+      - name: Read version from gradle.properties
+        if: steps.changes.outputs.has_changes == 'true'
+        id: version
+        run: |
+          VERSION=$(grep '^POM_VERSION=' gradle.properties | cut -d'=' -f2)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Version: $VERSION"
+
+      - name: Create git tag and GitHub release
+        if: steps.changes.outputs.has_changes == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          git tag "$VERSION"
+          git push origin "$VERSION"
+          gh release create "$VERSION" --generate-notes --title "v$VERSION"
