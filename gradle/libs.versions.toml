@@ -67,6 +67,9 @@ lifecycle-rumtime = { module = "org.jetbrains.androidx.lifecycle:lifecycle-runti
 appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
 
+# Publishing
+maven-publish-plugin = { module = "com.vanniktech:gradle-maven-publish-plugin", version.ref = "maven-publish" }
+
 [plugins]
 # Android plugins
 android-application = { id = "com.android.application", version.ref = "agp" }
