@@ -19,7 +19,7 @@ kotlin {
       compileTaskProvider.configure {
         compilerOptions {
           jvmTarget.set(
-            org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11
+            org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
           )
         }
       }

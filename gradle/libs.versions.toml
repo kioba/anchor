@@ -5,7 +5,7 @@ android-targetSdk = "36"
 android-compileSdk = "36"
 
 # plugin versions
-agp = "9.0.0"
+agp = "9.1.0"
 compose-plugin = "1.9.3"
 maven-publish = "0.35.0"
 
