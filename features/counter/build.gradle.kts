@@ -15,14 +15,13 @@ kotlin {
     compileSdk = libs.versions.android.compileSdk.get().toInt()
     minSdk = libs.versions.android.minSdk.get().toInt()
 
-    @Suppress("UnstableApiUsage")
-    withHostTestBuilder {}.configure {}
-
     compilations.configureEach {
-      compilerOptions.configure {
-        jvmTarget.set(
-          org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11
-        )
+      compileTaskProvider.configure {
+        compilerOptions {
+          jvmTarget.set(
+            org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+          )
+        }
       }
     }
 
@@ -56,13 +55,6 @@ kotlin {
         implementation(libs.compose.uiToolingPreview)
 
         implementation(projects.features.resources)
-      }
-    }
-
-    getByName("androidHostTest") {
-      dependencies {
-        implementation(libs.kotlin.test)
-        implementation(projects.anchorTest)
       }
     }
 
