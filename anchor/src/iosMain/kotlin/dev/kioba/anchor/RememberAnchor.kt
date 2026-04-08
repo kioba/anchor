@@ -7,6 +7,18 @@ import dev.kioba.anchor.internal.AnchorRuntime
 import dev.kioba.anchor.viewmodel.ContainerViewModel
 import dev.kioba.anchor.viewmodel.containerViewModelFactory
 
+/**
+ * Creates and remembers an [Anchor] instance for iOS.
+ *
+ * This function provides a way to use Anchor in iOS targets, integrating with the lifecycle
+ * of the component where it's called. It uses a [ViewModelStore] to retain the Anchor instance.
+ *
+ * @param S The [ViewState] type.
+ * @param E The [Effect] type.
+ * @param scope Factory function that creates the [Anchor] instance.
+ * @param customKey Optional key for Anchor storage.
+ * @return The [Anchor] instance.
+ */
 @Suppress("UNCHECKED_CAST")
 public fun <S, E> rememberAnchor(
   scope: (RememberAnchorScope) -> Anchor<E, S>,

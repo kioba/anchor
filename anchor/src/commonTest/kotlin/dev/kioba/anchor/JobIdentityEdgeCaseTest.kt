@@ -5,6 +5,8 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -25,13 +27,14 @@ class JobIdentityEdgeCaseTest {
     runBlocking {
       val anchor = createTestAnchor()
       val jobsCompleted = mutableListOf<Int>()
+      val mutex = Mutex()
 
       // Launch 50 rapid calls with the same key
       repeat(50) { i ->
         launch {
           anchor.cancellable("rapid-test") {
             delay(5)
-            synchronized(jobsCompleted) {
+            mutex.withLock {
               jobsCompleted.add(i)
             }
           }

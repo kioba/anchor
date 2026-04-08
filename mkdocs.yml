@@ -4,7 +4,7 @@ repo_url: https://github.com/kioba/anchor
 site_description: "A lightweight architecture for Compose state management"
 
 copyright: |
-  &copy; 2023 <a href="https://github.com/kioba"  target="_blank" rel="noopener">Karoly Somodi - Kioba</a>
+  &copy; 2026 <a href="https://github.com/kioba"  target="_blank" rel="noopener">Karoly Somodi - Kioba</a>
 
 theme:
   name: material
@@ -64,3 +64,6 @@ markdown_extensions:
 
 nav:
   - 'Introduction': index.md
+  - 'Core Concepts': concepts.md
+  - 'API Reference': api.md
+  - 'Examples': examples.md
