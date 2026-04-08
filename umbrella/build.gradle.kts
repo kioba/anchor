@@ -1,11 +1,6 @@
-import com.android.build.api.dsl.androidLibrary
-
 plugins {
   alias(libs.plugins.android.multiplatformLibrary)
   alias(libs.plugins.kotlinMultiplatform)
-  alias(libs.plugins.compose.multiplatform)
-  alias(libs.plugins.compose.compiler)
-
   id("co.touchlab.skie") version "0.10.6"
 }
 
@@ -18,10 +13,12 @@ kotlin {
     minSdk = libs.versions.android.minSdk.get().toInt()
 
     compilations.configureEach {
-      compilerOptions.configure {
-        jvmTarget.set(
-          org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11
-        )
+      compileTaskProvider.configure {
+        compilerOptions {
+          jvmTarget.set(
+            org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+          )
+        }
       }
     }
   }
