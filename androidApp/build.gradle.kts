@@ -1,18 +1,6 @@
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-
 plugins {
-  alias(libs.plugins.kotlinMultiplatform)
   alias(libs.plugins.android.application)
-  alias(libs.plugins.compose.multiplatform)
   alias(libs.plugins.compose.compiler)
-}
-
-kotlin {
-  androidTarget {
-    compilerOptions {
-      jvmTarget.set(JvmTarget.JVM_11)
-    }
-  }
 }
 
 android {
@@ -46,6 +34,23 @@ android {
     }
   }
   namespace = "dev.kioba.anchor.example"
+
+  sourceSets {
+    getByName("main") {
+      manifest.srcFile("src/androidMain/AndroidManifest.xml")
+      java.srcDirs("src/androidMain/kotlin")
+      res.srcDirs("src/androidMain/res")
+    }
+    getByName("androidTest") {
+      java.srcDirs("src/androidInstrumentedTest/kotlin")
+    }
+  }
+}
+
+kotlin {
+  compilerOptions {
+    jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
+  }
 }
 
 dependencies {
@@ -68,8 +73,4 @@ dependencies {
   implementation(projects.features.main)
 
   testImplementation(libs.junit)
-}
-
-tasks.withType<Test> {
-  useJUnitPlatform()
 }
