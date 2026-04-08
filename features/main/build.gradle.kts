@@ -53,6 +53,7 @@ kotlin {
       dependencies {
         implementation(libs.kotlin.coroutinesCore)
         implementation(projects.anchor)
+        implementation(projects.anchorCompose)
         implementation(projects.features.config)
         implementation(projects.features.counter)
       }

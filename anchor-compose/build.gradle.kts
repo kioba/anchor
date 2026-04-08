@@ -1,8 +1,9 @@
 plugins {
   alias(libs.plugins.android.multiplatformLibrary)
   alias(libs.plugins.kotlinMultiplatform)
+  alias(libs.plugins.compose.compiler)
+  alias(libs.plugins.compose.multiplatform)
   id("dev.kioba.publish")
-  id("co.touchlab.skie") version "0.10.6"
 }
 
 kotlin {
@@ -11,7 +12,7 @@ kotlin {
   jvm("desktop")
 
   androidLibrary {
-    namespace = "dev.kioba.anchor"
+    namespace = "dev.kioba.anchor.compose"
 
     compileSdk = libs.versions.android.compileSdk.get().toInt()
     minSdk = libs.versions.android.minSdk.get().toInt()
@@ -27,7 +28,6 @@ kotlin {
     }
   }
 
-
   listOf(
     iosX64(),
     iosArm64(),
@@ -35,9 +35,9 @@ kotlin {
   ).forEach { iosTarget ->
     iosTarget.binaries {
       framework {
-        baseName = "anchor"
+        baseName = "anchor-compose"
         isStatic = true
-        binaryOption("bundleId", "dev.kioba.anchor")
+        binaryOption("bundleId", "dev.kioba.anchor.compose")
         binaryOption("bundleVersion", "2")
       }
     }
@@ -46,8 +46,10 @@ kotlin {
   sourceSets {
     commonMain {
       dependencies {
-        implementation(libs.kotlin.coroutinesCore)
-        implementation(libs.lifecycle.viewmodel.core)
+        api(projects.anchor)
+        implementation(libs.lifecycle.viewmodel)
+        implementation(libs.lifecycle.rumtime)
+        implementation(compose.runtime)
       }
     }
 
@@ -56,7 +58,5 @@ kotlin {
         implementation(libs.kotlin.test)
       }
     }
-
   }
 }
-

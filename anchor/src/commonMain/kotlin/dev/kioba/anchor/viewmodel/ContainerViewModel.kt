@@ -2,26 +2,40 @@ package dev.kioba.anchor.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dev.kioba.anchor.Anchor
+import dev.kioba.anchor.AnchorScope
 import dev.kioba.anchor.Effect
+import dev.kioba.anchor.SignalProvider
 import dev.kioba.anchor.ViewState
 import dev.kioba.anchor.internal.AnchorRuntime
-import dev.kioba.anchor.internal.ContainedScope
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
-@PublishedApi
-internal class ContainerViewModel<E, S>(
-  override val anchor: AnchorRuntime<E, S>,
+public class ContainerViewModel<E, S> @PublishedApi internal constructor(
+  internal val anchor: AnchorRuntime<E, S>,
 ) : ViewModel(),
-  ContainedScope<AnchorRuntime<E, S>, E, S>
+  AnchorScope<E, S>
   where
         E : Effect,
         S : ViewState {
-  override val coroutineScope: CoroutineScope = viewModelScope
+
+  public val viewState: StateFlow<S>
+    get() = anchor.viewState
+
+  public val signals: Flow<SignalProvider>
+    get() = anchor.signals
+
+  override fun execute(block: suspend Anchor<E, S>.() -> Unit) {
+    viewModelScope.launch(Dispatchers.Default) {
+      @Suppress("UNCHECKED_CAST")
+      anchor.block()
+    }
+  }
 
   init {
-    coroutineScope.launch(Dispatchers.Default) {
+    viewModelScope.launch(Dispatchers.Default) {
       anchor.consumeInitial()
       with(anchor) {
         subscribe()

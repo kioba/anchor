@@ -36,6 +36,7 @@ dependencyResolutionManagement {
 
 rootProject.name = "anchorS"
 include(":anchor")
+include(":anchor-compose")
 include(":anchor-test")
 include(":androidApp")
 include(":features:config")

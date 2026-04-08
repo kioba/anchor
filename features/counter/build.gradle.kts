@@ -62,6 +62,7 @@ kotlin {
       dependencies {
         implementation(libs.kotlin.coroutinesCore)
         implementation(projects.anchor)
+        implementation(projects.anchorCompose)
       }
     }
   }

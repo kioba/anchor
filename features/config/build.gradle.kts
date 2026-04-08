@@ -41,6 +41,7 @@ kotlin {
         implementation(libs.kotlin.coroutinesCore)
         implementation(libs.kotlin.serializationJson)
         implementation(projects.anchor)
+        implementation(projects.anchorCompose)
       }
     }
 
