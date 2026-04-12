@@ -41,7 +41,7 @@ Add the dependency:
 
 ```kotlin
 dependencies {
-    implementation("dev.kioba:anchor:0.0.8")
+    implementation("dev.kioba.anchor:anchor:0.0.10")
 }
 ```
 
