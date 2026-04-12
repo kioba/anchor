@@ -5,7 +5,7 @@ import dev.kioba.anchor.ViewState
 import dev.kioba.anchor.test.AnchorTestDsl
 
 @AnchorTestDsl
-public interface GivenScope<E : Effect, S : ViewState> {
+public interface GivenScope<R : Effect, S : ViewState> {
   @AnchorTestDsl
   public fun initialState(
     f: () -> S,
@@ -13,11 +13,11 @@ public interface GivenScope<E : Effect, S : ViewState> {
 
   @AnchorTestDsl
   public suspend fun effect(
-    f: E.() -> Unit,
+    f: R.() -> Unit,
   )
 
   @AnchorTestDsl
   public suspend fun effectScope(
-    f: () -> E,
+    f: () -> R,
   )
 }
