@@ -8,12 +8,12 @@ import dev.kioba.anchor.ViewState
 import dev.kioba.anchor.internal.AnchorRuntime
 
 @PublishedApi
-internal fun <E, R, S> containerViewModelFactory(
-  factory: () -> R
-): ContainerViewModelFactory where E : Effect, R : AnchorRuntime<E, S>, S : ViewState =
+internal fun <R, A, S> containerViewModelFactory(
+  factory: () -> A
+): ContainerViewModelFactory where R : Effect, A : AnchorRuntime<R, S>, S : ViewState =
   ContainerViewModelFactory { ContainerViewModel(factory()) }
 
-public fun <E : Effect, S : ViewState> anchorContainerViewModelFactory(
-  scope: RememberAnchorScope.() -> Anchor<E, S>,
+public fun <R : Effect, S : ViewState> anchorContainerViewModelFactory(
+  scope: RememberAnchorScope.() -> Anchor<R, S>,
 ): ContainerViewModelFactory =
-  containerViewModelFactory { AnchorRuntimeScope.scope() as AnchorRuntime<E, S> }
+  containerViewModelFactory { AnchorRuntimeScope.scope() as AnchorRuntime<R, S> }

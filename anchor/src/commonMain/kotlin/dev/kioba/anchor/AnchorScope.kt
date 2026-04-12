@@ -18,13 +18,13 @@ import dev.kioba.anchor.internal.execute
  * }
  * ```
  *
- * @param E The Effect type providing dependencies for side effects
+ * @param R The Effect type providing dependencies for side effects
  * @param S The ViewState type representing the UI state
  *
  * @see dev.kioba.anchor.compose.anchor For the primary way to execute actions
  * @see dev.kioba.anchor.compose.RememberAnchor For setting up the Anchor scope
  */
-public fun interface AnchorScope<out E : Effect, out S : ViewState> {
+public fun interface AnchorScope<out R : Effect, out S : ViewState> {
   /**
    * Executes an action on the underlying Anchor instance.
    *
@@ -34,7 +34,7 @@ public fun interface AnchorScope<out E : Effect, out S : ViewState> {
    * @param block The action to execute with the Anchor as receiver
    */
   public fun execute(
-    block: suspend Anchor<@UnsafeVariance E, @UnsafeVariance S>.() -> Unit,
+    block: suspend Anchor<@UnsafeVariance R, @UnsafeVariance S>.() -> Unit,
   )
 }
 
@@ -45,18 +45,18 @@ public fun interface AnchorScope<out E : Effect, out S : ViewState> {
  * delegates to the provided ContainedScope. This is used internally by RememberAnchor
  * to provide safe action execution.
  *
- * @param E The Effect type
+ * @param R The Effect type
  * @param S The ViewState type
  * @param containedScope The contained scope to delegate to
  * @return An AnchorScope that delegates execution to the contained scope
  */
 @PublishedApi
-internal fun <E : Effect, S : ViewState> AnchorScope(
-  containedScope: ContainedScope<out Anchor<E, S>, E, S>,
-): AnchorScope<E, S> =
+internal fun <R : Effect, S : ViewState> AnchorScope(
+  containedScope: ContainedScope<out Anchor<R, S>, R, S>,
+): AnchorScope<R, S> =
   AnchorScope { block ->
-    // Safe cast: block with receiver Anchor<E, S> can be called on any Anchor<*, *>
-    // because Anchor<E, S> is a subtype of Anchor<*, *>
+    // Safe cast: block with receiver Anchor<R, S> can be called on any Anchor<*, *>
+    // because Anchor<R, S> is a subtype of Anchor<*, *>
     @Suppress("UNCHECKED_CAST")
     containedScope.execute(block as suspend Anchor<*, *>.() -> Unit)
   }

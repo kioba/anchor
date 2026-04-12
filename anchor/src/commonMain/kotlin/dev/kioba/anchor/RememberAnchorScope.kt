@@ -11,7 +11,7 @@ public interface RememberAnchorScope {
   /**
    * Creates a new [Anchor] instance.
    *
-   * @param E The [Effect] type.
+   * @param R The [Effect] type.
    * @param S The [ViewState] type.
    * @param effectScope A factory function for the [Effect] dependencies.
    * @param initialState A factory function for the initial [ViewState].
@@ -30,24 +30,24 @@ public interface RememberAnchorScope {
    *   )
    * ```
    */
-  public fun <E, S> create(
-    effectScope: () -> E,
+  public fun <R, S> create(
+    effectScope: () -> R,
     initialState: () -> S,
-    init: (suspend Anchor<E, S>.() -> Unit)? = null,
-    subscriptions: (suspend SubscriptionsScope<E, S>.() -> Unit)? = null,
-  ): Anchor<E, S> where E : Effect, S : ViewState
+    init: (suspend Anchor<R, S>.() -> Unit)? = null,
+    subscriptions: (suspend SubscriptionsScope<R, S>.() -> Unit)? = null,
+  ): Anchor<R, S> where R : Effect, S : ViewState
 }
 
 /**
  * Default implementation of [RememberAnchorScope] that uses [AnchorRuntime].
  */
 public object AnchorRuntimeScope : RememberAnchorScope {
-  override fun <E : Effect, S : ViewState> create(
-    effectScope: () -> E,
+  override fun <R : Effect, S : ViewState> create(
+    effectScope: () -> R,
     initialState: () -> S,
-    init: (suspend Anchor<E, S>.() -> Unit)?,
-    subscriptions: (suspend SubscriptionsScope<E, S>.() -> Unit)?,
-  ): Anchor<E, S> =
+    init: (suspend Anchor<R, S>.() -> Unit)?,
+    subscriptions: (suspend SubscriptionsScope<R, S>.() -> Unit)?,
+  ): Anchor<R, S> =
     AnchorRuntime(
       initialState = initialState,
       effectScope = effectScope,

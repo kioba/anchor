@@ -68,12 +68,12 @@ public fun interface SignalProvider {
 /**
  * A read-only view of an Anchor's state and signals.
  *
- * @param E The [Effect] type.
+ * @param R The [Effect] type.
  * @param S The [ViewState] type.
  */
-public abstract class AnchorSink<E, S> : Anchor<E, S>()
+public abstract class AnchorSink<R, S> : Anchor<R, S>()
   where
-        E : Effect,
+        R : Effect,
         S : ViewState {
   /**
    * The current state as a [StateFlow].
@@ -92,18 +92,18 @@ public abstract class AnchorSink<E, S> : Anchor<E, S>()
  * An Anchor manages the state of a component and handles side effects.
  * It combines state management, effect execution, cancellation, and event/signal emission.
  *
- * @param E The [Effect] type providing dependencies for side effects.
+ * @param R The [Effect] type providing dependencies for side effects.
  * @param S The [ViewState] type representing the UI state.
  */
 @AnchorDsl
-public abstract class Anchor<E, S> :
+public abstract class Anchor<R, S> :
   MutableStateAnchor<S>,
-  EffectAnchor<E>,
-  CancellableAnchor<E, S>,
+  EffectAnchor<R>,
+  CancellableAnchor<R, S>,
   SubscriptionAnchor,
   SignalAnchor
   where
-        E : Effect,
+        R : Effect,
         S : ViewState
 
 /**
@@ -126,9 +126,9 @@ public interface StateAnchor<S> where S : ViewState {
    * @return The result of the block.
    */
   @AnchorDsl
-  public fun <R> withState(
-    block: S.() -> R,
-  ): R =
+  public fun <T> withState(
+    block: S.() -> T,
+  ): T =
     state.run(block)
 }
 
@@ -158,15 +158,15 @@ public interface MutableStateAnchor<S> : StateAnchor<S> where S : ViewState {
 /**
  * Provides the ability to execute side effects.
  *
- * @param E The [Effect] type.
+ * @param R The [Effect] type.
  */
 @AnchorDsl
-public interface EffectAnchor<E> where E : Effect {
+public interface EffectAnchor<R> where R : Effect {
   /**
    * Executes a side effect block using the provided effect dependencies.
    *
    * @param coroutineContext The [CoroutineContext] to run the block in. Defaults to [Dispatchers.IO].
-   * @param block The block to execute with [E] as a receiver.
+   * @param block The block to execute with [R] as a receiver.
    * @return The result of the side effect.
    *
    * Example:
@@ -175,20 +175,20 @@ public interface EffectAnchor<E> where E : Effect {
    * ```
    */
   @AnchorDsl
-  public suspend fun <R> effect(
+  public suspend fun <T> effect(
     coroutineContext: CoroutineContext = Dispatchers.IO,
-    block: suspend E.() -> R,
-  ): R
+    block: suspend R.() -> T,
+  ): T
 }
 
 /**
  * Provides the ability to manage cancellable jobs.
  *
- * @param E The [Effect] type.
+ * @param R The [Effect] type.
  * @param S The [ViewState] type.
  */
 @AnchorDsl
-public interface CancellableAnchor<E, S> where E : Effect, S : ViewState {
+public interface CancellableAnchor<R, S> where R : Effect, S : ViewState {
   /**
    * Executes a block that can be cancelled by its [key].
    *
@@ -208,7 +208,7 @@ public interface CancellableAnchor<E, S> where E : Effect, S : ViewState {
   @AnchorDsl
   public suspend fun cancellable(
     key: Any,
-    block: suspend Anchor<E, S>.() -> Unit,
+    block: suspend Anchor<R, S>.() -> Unit,
   )
 }
 
