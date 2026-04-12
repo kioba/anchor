@@ -10,10 +10,10 @@ import kotlinx.coroutines.test.TestResult
 import kotlinx.coroutines.test.runTest
 
 @AnchorTestDsl
-public inline fun <reified E, reified S> runAnchorTest(
-  noinline builder: RememberAnchorScope.() -> Anchor<E, S>,
-  crossinline block: suspend AnchorTestScope<E, S>.() -> Unit,
-): TestResult where E : Effect, S : ViewState =
+public inline fun <reified R, reified S> runAnchorTest(
+  noinline builder: RememberAnchorScope.() -> Anchor<R, S>,
+  crossinline block: suspend AnchorTestScope<R, S>.() -> Unit,
+): TestResult where R : Effect, S : ViewState =
   runTest {
     AnchorTestScope(builder)
       .apply { block() }

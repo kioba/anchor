@@ -10,12 +10,12 @@ import dev.kioba.anchor.ViewState
 import kotlin.coroutines.CoroutineContext
 
 @PublishedApi
-internal class AnchorTestRuntime<E, S>(
+internal class AnchorTestRuntime<R, S>(
   @PublishedApi
-  internal val effectScope: E,
+  internal val effectScope: R,
   @PublishedApi
   internal val initState: S,
-) : Anchor<E, S>() where E : Effect, S : ViewState {
+) : Anchor<R, S>() where R : Effect, S : ViewState {
 
   val verifyActions = mutableListOf<VerifyAction>()
   private var currentState = initState
@@ -37,15 +37,15 @@ internal class AnchorTestRuntime<E, S>(
 
   override suspend fun cancellable(
     key: Any,
-    block: suspend Anchor<E, S>.() -> Unit,
+    block: suspend Anchor<R, S>.() -> Unit,
   ) {
     block()
   }
 
-  override suspend fun <R> effect(
+  override suspend fun <T> effect(
     coroutineContext: CoroutineContext,
-    block: suspend E.() -> R,
-  ): R =
+    block: suspend R.() -> T,
+  ): T =
     block(effectScope)
 
   override fun reduce(

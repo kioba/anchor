@@ -6,10 +6,10 @@ import dev.kioba.anchor.Signal
 import dev.kioba.anchor.ViewState
 
 @PublishedApi
-internal class VerifyScopeImpl<E, S>(
+internal class VerifyScopeImpl<R, S>(
   @PublishedApi
   internal val expectedActions: MutableList<VerifyAction> = mutableListOf(),
-) : VerifyScope<E, S> where E : Effect, S : ViewState {
+) : VerifyScope<R, S> where R : Effect, S : ViewState {
   override fun assertState(
     f: S.() -> S,
   ) {
@@ -29,7 +29,7 @@ internal class VerifyScopeImpl<E, S>(
   }
 
   override fun assertEffect(
-    f: E.() -> Unit,
+    f: R.() -> Unit,
   ) {
     expectedActions.add(EffectAction(f))
   }
@@ -54,6 +54,6 @@ internal data class EventAction(
 ) : VerifyAction
 
 @PublishedApi
-internal data class EffectAction<E>(
-  val effect: E.() -> Unit,
+internal data class EffectAction<R>(
+  val effect: R.() -> Unit,
 ) : VerifyAction
