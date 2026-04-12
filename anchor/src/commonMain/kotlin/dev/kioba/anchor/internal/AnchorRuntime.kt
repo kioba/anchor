@@ -33,14 +33,14 @@ import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
 
 @PublishedApi
-internal class AnchorRuntime<E, S>(
+internal class AnchorRuntime<R, S>(
   val initialState: () -> S,
-  val effectScope: () -> E,
-  internal val init: (suspend Anchor<E, S>.() -> Unit)? = null,
-  internal val subscriptions: (suspend SubscriptionsScope<E, S>.() -> Unit)? = null,
-) : AnchorSink<E, S>()
+  val effectScope: () -> R,
+  internal val init: (suspend Anchor<R, S>.() -> Unit)? = null,
+  internal val subscriptions: (suspend SubscriptionsScope<R, S>.() -> Unit)? = null,
+) : AnchorSink<R, S>()
   where
-        E : Effect,
+        R : Effect,
         S : ViewState {
   @PublishedApi
   @Suppress("ktlint:standard:backing-property-naming", "PropertyName")
@@ -104,10 +104,10 @@ internal class AnchorRuntime<E, S>(
   ): Unit =
     _viewState.update(reducer)
 
-  override suspend fun <R> effect(
+  override suspend fun <T> effect(
     coroutineContext: CoroutineContext,
-    block: suspend E.() -> R,
-  ): R =
+    block: suspend R.() -> T,
+  ): T =
     withContext(coroutineContext) {
       effect.block()
     }
@@ -134,7 +134,7 @@ internal class AnchorRuntime<E, S>(
    */
   override suspend fun cancellable(
     key: Any,
-    block: suspend Anchor<E, S>.() -> Unit,
+    block: suspend Anchor<R, S>.() -> Unit,
   ) {
     coroutineScope {
       val jobToWait =

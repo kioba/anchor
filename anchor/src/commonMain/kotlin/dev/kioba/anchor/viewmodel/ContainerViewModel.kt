@@ -13,12 +13,12 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
-public class ContainerViewModel<E, S> @PublishedApi internal constructor(
-  internal val anchor: AnchorRuntime<E, S>,
+public class ContainerViewModel<R, S> @PublishedApi internal constructor(
+  internal val anchor: AnchorRuntime<R, S>,
 ) : ViewModel(),
-  AnchorScope<E, S>
+  AnchorScope<R, S>
   where
-        E : Effect,
+        R : Effect,
         S : ViewState {
 
   public val viewState: StateFlow<S>
@@ -27,7 +27,7 @@ public class ContainerViewModel<E, S> @PublishedApi internal constructor(
   public val signals: Flow<SignalProvider>
     get() = anchor.signals
 
-  override fun execute(block: suspend Anchor<E, S>.() -> Unit) {
+  override fun execute(block: suspend Anchor<R, S>.() -> Unit) {
     viewModelScope.launch(Dispatchers.Default) {
       @Suppress("UNCHECKED_CAST")
       anchor.block()
