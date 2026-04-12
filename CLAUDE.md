@@ -8,6 +8,30 @@ Anchor is a **state management architecture** for Kotlin Multiplatform applicati
 
 **Core philosophy**: Minimal, type-safe state management using receiver-based DSLs, immutable state updates, and Flow-based reactivity.
 
+## Git Conventions
+
+This project uses **gitmoji** for all commit messages and PR titles. Every message must start with the appropriate emoji:
+
+| Emoji | Code | Usage |
+|-------|------|-------|
+| ✨ | `:sparkles:` | New feature |
+| ♻️ | `:recycle:` | Refactor code |
+| 🐛 | `:bug:` | Bug fix |
+| ⬆️ | `:arrow_up:` | Upgrade dependency |
+| 🔖 | `:bookmark:` | Version bump / release |
+| 🧪 | `:test_tube:` | Add/update tests |
+| 📝 | `:memo:` | Documentation |
+| 🏗️ | `:building_construction:` | Architectural changes |
+| 🔥 | `:fire:` | Remove code/files |
+| 💚 | `:green_heart:` | Fix CI build |
+
+See https://gitmoji.dev for the full list.
+
+**Examples:**
+- `✨ Add AnchorEffect composable`
+- `♻️ Rename Effect type parameter E to R`
+- `⬆️ Bump ui from 1.9.0 to 1.10.1`
+
 ## Build Commands
 
 ### Testing
