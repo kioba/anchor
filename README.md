@@ -23,21 +23,7 @@ Visit [kioba.github.io/anchor/](https://kioba.github.io/anchor/) for the full do
 
 ## 📦 Installation
 
-Add the repository to your `build.gradle.kts`:
-
-```kotlin
-repositories {
-    maven {
-        url = uri("https://maven.pkg.github.com/kioba/anchor")
-        credentials {
-            username = project.findProperty("gpr.user") as String? ?: System.getenv("USERNAME")
-            password = project.findProperty("gpr.key") as String? ?: System.getenv("TOKEN")
-        }
-    }
-}
-```
-
-Add the dependency:
+Add the dependency to your `build.gradle.kts`:
 
 ```kotlin
 dependencies {
