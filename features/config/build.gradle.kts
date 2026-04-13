@@ -8,7 +8,7 @@ plugins {
 kotlin {
   explicitApi()
 
-  androidLibrary {
+  android {
     namespace = "dev.kioba.anchor.features.config"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
     minSdk = libs.versions.android.minSdk.get().toInt()
@@ -32,6 +32,7 @@ kotlin {
   ).forEach {
     it.binaries.framework {
       isStatic = true
+      binaryOption("bundleId", "dev.kioba.anchor.features.config")
     }
   }
 

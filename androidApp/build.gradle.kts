@@ -38,11 +38,11 @@ android {
   sourceSets {
     getByName("main") {
       manifest.srcFile("src/androidMain/AndroidManifest.xml")
-      java.srcDirs("src/androidMain/kotlin")
-      res.srcDirs("src/androidMain/res")
+      java.directories.add("src/androidMain/kotlin")
+      res.directories.add("src/androidMain/res")
     }
     getByName("androidTest") {
-      java.srcDirs("src/androidInstrumentedTest/kotlin")
+      java.directories.add("src/androidInstrumentedTest/kotlin")
     }
   }
 }
