@@ -106,9 +106,9 @@ jobs:
           git checkout -b "$BRANCH"
           sed -i '' "s/^POM_VERSION=.*/POM_VERSION=$NEXT_VERSION/" gradle.properties
           GROUP_ID=$(grep '^POM_GROUP_ID=' gradle.properties | cut -d'=' -f2)
-          sed -i '' "s|${GROUP_ID}:anchor:[0-9]*\.[0-9]*\.[0-9]*|${GROUP_ID}:anchor:${NEXT_VERSION}|g" README.md
-          sed -i '' "s|version: \"[0-9]*\.[0-9]*\.[0-9]*\"|version: \"${NEXT_VERSION}\"|" mkdocs.yml
-          sed -i '' "s|Published version: \`[0-9]*\.[0-9]*\.[0-9]*\`|Published version: \`${NEXT_VERSION}\`|g" CLAUDE.md
+          sed -i '' "s|${GROUP_ID}:anchor:[0-9]*\.[0-9]*\.[0-9]*|${GROUP_ID}:anchor:${VERSION}|g" README.md
+          sed -i '' "s|version: \"[0-9]*\.[0-9]*\.[0-9]*\"|version: \"${VERSION}\"|" mkdocs.yml
+          sed -i '' "s|Published version: \`[0-9]*\.[0-9]*\.[0-9]*\`|Published version: \`${VERSION}\`|g" CLAUDE.md
           git add gradle.properties README.md mkdocs.yml CLAUDE.md
           git commit -m "🔖 Bump version to $NEXT_VERSION"
           git push origin "$BRANCH"

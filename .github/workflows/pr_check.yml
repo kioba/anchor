@@ -18,31 +18,28 @@ jobs:
 
       - name: Check version consistency
         run: |
-          VERSION=$(grep '^POM_VERSION=' gradle.properties | cut -d'=' -f2)
           GROUP_ID=$(grep '^POM_GROUP_ID=' gradle.properties | cut -d'=' -f2)
+          DOCS_VERSION=$(grep -oP 'version: "\K[0-9]+\.[0-9]+\.[0-9]+' mkdocs.yml)
+          CLAUDE_VERSION=$(grep -oP 'Published version: `\K[0-9]+\.[0-9]+\.[0-9]+' CLAUDE.md)
+          README_VERSION=$(grep -oP "${GROUP_ID}:anchor:\K[0-9]+\.[0-9]+\.[0-9]+" README.md | head -1)
           ERRORS=0
 
-          if ! grep -q "${GROUP_ID}:anchor:${VERSION}" README.md; then
-            echo "::error file=README.md::Version mismatch — expected ${GROUP_ID}:anchor:${VERSION}"
+          if [ "$README_VERSION" != "$DOCS_VERSION" ]; then
+            echo "::error file=README.md::Version $README_VERSION does not match mkdocs.yml ($DOCS_VERSION)"
             ERRORS=$((ERRORS+1))
           fi
 
-          if ! grep -q "version: \"${VERSION}\"" mkdocs.yml; then
-            echo "::error file=mkdocs.yml::Version mismatch in extra.version — expected ${VERSION}"
-            ERRORS=$((ERRORS+1))
-          fi
-
-          if ! grep -q "Published version: \`${VERSION}\`" CLAUDE.md; then
-            echo "::error file=CLAUDE.md::Version mismatch — expected ${VERSION}"
+          if [ "$CLAUDE_VERSION" != "$DOCS_VERSION" ]; then
+            echo "::error file=CLAUDE.md::Version $CLAUDE_VERSION does not match mkdocs.yml ($DOCS_VERSION)"
             ERRORS=$((ERRORS+1))
           fi
 
           if [ $ERRORS -gt 0 ]; then
-            echo "::error::Found $ERRORS version mismatch(es). Update docs to match POM_VERSION=${VERSION} in gradle.properties."
+            echo "::error::Found $ERRORS version mismatch(es). Ensure README.md, mkdocs.yml, and CLAUDE.md all reference the same published version."
             exit 1
           fi
 
-          echo "All version references are consistent (${VERSION})"
+          echo "All doc version references are consistent ($DOCS_VERSION)"
 
   pr_check:
     name: 'build and test'
