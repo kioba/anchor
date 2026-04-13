@@ -7,6 +7,43 @@ on:
       - master
       - main
 jobs:
+  version_check:
+    name: 'verify doc versions'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: checkout project
+        uses: actions/checkout@v4
+
+      - name: Check version consistency
+        run: |
+          VERSION=$(grep '^POM_VERSION=' gradle.properties | cut -d'=' -f2)
+          GROUP_ID=$(grep '^POM_GROUP_ID=' gradle.properties | cut -d'=' -f2)
+          ERRORS=0
+
+          if ! grep -q "${GROUP_ID}:anchor:${VERSION}" README.md; then
+            echo "::error file=README.md::Version mismatch — expected ${GROUP_ID}:anchor:${VERSION}"
+            ERRORS=$((ERRORS+1))
+          fi
+
+          if ! grep -q "version: \"${VERSION}\"" mkdocs.yml; then
+            echo "::error file=mkdocs.yml::Version mismatch in extra.version — expected ${VERSION}"
+            ERRORS=$((ERRORS+1))
+          fi
+
+          if ! grep -q "Published version: \`${VERSION}\`" CLAUDE.md; then
+            echo "::error file=CLAUDE.md::Version mismatch — expected ${VERSION}"
+            ERRORS=$((ERRORS+1))
+          fi
+
+          if [ $ERRORS -gt 0 ]; then
+            echo "::error::Found $ERRORS version mismatch(es). Update docs to match POM_VERSION=${VERSION} in gradle.properties."
+            exit 1
+          fi
+
+          echo "All version references are consistent (${VERSION})"
+
   pr_check:
     name: 'build and test'
     runs-on: ubuntu-latest
