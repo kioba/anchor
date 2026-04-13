@@ -9,7 +9,7 @@ kotlin {
 
   jvm("desktop")
 
-  androidLibrary {
+  android {
     namespace = "dev.kioba.anchor.test"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
     minSdk = libs.versions.android.minSdk.get().toInt()

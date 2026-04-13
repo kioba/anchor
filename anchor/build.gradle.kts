@@ -10,7 +10,7 @@ kotlin {
 
   jvm("desktop")
 
-  androidLibrary {
+  android {
     namespace = "dev.kioba.anchor"
 
     compileSdk = libs.versions.android.compileSdk.get().toInt()

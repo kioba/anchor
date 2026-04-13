@@ -83,6 +83,32 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          git tag "$VERSION"
-          git push origin "$VERSION"
-          gh release create "$VERSION" --generate-notes --title "v$VERSION"
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "Tag $VERSION already exists — skipping tag and release"
+          else
+            git tag "$VERSION"
+            git push origin "$VERSION"
+            gh release create "$VERSION" --generate-notes --title "v$VERSION"
+          fi
+
+      - name: Bump patch version
+        if: steps.changes.outputs.has_changes == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          IFS='.' read -r major minor patch <<< "$VERSION"
+          NEXT_VERSION="$major.$minor.$((patch + 1))"
+          BRANCH="bump-version-to-$NEXT_VERSION"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          sed -i '' "s/^POM_VERSION=.*/POM_VERSION=$NEXT_VERSION/" gradle.properties
+          git add gradle.properties
+          git commit -m "🔖 Bump version to $NEXT_VERSION"
+          git push origin "$BRANCH"
+          gh pr create \
+            --title "🔖 Bump version to $NEXT_VERSION" \
+            --body "Automated version bump after publishing v$VERSION." \
+            --base master \
+            --head "$BRANCH"
