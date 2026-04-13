@@ -6,7 +6,7 @@ android-compileSdk = "36"
 
 # plugin versions
 agp = "9.1.0"
-compose-plugin = "1.9.3"
+compose-plugin = "1.10.3"
 maven-publish = "0.36.0"
 
 # Library versions
