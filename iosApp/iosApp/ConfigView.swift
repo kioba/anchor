@@ -1,24 +1,22 @@
 import SwiftUI
 import shared
 
-typealias ConfigAnchor = AsyncAnchor<ConfigEffect, ConfigState>
-
 struct ConfigView: View {
   @StateObject var viewModel = ViewModel(factory: ConfigAnchorKt.configAnchor)
   var body: some View {
     ConfigUi(state: $viewModel.state, anchor: $viewModel.anchor)
-      .enviromentAnchor(viewModel)
+      .environmentAnchor(viewModel)
   }
 }
 
 struct ConfigUi: View {
   @Binding var state: ConfigState
-  @Binding var anchor: AnchorChannel<ConfigAnchor>
+  @Binding var anchor: AnchorAction<shared.Anchor<ConfigEffect, ConfigState>>
 
   @State var text: String = ""
   var body: some View {
     NavigationView {
-      
+
       VStack(spacing: 16) {
         TextField("", text: $text)
           .padding()
@@ -27,7 +25,7 @@ struct ConfigUi: View {
           .border(.secondary, width: 1.0)
           .padding()
           .onChange(of: text) { update in
-            anchor { dsl in try await dsl.updateText(text: update) }
+            anchor { a in try await a.updateText(text: update) }
           }
         if(state.text != nil) {
           Text(state.text!)

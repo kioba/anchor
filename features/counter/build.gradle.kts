@@ -4,7 +4,6 @@ plugins {
   alias(libs.plugins.compose.compiler)
   alias(libs.plugins.compose.multiplatform)
 
-  id("co.touchlab.skie") version "0.10.6"
 }
 
 kotlin {
