@@ -19,29 +19,21 @@ Anchor is a simple, lightweight, and extensible state management architecture bu
 
 ## Installation
 
-Add the following to your `build.gradle.kts` file:
-
-### 1. Add the GitHub Packages Repository
-
-```kotlin
-repositories {
-    maven {
-        url = uri("https://maven.pkg.github.com/kioba/anchor")
-        credentials {
-            username = project.findProperty("gpr.user") as String? ?: System.getenv("USERNAME")
-            password = project.findProperty("gpr.key") as String? ?: System.getenv("TOKEN")
-        }
-    }
-}
-```
-
-### 2. Add the Dependency
+Anchor is available on Maven Central. Add the dependencies to your `build.gradle.kts`:
 
 ```kotlin
 dependencies {
-    implementation("dev.kioba:anchor:0.0.8")
+    implementation("{{ group_id }}:anchor:{{ version }}")
+    implementation("{{ group_id }}:anchor-compose:{{ version }}")
+    testImplementation("{{ group_id }}:anchor-test:{{ version }}")
 }
 ```
+
+| Module | Purpose |
+|--------|---------|
+| `anchor` | Core state management (ViewState, Effect, Anchor, Signals, Events) |
+| `anchor-compose` | Jetpack Compose bindings (RememberAnchor, collectState, anchor(), HandleSignal) |
+| `anchor-test` | BDD-style testing DSL (runAnchorTest, given/on/verify) |
 
 ## Quick Start (Counter Example)
 
