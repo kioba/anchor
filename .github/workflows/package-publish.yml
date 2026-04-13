@@ -37,6 +37,17 @@ jobs:
             echo "No changes since $LAST_TAG — skipping publish"
           fi
 
+      - name: Verify llms-full.txt is up to date
+        if: steps.changes.outputs.has_changes == 'true'
+        run: |
+          cp docs/llms-full.txt /tmp/llms-full-before.txt
+          bash scripts/generate-llms-full.sh
+          if ! diff -q /tmp/llms-full-before.txt docs/llms-full.txt > /dev/null 2>&1; then
+            echo "::error::docs/llms-full.txt is out of date. Run: bash scripts/generate-llms-full.sh"
+            exit 1
+          fi
+          echo "llms-full.txt is up to date"
+
       - name: set up JDK 17
         if: steps.changes.outputs.has_changes == 'true'
         uses: actions/setup-java@v4
@@ -109,8 +120,7 @@ jobs:
           sed -i '' "s|${GROUP_ID}:anchor:[0-9]*\.[0-9]*\.[0-9]*|${GROUP_ID}:anchor:${VERSION}|g" README.md
           sed -i '' "s|version: \"[0-9]*\.[0-9]*\.[0-9]*\"|version: \"${VERSION}\"|" mkdocs.yml
           sed -i '' "s|Published version: \`[0-9]*\.[0-9]*\.[0-9]*\`|Published version: \`${VERSION}\`|g" CLAUDE.md
-          sed -i '' "s|${GROUP_ID}:anchor:[0-9]*\.[0-9]*\.[0-9]*|${GROUP_ID}:anchor:${VERSION}|g" docs/llms-full.txt
-          sed -i '' "s|Published version: [0-9]*\.[0-9]*\.[0-9]*|Published version: ${VERSION}|" docs/llms-full.txt
+          bash scripts/generate-llms-full.sh
           sed -i '' "s|${GROUP_ID}:anchor:[0-9]*\.[0-9]*\.[0-9]*|${GROUP_ID}:anchor:${VERSION}|g" AGENTS.md
           sed -i '' "s|Published version: [0-9]*\.[0-9]*\.[0-9]*|Published version: ${VERSION}|" AGENTS.md
           git add gradle.properties README.md mkdocs.yml CLAUDE.md AGENTS.md docs/llms-full.txt

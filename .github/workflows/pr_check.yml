@@ -41,6 +41,26 @@ jobs:
 
           echo "All doc version references are consistent ($DOCS_VERSION)"
 
+  llms_check:
+    name: 'verify llms-full.txt is up to date'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: checkout project
+        uses: actions/checkout@v4
+
+      - name: Regenerate and compare
+        run: |
+          cp docs/llms-full.txt /tmp/llms-full-before.txt
+          bash scripts/generate-llms-full.sh
+          if ! diff -q /tmp/llms-full-before.txt docs/llms-full.txt > /dev/null 2>&1; then
+            echo "::error file=docs/llms-full.txt::llms-full.txt is out of date. Run: bash scripts/generate-llms-full.sh"
+            diff /tmp/llms-full-before.txt docs/llms-full.txt || true
+            exit 1
+          fi
+          echo "llms-full.txt is up to date"
+
   pr_check:
     name: 'build and test'
     runs-on: ubuntu-latest

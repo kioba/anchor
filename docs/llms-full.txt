@@ -10,11 +10,11 @@
 
 ---
 
-# Introduction
+# Welcome to ⚓️ anchor
+
 
 Anchor is a simple, lightweight, and extensible state management architecture built on Kotlin's Context receivers with Jetpack Compose integration for Kotlin Multiplatform projects.
 
-**Goal**: Focus on writing an amazing app and let Anchor handle the state and side effects!
 
 ## Key Features
 
@@ -45,6 +45,8 @@ dependencies {
 
 ## Quick Start (Counter Example)
 
+Here's a simple counter example to get you started:
+
 ```kotlin
 // 1. Define your State
 data class CounterState(val count: Int = 0) : ViewState
@@ -72,6 +74,30 @@ fun CounterScreen() {
 }
 ```
 
+## Next Steps
+
+- Explore the [Core Concepts](https://kioba.github.io/anchor/concepts/) to understand how Anchor works.
+- Check the [API Reference](https://kioba.github.io/anchor/api/) for detailed documentation.
+- See more [Examples](https://kioba.github.io/anchor/examples/) for real-world usage.
+
+---
+
+## License
+
+    Copyright 2026 Karoly Somodi
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
 ---
 
 # Core Concepts
@@ -88,6 +114,8 @@ The Anchor architecture consists of the following main components:
 - **Actions**: Functions that define how to modify state or trigger side effects.
 - **Signals**: One-time messages sent from the Anchor to the UI.
 - **Events**: Internal messages within the Anchor used for complex logic.
+
+---
 
 ## ViewState
 
@@ -183,7 +211,9 @@ dependencies {
 }
 ```
 
-Note: `anchor-compose` transitively includes the core `anchor` module, so you don't need to add both.
+    `anchor-compose` transitively includes the core `anchor` module, so you don't need to add both.
+
+---
 
 ## RememberAnchor
 
@@ -205,9 +235,11 @@ fun CounterScreen() {
 
 ### Parameters
 
-- `scope`: Factory that creates the Anchor instance (called once per ViewModel)
-- `customKey`: Optional key for ViewModel storage (defaults to the ViewState class name)
-- `content`: Composable block receiving `AnchorStateScope<S>`
+| Parameter   | Description                                                                 |
+|-------------|-----------------------------------------------------------------------------|
+| `scope`     | Factory that creates the Anchor instance (called once per ViewModel)        |
+| `customKey` | Optional key for ViewModel storage (defaults to the ViewState class name)   |
+| `content`   | Composable block receiving `AnchorStateScope<S>`                            |
 
 ### Lifecycle
 
@@ -215,6 +247,8 @@ fun CounterScreen() {
 2. The Anchor's `init` block runs once, and `subscriptions` are set up
 3. State is collected via `collectAsStateWithLifecycle()` on `Main.immediate`
 4. The ViewModel survives configuration changes — state is retained automatically
+
+---
 
 ## Observing State
 
@@ -244,6 +278,8 @@ RememberAnchor(scope = { counterAnchor() }) {
 
 `collectState` applies a selector function and only triggers recomposition when the selected value changes. Prefer this for screens with many state fields.
 
+---
+
 ## Dispatching Actions
 
 The `anchor()` composable creates type-safe callbacks from Anchor action functions. It supports 0 to 3 parameters:
@@ -262,6 +298,8 @@ CustomSlider(onChange = anchor(SettingsAnchor::updateRange))
 ```
 
 Actions are executed asynchronously on `Dispatchers.Default` within the ViewModel's coroutine scope.
+
+---
 
 ## Handling Signals
 
@@ -282,6 +320,8 @@ RememberAnchor(scope = { counterAnchor() }) {
 
 `HandleSignal` uses `LaunchedEffect` internally — it respects the composable lifecycle and automatically stops collecting when the composable leaves the composition.
 
+---
+
 ## Compose Previews
 
 Use `PreviewAnchor` to provide static state for `@Preview` composables without needing a full Anchor setup:
@@ -299,7 +339,11 @@ fun CounterPreview() {
 
 `PreviewAnchor` wraps the state in an `AnchorStateScope` so your content composable works identically to production. Actions dispatched via `anchor()` become no-ops in previews.
 
-## Full Compose Example
+---
+
+## Full Example
+
+Putting it all together:
 
 ```kotlin
 // State
@@ -382,7 +426,9 @@ dependencies {
 }
 ```
 
-Note: `anchor-test` transitively includes the core `anchor` module and `kotlinx-coroutines-test`.
+    `anchor-test` transitively includes the core `anchor` module and `kotlinx-coroutines-test`.
+
+---
 
 ## runAnchorTest
 
@@ -407,6 +453,8 @@ fun `counter increment updates state`() {
 ```
 
 The test uses a `AnchorTestRuntime` under the hood — a recording implementation that captures every `reduce`, `post`, `emit`, and `effect` call in order, then replays your assertions against the recording.
+
+---
 
 ## Given — Setup
 
@@ -434,6 +482,8 @@ given("the API returns a specific user") {
 }
 ```
 
+---
+
 ## On — Action
 
 The `on` block specifies which action to execute. You can pass a function reference or a lambda:
@@ -447,6 +497,8 @@ on("updating the text") {
     updateText("Hello")
 }
 ```
+
+---
 
 ## Verify — Assertions
 
@@ -510,7 +562,9 @@ verify("state updated and signal posted") {
 }
 ```
 
-## Test Examples
+---
+
+## Examples
 
 ### Basic state and signal test
 
@@ -574,7 +628,7 @@ fun `refresh triggers the subscription`() {
 
 ### Skipping the given block
 
-If you don't need custom setup, you can omit the `given` block entirely:
+If you don't need custom setup, you can omit the `given` block entirely. The test will use the anchor factory's default state and effect scope:
 
 ```kotlin
 @Test
@@ -593,6 +647,8 @@ fun `sayHi sets the details`() {
 
 # API Reference
 
+This page provides a detailed reference for the public API of the Anchor library.
+
 ## Core API
 
 ### `Anchor<E, S>`
@@ -606,6 +662,8 @@ The main interface for state management.
 - `post(block: SignalScope.() -> Signal)`: Posts a signal to the UI.
 - `emit(block: SubscriptionScope.() -> Event)`: Emits an internal event.
 
+---
+
 ### `RememberAnchorScope.create(...)`
 
 Creates an `Anchor` instance.
@@ -615,7 +673,9 @@ Creates an `Anchor` instance.
 - `init`: Optional initialization block.
 - `subscriptions`: Optional subscription setup block.
 
-## Compose API
+---
+
+## Compose API (Android)
 
 ### `RememberAnchor(scope, customKey, content)`
 
@@ -625,12 +685,16 @@ Sets up Anchor in a Composable.
 - `customKey`: Optional key for state retention.
 - `content`: Composable block receiving `AnchorStateScope`.
 
+---
+
 ### `AnchorStateScope<S>`
 
 Scope available inside `RememberAnchor`.
 
 - `state`: Accesses the current state (triggers recomposition for any change).
 - `collectState(selector: (S) -> T): T`: Observes a specific part of the state (granular recomposition).
+
+---
 
 ### `anchor(block)`
 
@@ -639,6 +703,8 @@ Helper to create UI action callbacks.
 - `anchor(suspend A.() -> Unit): () -> Unit`
 - `anchor(suspend A.(I) -> Unit): (I) -> Unit`
 - `anchor(suspend A.(I, O) -> Unit): (I, O) -> Unit`
+
+---
 
 ### `HandleSignal<T>(block)`
 
@@ -649,6 +715,8 @@ HandleSignal<MySignal> { signal ->
     // Handle the signal
 }
 ```
+
+---
 
 ### `PreviewAnchor(state, content)`
 
@@ -754,3 +822,4 @@ fun CounterPage() {
     }
 }
 ```
+
