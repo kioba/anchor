@@ -109,7 +109,11 @@ jobs:
           sed -i '' "s|${GROUP_ID}:anchor:[0-9]*\.[0-9]*\.[0-9]*|${GROUP_ID}:anchor:${VERSION}|g" README.md
           sed -i '' "s|version: \"[0-9]*\.[0-9]*\.[0-9]*\"|version: \"${VERSION}\"|" mkdocs.yml
           sed -i '' "s|Published version: \`[0-9]*\.[0-9]*\.[0-9]*\`|Published version: \`${VERSION}\`|g" CLAUDE.md
-          git add gradle.properties README.md mkdocs.yml CLAUDE.md
+          sed -i '' "s|${GROUP_ID}:anchor:[0-9]*\.[0-9]*\.[0-9]*|${GROUP_ID}:anchor:${VERSION}|g" docs/llms-full.txt
+          sed -i '' "s|Published version: [0-9]*\.[0-9]*\.[0-9]*|Published version: ${VERSION}|" docs/llms-full.txt
+          sed -i '' "s|${GROUP_ID}:anchor:[0-9]*\.[0-9]*\.[0-9]*|${GROUP_ID}:anchor:${VERSION}|g" AGENTS.md
+          sed -i '' "s|Published version: [0-9]*\.[0-9]*\.[0-9]*|Published version: ${VERSION}|" AGENTS.md
+          git add gradle.properties README.md mkdocs.yml CLAUDE.md AGENTS.md docs/llms-full.txt
           git commit -m "🔖 Bump version to $NEXT_VERSION"
           git push origin "$BRANCH"
           gh pr create \
