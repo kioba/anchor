@@ -11,7 +11,7 @@ kotlin {
 
   jvm("desktop")
 
-  androidLibrary {
+  android {
     namespace = "dev.kioba.anchor.compose"
 
     compileSdk = libs.versions.android.compileSdk.get().toInt()

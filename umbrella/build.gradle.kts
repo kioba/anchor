@@ -7,7 +7,7 @@ plugins {
 kotlin {
   explicitApi()
 
-  androidLibrary {
+  android {
     namespace = "dev.kioba.anchor.umbrella"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
     minSdk = libs.versions.android.minSdk.get().toInt()
