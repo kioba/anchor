@@ -44,7 +44,7 @@ final class ViewModel<E, S>: ObservableObject where E: Effect, S: ViewState {
     let sink = localAnchor as! shared.AnchorSink<E, S>
 
     self.stateCollector = sink.nativeViewState().collect { [weak self] value in
-      self?.state = value
+      self?.state = value as! S
     }
 
     self.signalCollector = sink.nativeSignals().collect { [weak self] value in
