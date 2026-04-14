@@ -37,11 +37,21 @@ public fun <S, E> rememberAnchor(
     else -> provider[ContainerViewModel::class]
   } as ContainerViewModel<E, S>
 
-//  anchorScope.coroutineScope.launch {
-//    anchorScope.anchor.signals
-//      .map { SignalProvider { it } }
-//      .collect { signalProvider -> /*signals(signalProvider.provide())*/ }
-//  }
-
   return anchorScope.anchor
 }
+
+/**
+ * Convenience extension to get a [NativeStateFlow] wrapper for the view state.
+ *
+ * Use this from iOS to collect state updates via callbacks.
+ */
+public fun <R : Effect, S : ViewState> AnchorSink<R, S>.nativeViewState(): NativeStateFlow<S> =
+  NativeStateFlow(viewState)
+
+/**
+ * Convenience extension to get a [NativeSharedFlow] wrapper for signals.
+ *
+ * Use this from iOS to collect signal emissions via callbacks.
+ */
+public fun <R : Effect, S : ViewState> AnchorSink<R, S>.nativeSignals(): NativeSharedFlow<SignalProvider> =
+  NativeSharedFlow(signals)

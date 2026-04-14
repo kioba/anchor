@@ -417,7 +417,7 @@ Each new `search()` call cancels the previous job with key `"search"`.
 
 - Core logic in `commonMain` is platform-agnostic
 - Compose integration in `androidMain` is Android-specific
-- iOS integration uses SKIE plugin for Swift-friendly APIs
+- iOS integration uses native Kotlin/Native ObjC export with `NativeStateFlow`/`NativeSharedFlow` bridge wrappers for Flow collection from Swift
 - Desktop uses JVM target with standard Compose Desktop
 
 ### Coroutine Dispatchers
