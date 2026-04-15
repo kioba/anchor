@@ -51,7 +51,7 @@ class JobIdentityTest {
   fun `verify cleanup identity check in cancellable pattern`() =
     runBlocking {
       val anchor =
-        AnchorRuntime<EmptyEffect, TestState>(
+        AnchorRuntime<EmptyEffect, TestState, Nothing>(
           initialState = { TestState(value = 0) },
           effectScope = { EmptyEffect },
           init = null,

@@ -21,27 +21,37 @@ import dev.kioba.anchor.viewmodel.containerViewModelFactory
  */
 @Suppress("UNCHECKED_CAST")
 public fun <S, E> rememberAnchor(
-  scope: (RememberAnchorScope) -> Anchor<E, S>,
+  scope: (RememberAnchorScope) -> Anchor<E, S, *>,
   customKey: String? = null,
-): Anchor<E, S>
+): Anchor<E, S, *>
   where
   E : Effect,
   S : ViewState {
   val storeOwner = object : ViewModelStoreOwner {
     override val viewModelStore = ViewModelStore()
   }
-  val factory = containerViewModelFactory { scope(AnchorRuntimeScope) as AnchorRuntime<E, S> }
+  val factory = containerViewModelFactory { scope(AnchorRuntimeScope) as AnchorRuntime<E, S, *> }
   val provider = ViewModelProvider.create(storeOwner, factory)
   val anchorScope = when {
     customKey != null -> provider[customKey, ContainerViewModel::class]
     else -> provider[ContainerViewModel::class]
-  } as ContainerViewModel<E, S>
-
-//  anchorScope.coroutineScope.launch {
-//    anchorScope.anchor.signals
-//      .map { SignalProvider { it } }
-//      .collect { signalProvider -> /*signals(signalProvider.provide())*/ }
-//  }
+  } as ContainerViewModel<E, S, *>
 
   return anchorScope.anchor
 }
+
+/**
+ * Convenience extension to get a [NativeStateFlow] wrapper for the view state.
+ *
+ * Use this from iOS to collect state updates via callbacks.
+ */
+public fun <R : Effect, S : ViewState> AnchorSink<R, S, *>.nativeViewState(): NativeStateFlow<S> =
+  NativeStateFlow(viewState)
+
+/**
+ * Convenience extension to get a [NativeSharedFlow] wrapper for signals.
+ *
+ * Use this from iOS to collect signal emissions via callbacks.
+ */
+public fun <R : Effect, S : ViewState> AnchorSink<R, S, *>.nativeSignals(): NativeSharedFlow<SignalProvider> =
+  NativeSharedFlow(signals)

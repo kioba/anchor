@@ -14,6 +14,7 @@ jobs:
     permissions:
       contents: write
       packages: write
+      pull-requests: write
 
     steps:
       - name: checkout project
@@ -35,6 +36,17 @@ jobs:
             echo "has_changes=false" >> "$GITHUB_OUTPUT"
             echo "No changes since $LAST_TAG — skipping publish"
           fi
+
+      - name: Verify llms-full.txt is up to date
+        if: steps.changes.outputs.has_changes == 'true'
+        run: |
+          cp docs/llms-full.txt /tmp/llms-full-before.txt
+          bash scripts/generate-llms-full.sh
+          if ! diff -q /tmp/llms-full-before.txt docs/llms-full.txt > /dev/null 2>&1; then
+            echo "::error::docs/llms-full.txt is out of date. Run: bash scripts/generate-llms-full.sh"
+            exit 1
+          fi
+          echo "llms-full.txt is up to date"
 
       - name: set up JDK 17
         if: steps.changes.outputs.has_changes == 'true'
@@ -83,6 +95,39 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          git tag "$VERSION"
-          git push origin "$VERSION"
-          gh release create "$VERSION" --generate-notes --title "v$VERSION"
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "Tag $VERSION already exists — skipping tag and release"
+          else
+            git tag "$VERSION"
+            git push origin "$VERSION"
+            gh release create "$VERSION" --generate-notes --title "v$VERSION"
+          fi
+
+      - name: Bump patch version
+        if: steps.changes.outputs.has_changes == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          IFS='.' read -r major minor patch <<< "$VERSION"
+          NEXT_VERSION="$major.$minor.$((patch + 1))"
+          BRANCH="bump-version-to-$NEXT_VERSION"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          sed -i '' "s/^POM_VERSION=.*/POM_VERSION=$NEXT_VERSION/" gradle.properties
+          GROUP_ID=$(grep '^POM_GROUP_ID=' gradle.properties | cut -d'=' -f2)
+          sed -i '' "s|${GROUP_ID}:anchor:[0-9]*\.[0-9]*\.[0-9]*|${GROUP_ID}:anchor:${VERSION}|g" README.md
+          sed -i '' "s|version: \"[0-9]*\.[0-9]*\.[0-9]*\"|version: \"${VERSION}\"|" mkdocs.yml
+          sed -i '' "s|Published version: \`[0-9]*\.[0-9]*\.[0-9]*\`|Published version: \`${VERSION}\`|g" CLAUDE.md
+          bash scripts/generate-llms-full.sh
+          sed -i '' "s|${GROUP_ID}:anchor:[0-9]*\.[0-9]*\.[0-9]*|${GROUP_ID}:anchor:${VERSION}|g" AGENTS.md
+          sed -i '' "s|Published version: [0-9]*\.[0-9]*\.[0-9]*|Published version: ${VERSION}|" AGENTS.md
+          git add gradle.properties README.md mkdocs.yml CLAUDE.md AGENTS.md docs/llms-full.txt
+          git commit -m "🔖 Bump version to $NEXT_VERSION"
+          git push origin "$BRANCH"
+          gh pr create \
+            --title "🔖 Bump version to $NEXT_VERSION" \
+            --body "Automated version bump after publishing v$VERSION." \
+            --base master \
+            --head "$BRANCH"

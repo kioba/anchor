@@ -1,13 +1,13 @@
 plugins {
   alias(libs.plugins.android.multiplatformLibrary)
   alias(libs.plugins.kotlinMultiplatform)
-  id("co.touchlab.skie") version "0.10.6"
+
 }
 
 kotlin {
   explicitApi()
 
-  androidLibrary {
+  android {
     namespace = "dev.kioba.anchor.umbrella"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
     minSdk = libs.versions.android.minSdk.get().toInt()
@@ -34,6 +34,7 @@ kotlin {
       binaryOption("bundleId", "dev.kioba.anchor.umbrella")
       binaryOption("bundleVersion", "2")
       export(projects.anchor)
+      export(projects.anchorCompose)
       export(projects.anchorTest)
       export(projects.features.main)
       export(projects.features.config)
@@ -44,6 +45,7 @@ kotlin {
   sourceSets {
     commonMain.dependencies {
       api(projects.anchor)
+      api(projects.anchorCompose)
       api(projects.anchorTest)
       api(projects.features.main)
       api(projects.features.config)

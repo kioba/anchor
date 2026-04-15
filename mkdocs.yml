@@ -36,10 +36,14 @@ theme:
       primary: teal
       accent: lime
 
-  plugins:
-    - social
+plugins:
+  - search
+  - social
+  - macros
 
 extra:
+  version: "0.1.1"
+  group_id: "dev.kioba.anchor"
   social:
     - icon: fontawesome/brands/github-alt
       link: https://github.com/kioba
@@ -65,5 +69,7 @@ markdown_extensions:
 nav:
   - 'Introduction': index.md
   - 'Core Concepts': concepts.md
+  - 'Compose Integration': compose.md
+  - 'Testing': testing.md
   - 'API Reference': api.md
   - 'Examples': examples.md

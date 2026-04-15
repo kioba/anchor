@@ -9,14 +9,11 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.kioba.anchor.Anchor
-import dev.kioba.anchor.AnchorRuntimeScope
-import dev.kioba.anchor.AnchorScope
 import dev.kioba.anchor.Effect
 import dev.kioba.anchor.RememberAnchorScope
 import dev.kioba.anchor.ViewState
-import dev.kioba.anchor.internal.AnchorRuntime
 import dev.kioba.anchor.viewmodel.ContainerViewModel
-import dev.kioba.anchor.viewmodel.containerViewModelFactory
+import dev.kioba.anchor.viewmodel.anchorContainerViewModelFactory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -108,7 +105,7 @@ public fun <S : ViewState> PreviewAnchor(
  * Sets up Anchor state management within a Composable, providing automatic lifecycle management
  * and state retention across configuration changes.
  *
- * This Composable integrates Anchor with Jetpack Compose by:
+ * This Composable integrates Anchor with Compose Multiplatform by:
  * 1. Creating or retrieving a ViewModel-scoped Anchor instance.
  * 2. Providing signal handling capabilities via [LocalSignals].
  * 3. Making action functions available via [LocalAnchor] (used by the [anchor] helper).
@@ -117,7 +114,7 @@ public fun <S : ViewState> PreviewAnchor(
  * ViewModel integration, ensuring your state persists throughout the component lifecycle.
  *
  * @param S The [ViewState] type representing your UI state.
- * @param E The [Effect] type providing dependencies for side effects.
+ * @param R The [Effect] type providing dependencies for side effects.
  * @param scope Factory function that creates the [Anchor] instance. Called only once per ViewModel.
  * @param customKey Optional key for ViewModel storage. Defaults to the qualified name of [S].
  *        Use this when you need multiple instances of the same state type in the same scope.
@@ -150,26 +147,26 @@ public fun <S : ViewState> PreviewAnchor(
  */
 @Suppress("ModifierRequired")
 @Composable
-public inline fun <reified S, E> RememberAnchor(
-  noinline scope: @DisallowComposableCalls RememberAnchorScope.() -> Anchor<E, S>,
+public inline fun <reified S, R> RememberAnchor(
+  noinline scope: @DisallowComposableCalls RememberAnchorScope.() -> Anchor<R, S, *>,
   customKey: String? = null,
   crossinline content: @Composable AnchorStateScope<S>.() -> Unit,
-) where E : Effect, S : ViewState {
+) where R : Effect, S : ViewState {
   val key = customKey ?: S::class.qualifiedName.orEmpty()
 
-  val anchorScope: ContainerViewModel<E, S> =
+  val anchorScope: ContainerViewModel<R, S, *> =
     viewModel(
       key = key,
-      factory = containerViewModelFactory { AnchorRuntimeScope.scope() as AnchorRuntime<E, S> },
+      factory = anchorContainerViewModelFactory { scope() },
     )
 
-  val stateFlow = remember(anchorScope) { anchorScope.anchor.viewState }
-  val signalFlow = remember(anchorScope) { anchorScope.anchor.signals }
+  val stateFlow = remember(anchorScope) { anchorScope.viewState }
+  val signalFlow = remember(anchorScope) { anchorScope.signals }
   val compositionScope = remember(stateFlow) { AnchorStateScopeImpl(stateFlow) }
 
   CompositionLocalProvider(
     LocalSignals provides signalFlow,
-    LocalAnchor provides AnchorScope(anchorScope),
+    LocalAnchor provides anchorScope,
     content = { compositionScope.content() },
   )
 }

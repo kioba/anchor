@@ -4,13 +4,12 @@ plugins {
   alias(libs.plugins.compose.compiler)
   alias(libs.plugins.compose.multiplatform)
 
-  id("co.touchlab.skie") version "0.10.6"
 }
 
 kotlin {
   explicitApi()
 
-  androidLibrary {
+  android {
     namespace = "dev.kioba.anchor.features.counter"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
     minSdk = libs.versions.android.minSdk.get().toInt()
@@ -34,6 +33,7 @@ kotlin {
   ).forEach {
     it.binaries.framework {
       isStatic = true
+      binaryOption("bundleId", "dev.kioba.anchor.features.counter")
     }
   }
 
@@ -62,6 +62,7 @@ kotlin {
       dependencies {
         implementation(libs.kotlin.coroutinesCore)
         implementation(projects.anchor)
+        implementation(projects.anchorCompose)
       }
     }
   }

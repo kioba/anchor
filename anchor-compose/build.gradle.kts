@@ -1,6 +1,8 @@
 plugins {
-  alias(libs.plugins.kotlinMultiplatform)
   alias(libs.plugins.android.multiplatformLibrary)
+  alias(libs.plugins.kotlinMultiplatform)
+  alias(libs.plugins.compose.compiler)
+  alias(libs.plugins.compose.multiplatform)
   id("dev.kioba.publish")
 }
 
@@ -10,7 +12,8 @@ kotlin {
   jvm("desktop")
 
   android {
-    namespace = "dev.kioba.anchor.test"
+    namespace = "dev.kioba.anchor.compose"
+
     compileSdk = libs.versions.android.compileSdk.get().toInt()
     minSdk = libs.versions.android.minSdk.get().toInt()
 
@@ -32,9 +35,9 @@ kotlin {
   ).forEach { iosTarget ->
     iosTarget.binaries {
       framework {
-        baseName = "anchor-test"
+        baseName = "anchor-compose"
         isStatic = true
-        binaryOption("bundleId", "dev.kioba.anchor")
+        binaryOption("bundleId", "dev.kioba.anchor.compose")
         binaryOption("bundleVersion", "2")
       }
     }
@@ -43,12 +46,13 @@ kotlin {
   sourceSets {
     commonMain {
       dependencies {
-        implementation(libs.kotlin.coroutinesCore)
-        implementation(libs.kotlin.coroutinesTest)
-        implementation(libs.kotlin.test)
         api(projects.anchor)
+        implementation(libs.lifecycle.viewmodel)
+        implementation(libs.lifecycle.rumtime)
+        implementation(compose.runtime)
       }
     }
+
     commonTest {
       dependencies {
         implementation(libs.kotlin.test)

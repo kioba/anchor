@@ -8,6 +8,7 @@ public data class MainViewState(
   val hundreds: Int = 0,
   val iterationCounter: String? = null,
   val selectedTab: MainTab = MainTab.Home,
+  val errorDialog: String? = null,
 ) : ViewState
 
 public sealed class MainTab {

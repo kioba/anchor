@@ -8,6 +8,30 @@ Anchor is a **state management architecture** for Kotlin Multiplatform applicati
 
 **Core philosophy**: Minimal, type-safe state management using receiver-based DSLs, immutable state updates, and Flow-based reactivity.
 
+## Git Conventions
+
+This project uses **gitmoji** for all commit messages and PR titles. Every message must start with the appropriate emoji:
+
+| Emoji | Code | Usage |
+|-------|------|-------|
+| ✨ | `:sparkles:` | New feature |
+| ♻️ | `:recycle:` | Refactor code |
+| 🐛 | `:bug:` | Bug fix |
+| ⬆️ | `:arrow_up:` | Upgrade dependency |
+| 🔖 | `:bookmark:` | Version bump / release |
+| 🧪 | `:test_tube:` | Add/update tests |
+| 📝 | `:memo:` | Documentation |
+| 🏗️ | `:building_construction:` | Architectural changes |
+| 🔥 | `:fire:` | Remove code/files |
+| 💚 | `:green_heart:` | Fix CI build |
+
+See https://gitmoji.dev for the full list.
+
+**Examples:**
+- `✨ Add AnchorEffect composable`
+- `♻️ Rename Effect type parameter E to R`
+- `⬆️ Bump ui from 1.9.0 to 1.10.1`
+
 ## Build Commands
 
 ### Testing
@@ -85,18 +109,22 @@ Anchor is a **state management architecture** for Kotlin Multiplatform applicati
 The architecture is built on a hierarchy of capabilities provided through interfaces:
 
 ```
-Anchor<E, S>  (abstract base)
-├── StateAnchor<S>          - Read-only state access via `state: StateFlow<S>`
-├── MutableStateAnchor<S>   - State mutations via `reduce { copy(...) }`
-├── EffectAnchor<E>         - Side effect execution with effect scope
-├── CancellableAnchor<E,S>  - Cancellable task management (keyed jobs)
-├── SubscriptionAnchor      - Event emission via `emit { ... }`
-└── SignalAnchor            - One-time signals via `post { ... }`
-    └── AnchorSink<E, S>    - Combines all above capabilities
-        └── AnchorRuntime<E, S>  - Concrete implementation
+Anchor<R, S, Err>  (abstract base — R: Effect, S: ViewState, Err: domain error type)
+├── StateAnchor<S>              - Read-only state access via `state: StateFlow<S>`
+├── MutableStateAnchor<S>       - State mutations via `reduce { copy(...) }`
+├── EffectAnchor<R>             - Side effect execution with effect scope
+├── CancellableAnchor<R,S,Err>  - Cancellable task management (keyed jobs)
+├── SubscriptionAnchor          - Event emission via `emit { ... }`
+└── SignalAnchor                - One-time signals via `post { ... }`
+    └── AnchorSink<R, S, Err>   - Combines all above capabilities
+        └── AnchorRuntime<R, S, Err>  - Concrete implementation
+
+PureAnchor<R, S> = Anchor<R, S, Nothing>  (typealias for anchors without domain errors)
 ```
 
-**Implementation**: `AnchorRuntime` (`anchor/src/commonMain/kotlin/dev/kioba/anchor/AnchorRuntime.kt`) manages:
+**Note**: `AnchorScope<out R, out S>` intentionally stays at 2 type parameters — `Err` is carried on the `Anchor` receiver inside `execute`'s block only, since `raise()` would require contravariant position conflicting with `out` variance.
+
+**Implementation**: `AnchorRuntime` (`anchor/src/commonMain/kotlin/dev/kioba/anchor/internal/AnchorRuntime.kt`) manages:
 - State via `MutableStateFlow<S>`
 - Signals via `MutableSharedFlow<SignalProvider>` (one-time UI events)
 - Events via `MutableSharedFlow<Event>` (internal reactive stream)
@@ -104,7 +132,7 @@ Anchor<E, S>  (abstract base)
 
 ### Marker Interfaces
 
-Four empty marker interfaces provide type safety (`anchor/src/commonMain/kotlin/dev/kioba/anchor/AnchorMarkers.kt`):
+Four empty marker interfaces provide type safety (`anchor/src/commonMain/kotlin/dev/kioba/anchor/Anchor.kt`):
 
 - `ViewState` - UI state data classes
 - `Effect` - External dependencies/side effect scope
@@ -132,11 +160,11 @@ UI Recomposition
 **Parallel flows**:
 - `post { Signal }` → `MutableSharedFlow<SignalProvider>` → `HandleSignal` → LaunchedEffect
 - `emit { Event }` → `MutableSharedFlow<Event>` → Subscription chains
-- `effect { }` → Coroutine execution with E (Effect) receiver
+- `effect { }` → Coroutine execution with R (Effect) receiver
 
 ### Compose Integration
 
-**Primary composable**: `RememberAnchor` (`anchor/src/androidMain/kotlin/dev/kioba/anchor/compose/RememberAnchor.kt`)
+**Primary composable**: `RememberAnchor` (`anchor-compose/src/commonMain/kotlin/dev/kioba/anchor/compose/RememberAnchor.kt`)
 
 Responsibilities:
 1. Creates/retrieves ViewModel-scoped `AnchorRuntime` via `ContainerViewModel`
@@ -172,10 +200,10 @@ suspend fun CounterAnchor.increment() {
 onClick = anchor(CounterAnchor::increment)
 ```
 
-The `AnchorScope<E, S>` is a `fun interface` with SAM conversion:
+The `AnchorScope<R, S>` is a `fun interface` with SAM conversion (stays 2-param — no `Err`):
 ```kotlin
-fun interface AnchorScope<out E : Effect, out S : ViewState> {
-  fun execute(block: suspend Anchor<@UnsafeVariance E, @UnsafeVariance S>.() -> Unit)
+fun interface AnchorScope<out R : Effect, out S : ViewState> {
+  fun execute(block: suspend Anchor<@UnsafeVariance R, @UnsafeVariance S, *>.() -> Unit)
 }
 ```
 
@@ -228,9 +256,9 @@ runAnchorTest(RememberAnchorScope::counterAnchor) {
 ```
 
 **Test scopes**:
-- `GivenScope<E, S>` - Setup initial state, effect scope, preconditions
-- `VerifyScope<E, S>` - Assert state changes, signals, events, effects
-- `AnchorTestScope<E, S>` - Orchestrator connecting given/on/verify
+- `GivenScope<R, S>` - Setup initial state, effect scope, preconditions
+- `VerifyScope<R, S>` - Assert state changes, signals, events, effects
+- `AnchorTestScope<R, S>` - Orchestrator connecting given/on/verify
 
 **Test runtime** (`AnchorTestRuntime.kt`) records all actions (reduce, signal, emit, effect) for deterministic verification.
 
@@ -239,12 +267,20 @@ runAnchorTest(RememberAnchorScope::counterAnchor) {
 ```
 anchor/                      # Core library (publishable)
 ├── commonMain/             # Multiplatform code
-│   ├── Anchor.kt           # Interface hierarchy
-│   ├── AnchorRuntime.kt    # Concrete implementation
-│   ├── AnchorScope.kt      # UI-to-Anchor bridge
+│   ├── Anchor.kt           # Interface hierarchy (Anchor<R,S,Err>)
+│   ├── PureAnchor.kt       # Typealias PureAnchor<R,S> = Anchor<R,S,Nothing>
+│   ├── AnchorScope.kt      # UI-to-Anchor bridge (stays 2-param)
 │   ├── SubscriptionDsl.kt  # Reactive event handling
+│   ├── internal/
+│   │   ├── AnchorRuntime.kt  # Concrete implementation
+│   │   └── ContainedScope.kt # Internal scope bridge
 │   └── viewmodel/          # ViewModel integration
-└── androidMain/            # Android/Compose specific
+├── iosMain/                # iOS-specific
+│   ├── RememberAnchor.kt   # iOS anchor creation
+│   └── NativeFlows.kt      # Flow wrappers for Swift
+
+anchor-compose/              # Compose bindings (publishable)
+└── commonMain/
     └── compose/
         ├── RememberAnchor.kt    # Main composable
         ├── AnchorAction.kt      # Action creation
@@ -282,7 +318,7 @@ sealed interface MyEvent : Event {
 
 2. **Create anchor factory**:
 ```kotlin
-fun RememberAnchorScope.myAnchor(): Anchor<MyEffect, MyState> =
+fun RememberAnchorScope.myAnchor(): Anchor<MyEffect, MyState, Nothing> =
   create(
     initialState = ::MyState,
     effectScope = { MyEffect() },
@@ -393,7 +429,7 @@ Each new `search()` call cancels the previous job with key `"search"`.
 
 - Core logic in `commonMain` is platform-agnostic
 - Compose integration in `androidMain` is Android-specific
-- iOS integration uses SKIE plugin for Swift-friendly APIs
+- iOS integration uses native Kotlin/Native ObjC export with `NativeStateFlow`/`NativeSharedFlow` bridge wrappers for Flow collection from Swift
 - Desktop uses JVM target with standard Compose Desktop
 
 ### Coroutine Dispatchers
@@ -405,7 +441,7 @@ Each new `search()` call cancels the previous job with key `"search"`.
 
 ### Current Version
 
-Published version: `0.0.8` (see `anchor/build.gradle.kts:102`)
+Published version: `0.1.1` (see `gradle.properties:16`)
 
 ## Common Issues
 

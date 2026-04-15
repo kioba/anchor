@@ -1,35 +1,33 @@
 import SwiftUI
 import shared
 
-typealias CounterAnchor = AsyncAnchor<CounterEffect, CounterState>
-
 struct CounterView: View {
   @StateObject var viewModel = ViewModel(factory: CounterAnchorKt.counterAnchor)
   var body: some View {
-      CounterUi(
-        state: $viewModel.state,
-        signals: $viewModel.singal,
-        anchor: $viewModel.anchor,
-      )
-        .enviromentAnchor(viewModel)
+    CounterUi(
+      state: $viewModel.state,
+      signals: $viewModel.signal,
+      anchor: $viewModel.anchor
+    )
+    .environmentAnchor(viewModel)
   }
 }
 
 struct CounterUi: View {
   @Binding var state: CounterState
   @Binding var signals: SwiftSignalProvider
-  @Binding var anchor: AnchorChannel<CounterAnchor>
-  
+  @Binding var anchor: AnchorAction<shared.Anchor<CounterEffect, CounterState, KotlinNothing>>
+
   @State var animatePlus: Bool = false
   @State var animateMinus: Bool = false
-  
+
   var body: some View {
     NavigationView {
       VStack {
         Text(String(describing: state.count))
         HStack(spacing: 20) {
           Button {
-            anchor{ dsl in try await dsl.increment() }
+            anchor { a in try await a.increment() }
           } label: {
             Image(systemName: "plus")
               .resizable()
@@ -39,9 +37,9 @@ struct CounterUi: View {
               .cornerRadius(8)
           }.scaleEffect(animatePlus ? 1.5 : 1.0)
             .animation(.easeInOut, value: animatePlus)
-            
+
           Button {
-            anchor{ dsl in try await dsl.decrement() }
+            anchor { a in try await a.decrement() }
           } label: {
             Image(systemName: "minus")
               .resizable()
@@ -87,8 +85,8 @@ struct ContentView_Previews: PreviewProvider {
   static var previews: some View {
     @State var previewState: CounterState = CounterState.init(count: 12)
     @State var previewSignal: SwiftSignalProvider = SwiftSignalProvider(signal: UnitSignal())
-    @State var previewAnchor: AnchorChannel<CounterAnchor> = {_ in}
-    
+    @State var previewAnchor: AnchorAction<shared.Anchor<CounterEffect, CounterState, KotlinNothing>> = { _ in }
+
     CounterUi(state: $previewState, signals: $previewSignal, anchor: $previewAnchor)
   }
 }

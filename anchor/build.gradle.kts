@@ -1,10 +1,8 @@
 plugins {
   alias(libs.plugins.android.multiplatformLibrary)
   alias(libs.plugins.kotlinMultiplatform)
-  alias(libs.plugins.compose.compiler)
-  alias(libs.plugins.compose.multiplatform)
   id("dev.kioba.publish")
-  id("co.touchlab.skie") version "0.10.6"
+
 }
 
 kotlin {
@@ -12,7 +10,7 @@ kotlin {
 
   jvm("desktop")
 
-  androidLibrary {
+  android {
     namespace = "dev.kioba.anchor"
 
     compileSdk = libs.versions.android.compileSdk.get().toInt()
@@ -49,24 +47,13 @@ kotlin {
     commonMain {
       dependencies {
         implementation(libs.kotlin.coroutinesCore)
-        implementation(libs.lifecycle.viewmodel)
-        implementation(libs.lifecycle.rumtime)
+        implementation(libs.lifecycle.viewmodel.core)
       }
     }
 
     commonTest {
       dependencies {
         implementation(libs.kotlin.test)
-      }
-    }
-
-
-    androidMain {
-      dependencies {
-        implementation(compose.runtime)
-        implementation(compose.foundation)
-        implementation(compose.material)
-        implementation(compose.ui)
       }
     }
 
