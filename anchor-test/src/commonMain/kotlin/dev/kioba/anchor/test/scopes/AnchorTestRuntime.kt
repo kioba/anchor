@@ -15,7 +15,7 @@ internal class AnchorTestRuntime<R, S>(
   internal val effectScope: R,
   @PublishedApi
   internal val initState: S,
-) : Anchor<R, S>() where R : Effect, S : ViewState {
+) : Anchor<R, S, Nothing>() where R : Effect, S : ViewState {
 
   val verifyActions = mutableListOf<VerifyAction>()
   private var currentState = initState
@@ -37,7 +37,7 @@ internal class AnchorTestRuntime<R, S>(
 
   override suspend fun cancellable(
     key: Any,
-    block: suspend Anchor<R, S>.() -> Unit,
+    block: suspend Anchor<R, S, Nothing>.() -> Unit,
   ) {
     block()
   }

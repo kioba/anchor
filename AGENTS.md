@@ -19,7 +19,7 @@ dependencies {
 
 ## Architecture
 
-The core abstraction is `Anchor<R, S>` where `R : Effect` (dependencies) and `S : ViewState` (state). It provides:
+The core abstraction is `Anchor<R, S, Err>` where `R : Effect` (dependencies), `S : ViewState` (state), and `Err : Any` (domain error type; use `Nothing` when no domain errors are needed). A `PureAnchor<R, S>` typealias is available for `Anchor<R, S, Nothing>`. It provides:
 
 - `reduce { copy(...) }` — Immutable state updates
 - `effect { dependency.call() }` — Side effects with injected dependencies
@@ -44,7 +44,7 @@ sealed interface MySignal : Signal {
 ### 2. Create anchor factory
 
 ```kotlin
-typealias MyAnchor = Anchor<MyEffect, MyState>
+typealias MyAnchor = Anchor<MyEffect, MyState, Nothing>
 
 fun RememberAnchorScope.myAnchor(): MyAnchor =
     create(

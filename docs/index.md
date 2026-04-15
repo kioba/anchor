@@ -44,7 +44,7 @@ Here's a simple counter example to get you started:
 data class CounterState(val count: Int = 0) : ViewState
 
 // 2. Define your Anchor
-typealias CounterAnchor = Anchor<EmptyEffect, CounterState>
+typealias CounterAnchor = Anchor<EmptyEffect, CounterState, Nothing>
 
 fun RememberAnchorScope.counterAnchor(): CounterAnchor =
     create(initialState = ::CounterState, effectScope = { EmptyEffect })

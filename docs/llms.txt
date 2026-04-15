@@ -4,6 +4,8 @@
 
 Anchor uses Unidirectional Data Flow (UDF) with immutable state, receiver-based DSLs, and Flow-based reactivity. It targets Android, iOS (via iosX64, iosArm64, iosSimulatorArm64), and Desktop (JVM).
 
+The core type is `Anchor<R, S, Err>` where `R : Effect` (dependencies), `S : ViewState` (state), and `Err : Any` (domain error type). Use `Nothing` as `Err` when no domain errors are needed, or the `PureAnchor<R, S>` typealias.
+
 ## Docs
 
 - [Introduction](https://kioba.github.io/anchor/): Installation, quick start, and feature overview

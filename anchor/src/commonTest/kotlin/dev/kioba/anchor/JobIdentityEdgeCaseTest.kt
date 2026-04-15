@@ -14,7 +14,7 @@ import kotlin.test.assertEquals
  * Tests edge cases where job identity comparison might behave unexpectedly.
  */
 class JobIdentityEdgeCaseTest {
-  private fun createTestAnchor(): AnchorRuntime<EmptyEffect, TestState> =
+  private fun createTestAnchor(): AnchorRuntime<EmptyEffect, TestState, Nothing> =
     AnchorRuntime(
       initialState = { TestState(value = 0) },
       effectScope = { EmptyEffect },

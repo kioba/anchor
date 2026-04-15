@@ -34,7 +34,7 @@ public fun interface AnchorScope<out R : Effect, out S : ViewState> {
    * @param block The action to execute with the Anchor as receiver
    */
   public fun execute(
-    block: suspend Anchor<@UnsafeVariance R, @UnsafeVariance S>.() -> Unit,
+    block: suspend Anchor<@UnsafeVariance R, @UnsafeVariance S, *>.() -> Unit,
   )
 }
 
@@ -52,11 +52,11 @@ public fun interface AnchorScope<out R : Effect, out S : ViewState> {
  */
 @PublishedApi
 internal fun <R : Effect, S : ViewState> AnchorScope(
-  containedScope: ContainedScope<out Anchor<R, S>, R, S>,
+  containedScope: ContainedScope<out Anchor<R, S, *>, R, S, *>,
 ): AnchorScope<R, S> =
   AnchorScope { block ->
-    // Safe cast: block with receiver Anchor<R, S> can be called on any Anchor<*, *>
-    // because Anchor<R, S> is a subtype of Anchor<*, *>
+    // Safe cast: block with receiver Anchor<R, S, *> can be called on any Anchor<*, *, *>
+    // because Anchor<R, S, *> is a subtype of Anchor<*, *, *>
     @Suppress("UNCHECKED_CAST")
-    containedScope.execute(block as suspend Anchor<*, *>.() -> Unit)
+    containedScope.execute(block as suspend Anchor<*, *, *>.() -> Unit)
   }

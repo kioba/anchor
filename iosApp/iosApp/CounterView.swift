@@ -16,7 +16,7 @@ struct CounterView: View {
 struct CounterUi: View {
   @Binding var state: CounterState
   @Binding var signals: SwiftSignalProvider
-  @Binding var anchor: AnchorAction<shared.Anchor<CounterEffect, CounterState>>
+  @Binding var anchor: AnchorAction<shared.Anchor<CounterEffect, CounterState, KotlinNothing>>
 
   @State var animatePlus: Bool = false
   @State var animateMinus: Bool = false
@@ -85,7 +85,7 @@ struct ContentView_Previews: PreviewProvider {
   static var previews: some View {
     @State var previewState: CounterState = CounterState.init(count: 12)
     @State var previewSignal: SwiftSignalProvider = SwiftSignalProvider(signal: UnitSignal())
-    @State var previewAnchor: AnchorAction<shared.Anchor<CounterEffect, CounterState>> = { _ in }
+    @State var previewAnchor: AnchorAction<shared.Anchor<CounterEffect, CounterState, KotlinNothing>> = { _ in }
 
     CounterUi(state: $previewState, signals: $previewSignal, anchor: $previewAnchor)
   }

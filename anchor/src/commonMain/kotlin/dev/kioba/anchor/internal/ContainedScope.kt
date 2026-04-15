@@ -8,18 +8,19 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 @PublishedApi
-internal interface ContainedScope<A, R, S>
+internal interface ContainedScope<A, R, S, Err>
   where
-A : Anchor<R, S>,
+A : Anchor<R, S, Err>,
 R : Effect,
-S : ViewState {
+S : ViewState,
+Err : Any {
   val anchor: A
   val coroutineScope: CoroutineScope
 }
 
 @PublishedApi
-internal fun <A, R, S> ContainedScope<A, R, S>.execute(
-  block: suspend Anchor<*, *>.() -> Unit,
-) where A : Anchor<R, S>, R : Effect, S : ViewState {
+internal fun <A, R, S, Err> ContainedScope<A, R, S, Err>.execute(
+  block: suspend Anchor<*, *, *>.() -> Unit,
+) where A : Anchor<R, S, Err>, R : Effect, S : ViewState, Err : Any {
   coroutineScope.launch(Dispatchers.Default) { anchor.block() }
 }

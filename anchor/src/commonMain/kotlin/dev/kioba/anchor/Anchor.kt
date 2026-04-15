@@ -70,11 +70,13 @@ public fun interface SignalProvider {
  *
  * @param R The [Effect] type.
  * @param S The [ViewState] type.
+ * @param Err The domain error type.
  */
-public abstract class AnchorSink<R, S> : Anchor<R, S>()
+public abstract class AnchorSink<R, S, Err> : Anchor<R, S, Err>()
   where
         R : Effect,
-        S : ViewState {
+        S : ViewState,
+        Err : Any {
   /**
    * The current state as a [StateFlow].
    */
@@ -94,17 +96,19 @@ public abstract class AnchorSink<R, S> : Anchor<R, S>()
  *
  * @param R The [Effect] type providing dependencies for side effects.
  * @param S The [ViewState] type representing the UI state.
+ * @param Err The domain error type. Use [Nothing] when no domain errors are needed.
  */
 @AnchorDsl
-public abstract class Anchor<R, S> :
+public abstract class Anchor<R, S, Err> :
   MutableStateAnchor<S>,
   EffectAnchor<R>,
-  CancellableAnchor<R, S>,
+  CancellableAnchor<R, S, Err>,
   SubscriptionAnchor,
   SignalAnchor
   where
         R : Effect,
-        S : ViewState
+        S : ViewState,
+        Err : Any
 
 /**
  * Provides access to the current state.
@@ -186,9 +190,10 @@ public interface EffectAnchor<R> where R : Effect {
  *
  * @param R The [Effect] type.
  * @param S The [ViewState] type.
+ * @param Err The domain error type.
  */
 @AnchorDsl
-public interface CancellableAnchor<R, S> where R : Effect, S : ViewState {
+public interface CancellableAnchor<R, S, Err> where R : Effect, S : ViewState, Err : Any {
   /**
    * Executes a block that can be cancelled by its [key].
    *
@@ -208,7 +213,7 @@ public interface CancellableAnchor<R, S> where R : Effect, S : ViewState {
   @AnchorDsl
   public suspend fun cancellable(
     key: Any,
-    block: suspend Anchor<R, S>.() -> Unit,
+    block: suspend Anchor<R, S, Err>.() -> Unit,
   )
 }
 
