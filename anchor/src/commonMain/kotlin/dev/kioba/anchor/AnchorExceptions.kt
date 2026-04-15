@@ -1,13 +1,13 @@
-package dev.kioba.anchor.internal
+package dev.kioba.anchor
 
 import kotlin.coroutines.cancellation.CancellationException
 
 /**
- * Short-circuits execution within a `recover` chain.
+ * Short-circuits execution within an action.
  *
  * Extends [CancellationException] so it propagates correctly through coroutine
- * boundaries (`launch`/`join`/`cancellable`). `recover {}` catches this
- * **before** the standard [CancellationException] re-throw.
+ * boundaries (`launch`/`join`/`cancellable`). The `onDomainError` handler catches
+ * this before the standard [CancellationException] re-throw.
  *
  * @property error The domain error value that was raised.
  */
@@ -16,7 +16,7 @@ public class RaisedException(
 ) : CancellationException("Domain error raised: $error")
 
 /**
- * Escalation that bypasses ALL `recover` blocks, reaching the `defect` handler.
+ * Escalation that reaches the `defect` handler, bypassing domain error handling.
  *
  * Extends [RuntimeException] (not [CancellationException]) so it is NOT confused
  * with scope cancellation and reaches the outer `catch (e: Throwable)` in `execute`.

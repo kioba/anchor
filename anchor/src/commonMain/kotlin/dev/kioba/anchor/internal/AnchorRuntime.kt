@@ -3,8 +3,10 @@ package dev.kioba.anchor.internal
 import dev.kioba.anchor.Anchor
 import dev.kioba.anchor.AnchorSink
 import dev.kioba.anchor.Created
+import dev.kioba.anchor.DomainDefectException
 import dev.kioba.anchor.Effect
 import dev.kioba.anchor.Event
+import dev.kioba.anchor.RaisedException
 import dev.kioba.anchor.Signal
 import dev.kioba.anchor.SignalProvider
 import dev.kioba.anchor.SignalScope
@@ -88,7 +90,12 @@ internal class AnchorRuntime<R, S, Err>(
   }
 
   private suspend fun <T : Event> SharedFlow<T>.handlers(): Flow<Any?> =
-    SubscriptionsScope<R, S, Err>(this, anchor = this@AnchorRuntime, effect = effect)
+    SubscriptionsScope<R, S, Err>(
+      chain = this,
+      anchor = this@AnchorRuntime,
+      effect = effect,
+      onDomainError = onDomainError,
+    )
       .also { scope -> subscriptions?.invoke(scope) }
       .flows
       .merge()

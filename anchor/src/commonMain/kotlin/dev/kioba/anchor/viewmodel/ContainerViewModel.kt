@@ -5,10 +5,10 @@ import androidx.lifecycle.viewModelScope
 import dev.kioba.anchor.Anchor
 import dev.kioba.anchor.AnchorScope
 import dev.kioba.anchor.Effect
+import dev.kioba.anchor.RaisedException
 import dev.kioba.anchor.SignalProvider
 import dev.kioba.anchor.ViewState
 import dev.kioba.anchor.internal.AnchorRuntime
-import dev.kioba.anchor.internal.RaisedException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -35,24 +35,34 @@ public class ContainerViewModel<R, S, Err>
     block: suspend Anchor<R, S, *>.() -> Unit,
   ) {
     viewModelScope.launch(Dispatchers.Default) {
-      try {
+      handleErrors {
         @Suppress("UNCHECKED_CAST")
         anchor.block()
-      } catch (e: RaisedException) {
-        @Suppress("UNCHECKED_CAST")
-        val error = e.error as Err
-        anchor.onDomainError?.invoke(anchor, error) ?: throw e
-      } catch (e: CancellationException) {
-        throw e
-      } catch (e: Throwable) {
-        anchor.defect?.invoke(anchor, e) ?: throw e
       }
+    }
+  }
+
+  private suspend fun handleErrors(
+    block: suspend () -> Unit,
+  ) {
+    try {
+      block()
+    } catch (e: RaisedException) {
+      @Suppress("UNCHECKED_CAST")
+      val error = e.error as Err
+      anchor.onDomainError?.invoke(anchor, error) ?: throw e
+    } catch (e: CancellationException) {
+      throw e
+    } catch (e: Throwable) {
+      anchor.defect?.invoke(anchor, e) ?: throw e
     }
   }
 
   init {
     viewModelScope.launch(Dispatchers.Default) {
-      anchor.consumeInitial()
+      handleErrors {
+        anchor.consumeInitial()
+      }
       with(anchor) {
         subscribe()
       }

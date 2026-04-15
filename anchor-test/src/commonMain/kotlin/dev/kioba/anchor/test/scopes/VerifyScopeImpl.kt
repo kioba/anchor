@@ -6,10 +6,10 @@ import dev.kioba.anchor.Signal
 import dev.kioba.anchor.ViewState
 
 @PublishedApi
-internal class VerifyScopeImpl<R, S>(
+internal class VerifyScopeImpl<R, S, Err>(
   @PublishedApi
   internal val expectedActions: MutableList<VerifyAction> = mutableListOf(),
-) : VerifyScope<R, S> where R : Effect, S : ViewState {
+) : VerifyScope<R, S, Err> where R : Effect, S : ViewState, Err : Any {
   override fun assertState(
     f: S.() -> S,
   ) {
@@ -35,13 +35,13 @@ internal class VerifyScopeImpl<R, S>(
   }
 
   override fun assertRaise(
-    f: () -> Any,
+    f: () -> Err,
   ) {
     expectedActions.add(RaiseAction(f()))
   }
 
   override fun assertOrDie(
-    f: () -> Any,
+    f: () -> Err,
   ) {
     expectedActions.add(OrDieAction(f()))
   }

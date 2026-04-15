@@ -91,16 +91,16 @@ public abstract class AnchorSink<R, S, Err> : Anchor<R, S, Err>()
 /**
  * Provides the ability to escalate a domain error to a defect.
  *
- * A defect bypasses all `recover` blocks and reaches the `defect` handler
- * configured via `create()`. Use this when an error represents a programming
- * mistake or unrecoverable condition.
+ * A defect reaches the `defect` handler configured via `create()`.
+ * Use this when an error represents a programming mistake or
+ * unrecoverable condition.
  *
  * @param Err The domain error type.
  */
 @AnchorDsl
 public interface DefectAnchor<Err> where Err : Any {
   /**
-   * Escalates a domain error to a defect, bypassing all `recover` blocks.
+   * Escalates a domain error to a defect.
    *
    * @param error The domain error to escalate.
    */

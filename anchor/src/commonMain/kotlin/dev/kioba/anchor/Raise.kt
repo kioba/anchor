@@ -7,8 +7,8 @@ package dev.kioba.anchor
  * pure domain functions, validators, or mappers without depending on the
  * full [Anchor] type.
  *
- * When used with [Anchor], `raise` propagates the error to the nearest
- * `recover` block or the `onDomainError` handler configured via `create()`.
+ * When used with [Anchor], `raise` propagates the error to the
+ * `onDomainError` handler configured via `create()`.
  *
  * For [PureAnchor] (`Anchor<R, S, Nothing>`), `raise(Nothing)` is statically
  * uncallable — the type system prevents misuse with zero runtime cost.

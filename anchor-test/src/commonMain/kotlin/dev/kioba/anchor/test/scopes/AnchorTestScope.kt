@@ -5,8 +5,8 @@ import dev.kioba.anchor.Effect
 import dev.kioba.anchor.RememberAnchorScope
 import dev.kioba.anchor.SubscriptionsScope
 import dev.kioba.anchor.ViewState
-import dev.kioba.anchor.internal.DomainDefectException
-import dev.kioba.anchor.internal.RaisedException
+import dev.kioba.anchor.DomainDefectException
+import dev.kioba.anchor.RaisedException
 import dev.kioba.anchor.test.AnchorTestDsl
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.test.assertEquals
@@ -20,7 +20,7 @@ public class AnchorTestScope<R : Effect, S : ViewState, Err : Any>(
   internal val givenScope: GivenScopeImpl<R, S> = GivenScopeImpl()
 
   @PublishedApi
-  internal val verifyScope: VerifyScopeImpl<R, S> = VerifyScopeImpl()
+  internal val verifyScope: VerifyScopeImpl<R, S, Err> = VerifyScopeImpl()
 
   @PublishedApi
   internal lateinit var action: suspend Anchor<R, S, Err>.() -> Unit
@@ -43,7 +43,7 @@ public class AnchorTestScope<R : Effect, S : ViewState, Err : Any>(
   @AnchorTestDsl
   public inline fun verify(
     @Suppress("UNUSED_PARAMETER") description: String,
-    block: VerifyScope<R, S>.() -> Unit,
+    block: VerifyScope<R, S, Err>.() -> Unit,
   ) {
     verifyScope.block()
   }

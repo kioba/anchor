@@ -1,8 +1,6 @@
 package dev.kioba.anchor
 
 import dev.kioba.anchor.internal.AnchorRuntime
-import dev.kioba.anchor.internal.DomainDefectException
-import dev.kioba.anchor.internal.RaisedException
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
