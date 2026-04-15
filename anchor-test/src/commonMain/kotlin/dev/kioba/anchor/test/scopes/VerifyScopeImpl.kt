@@ -33,6 +33,18 @@ internal class VerifyScopeImpl<R, S>(
   ) {
     expectedActions.add(EffectAction(f))
   }
+
+  override fun assertRaise(
+    f: () -> Any,
+  ) {
+    expectedActions.add(RaiseAction(f()))
+  }
+
+  override fun assertOrDie(
+    f: () -> Any,
+  ) {
+    expectedActions.add(OrDieAction(f()))
+  }
 }
 
 @PublishedApi
@@ -56,4 +68,14 @@ internal data class EventAction(
 @PublishedApi
 internal data class EffectAction<R>(
   val effect: R.() -> Unit,
+) : VerifyAction
+
+@PublishedApi
+internal data class RaiseAction(
+  val error: Any,
+) : VerifyAction
+
+@PublishedApi
+internal data class OrDieAction(
+  val error: Any,
 ) : VerifyAction

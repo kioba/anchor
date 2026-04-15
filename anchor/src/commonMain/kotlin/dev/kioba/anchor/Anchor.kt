@@ -89,6 +89,26 @@ public abstract class AnchorSink<R, S, Err> : Anchor<R, S, Err>()
 }
 
 /**
+ * Provides the ability to escalate a domain error to a defect.
+ *
+ * A defect bypasses all `recover` blocks and reaches the `defect` handler
+ * configured via `create()`. Use this when an error represents a programming
+ * mistake or unrecoverable condition.
+ *
+ * @param Err The domain error type.
+ */
+@AnchorDsl
+public interface DefectAnchor<Err> where Err : Any {
+  /**
+   * Escalates a domain error to a defect, bypassing all `recover` blocks.
+   *
+   * @param error The domain error to escalate.
+   */
+  @AnchorDsl
+  public fun orDie(error: Err): Nothing
+}
+
+/**
  * The core interface of the Anchor architecture.
  *
  * An Anchor manages the state of a component and handles side effects.
@@ -104,7 +124,9 @@ public abstract class Anchor<R, S, Err> :
   EffectAnchor<R>,
   CancellableAnchor<R, S, Err>,
   SubscriptionAnchor,
-  SignalAnchor
+  SignalAnchor,
+  Raise<Err>,
+  DefectAnchor<Err>
   where
         R : Effect,
         S : ViewState,

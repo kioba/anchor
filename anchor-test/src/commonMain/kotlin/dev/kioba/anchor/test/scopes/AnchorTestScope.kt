@@ -5,7 +5,10 @@ import dev.kioba.anchor.Effect
 import dev.kioba.anchor.RememberAnchorScope
 import dev.kioba.anchor.SubscriptionsScope
 import dev.kioba.anchor.ViewState
+import dev.kioba.anchor.internal.DomainDefectException
+import dev.kioba.anchor.internal.RaisedException
 import dev.kioba.anchor.test.AnchorTestDsl
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 
@@ -66,7 +69,15 @@ internal suspend inline fun <reified R : Effect, reified S : ViewState, Err : An
     }
   val anchor: AnchorTestRuntime<R, S, Err> = rememberAnchorScope.anchorFactory() as AnchorTestRuntime<R, S, Err>
 
-  anchor.action()
+  try {
+    anchor.action()
+  } catch (_: RaisedException) {
+    // Expected when action calls raise() — recorded in verifyActions
+  } catch (e: CancellationException) {
+    throw e
+  } catch (_: DomainDefectException) {
+    // Expected when action calls orDie() — recorded in verifyActions
+  }
 
   assertEvents<R, S, Err>(anchor.verifyActions, anchor.initState, anchor.effectScope)
 }
@@ -107,6 +118,18 @@ internal inline fun <reified R : Effect, reified S : ViewState, Err : Any> Ancho
         is SignalAction -> {
           val actualSignal = assertIs<SignalAction>(actualActions.removeFirstOrNull())
           assertEquals(action.signal(), actualSignal.signal())
+          currentState
+        }
+
+        is RaiseAction -> {
+          val actualRaise = assertIs<RaiseAction>(actualActions.removeFirstOrNull())
+          assertEquals(action.error, actualRaise.error)
+          currentState
+        }
+
+        is OrDieAction -> {
+          val actualOrDie = assertIs<OrDieAction>(actualActions.removeFirstOrNull())
+          assertEquals(action.error, actualOrDie.error)
           currentState
         }
       }

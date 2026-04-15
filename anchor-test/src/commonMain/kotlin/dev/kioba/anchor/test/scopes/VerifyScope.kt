@@ -27,4 +27,24 @@ public interface VerifyScope<R, S> where R : Effect, S : ViewState {
   public fun assertEffect(
     f: R.() -> Unit,
   )
+
+  /**
+   * Asserts that [raise] was called with the given error.
+   *
+   * @param f A block that returns the expected error value.
+   */
+  @AnchorTestDsl
+  public fun assertRaise(
+    f: () -> Any,
+  )
+
+  /**
+   * Asserts that [orDie] was called with the given error.
+   *
+   * @param f A block that returns the expected error value.
+   */
+  @AnchorTestDsl
+  public fun assertOrDie(
+    f: () -> Any,
+  )
 }
