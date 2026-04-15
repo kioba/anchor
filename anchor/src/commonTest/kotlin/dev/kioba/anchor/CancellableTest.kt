@@ -24,7 +24,7 @@ import kotlin.test.assertTrue
  * 4. Edge cases - multiple keys, rapid calls, exceptions, etc.
  */
 class CancellableTest {
-  private fun createTestAnchor(): AnchorRuntime<EmptyEffect, TestState> =
+  private fun createTestAnchor(): AnchorRuntime<EmptyEffect, TestState, Nothing> =
     AnchorRuntime(
       initialState = { TestState(value = 0) },
       effectScope = { EmptyEffect },

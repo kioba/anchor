@@ -7,6 +7,60 @@ on:
       - master
       - main
 jobs:
+  version_check:
+    name: 'verify doc versions'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: checkout project
+        uses: actions/checkout@v4
+
+      - name: Check version consistency
+        run: |
+          GROUP_ID=$(grep '^POM_GROUP_ID=' gradle.properties | cut -d'=' -f2)
+          DOCS_VERSION=$(grep -oP 'version: "\K[0-9]+\.[0-9]+\.[0-9]+' mkdocs.yml)
+          CLAUDE_VERSION=$(grep -oP 'Published version: `\K[0-9]+\.[0-9]+\.[0-9]+' CLAUDE.md)
+          README_VERSION=$(grep -oP "${GROUP_ID}:anchor:\K[0-9]+\.[0-9]+\.[0-9]+" README.md | head -1)
+          ERRORS=0
+
+          if [ "$README_VERSION" != "$DOCS_VERSION" ]; then
+            echo "::error file=README.md::Version $README_VERSION does not match mkdocs.yml ($DOCS_VERSION)"
+            ERRORS=$((ERRORS+1))
+          fi
+
+          if [ "$CLAUDE_VERSION" != "$DOCS_VERSION" ]; then
+            echo "::error file=CLAUDE.md::Version $CLAUDE_VERSION does not match mkdocs.yml ($DOCS_VERSION)"
+            ERRORS=$((ERRORS+1))
+          fi
+
+          if [ $ERRORS -gt 0 ]; then
+            echo "::error::Found $ERRORS version mismatch(es). Ensure README.md, mkdocs.yml, and CLAUDE.md all reference the same published version."
+            exit 1
+          fi
+
+          echo "All doc version references are consistent ($DOCS_VERSION)"
+
+  llms_check:
+    name: 'verify llms-full.txt is up to date'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: checkout project
+        uses: actions/checkout@v4
+
+      - name: Regenerate and compare
+        run: |
+          cp docs/llms-full.txt /tmp/llms-full-before.txt
+          bash scripts/generate-llms-full.sh
+          if ! diff -q /tmp/llms-full-before.txt docs/llms-full.txt > /dev/null 2>&1; then
+            echo "::error file=docs/llms-full.txt::llms-full.txt is out of date. Run: bash scripts/generate-llms-full.sh"
+            diff /tmp/llms-full-before.txt docs/llms-full.txt || true
+            exit 1
+          fi
+          echo "llms-full.txt is up to date"
+
   pr_check:
     name: 'build and test'
     runs-on: ubuntu-latest
@@ -22,7 +76,12 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
-          cache: 'gradle'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v2
+
+      - name: Setup Gradle
+        uses: gradle/gradle-build-action@v2
 
       - name: run tests
         run: ./gradlew check --no-daemon

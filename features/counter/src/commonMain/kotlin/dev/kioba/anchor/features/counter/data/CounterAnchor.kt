@@ -6,7 +6,7 @@ import dev.kioba.anchor.RememberAnchorScope
 import dev.kioba.anchor.ViewState
 
 public class CounterEffect : Effect
-public typealias CounterAnchor = Anchor<CounterEffect, CounterState>
+public typealias CounterAnchor = Anchor<CounterEffect, CounterState, Nothing>
 
 public data class CounterState(
   val count: Int = 0,

@@ -15,7 +15,7 @@ import kotlin.test.assertTrue
  */
 class CancellableBasicTest {
 
-  private fun createTestAnchor(): AnchorRuntime<EmptyEffect, TestState> {
+  private fun createTestAnchor(): AnchorRuntime<EmptyEffect, TestState, Nothing> {
     return AnchorRuntime(
       initialState = { TestState(value = 0) },
       effectScope = { EmptyEffect },

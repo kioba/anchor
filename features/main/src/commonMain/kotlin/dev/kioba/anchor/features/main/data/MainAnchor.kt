@@ -6,8 +6,8 @@ import dev.kioba.anchor.RememberAnchorScope
 import dev.kioba.anchor.SubscriptionsScope
 import dev.kioba.anchor.features.main.model.MainViewState
 
-public typealias MainAnchor = Anchor<MainEffect, MainViewState>
-public typealias MainSubScope = SubscriptionsScope<MainEffect, MainViewState>
+public typealias MainAnchor = Anchor<MainEffect, MainViewState, Nothing>
+public typealias MainSubScope = SubscriptionsScope<MainEffect, MainViewState, Nothing>
 
 public class MainEffect : Effect
 
@@ -23,4 +23,6 @@ public fun RememberAnchorScope.mainAnchor(): MainAnchor =
     effectScope = { MainEffect() },
     init = MainAnchor::sayHi,
     subscriptions = MainSubScope::subscriptions,
+    defect = MainAnchor::defect,
+    onDomainError = MainAnchor::onError,
   )

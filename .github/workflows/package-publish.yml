@@ -1,6 +1,10 @@
 name: 'publish package'
 
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+  schedule:
+    # Every Monday at 10:00 UTC
+    - cron: '0 10 * * 1'
 
 jobs:
   build:
@@ -8,33 +12,122 @@ jobs:
     name: 'build and publish'
     runs-on: macos-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
+      pull-requests: write
 
     steps:
       - name: checkout project
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for changes since last release tag
+        id: changes
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$LAST_TAG" ]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            echo "No previous tag found — first release"
+          elif [ "$(git rev-list "$LAST_TAG"..HEAD --count)" -gt 0 ]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            echo "Changes found since $LAST_TAG"
+          else
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "No changes since $LAST_TAG — skipping publish"
+          fi
+
+      - name: Verify llms-full.txt is up to date
+        if: steps.changes.outputs.has_changes == 'true'
+        run: |
+          cp docs/llms-full.txt /tmp/llms-full-before.txt
+          bash scripts/generate-llms-full.sh
+          if ! diff -q /tmp/llms-full-before.txt docs/llms-full.txt > /dev/null 2>&1; then
+            echo "::error::docs/llms-full.txt is out of date. Run: bash scripts/generate-llms-full.sh"
+            exit 1
+          fi
+          echo "llms-full.txt is up to date"
 
       - name: set up JDK 17
+        if: steps.changes.outputs.has_changes == 'true'
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
       - name: Setup Android SDK
+        if: steps.changes.outputs.has_changes == 'true'
         uses: android-actions/setup-android@v2
 
       - name: Setup Gradle
+        if: steps.changes.outputs.has_changes == 'true'
         uses: gradle/gradle-build-action@v2
 
       - name: Setup Xcode
+        if: steps.changes.outputs.has_changes == 'true'
         uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: latest-stable
 
-      - name: Publish To GitHub Packages
+      - name: Publish to Repositories
+        if: steps.changes.outputs.has_changes == 'true'
         run: |
-          ./gradlew publishAllPublicationsToGithubPackagesRepository
+          ./gradlew publishAllPublicationsToGithubPackagesRepository publishAllPublicationsToMavenCentralRepository
         env:
           ORG_GRADLE_PROJECT_githubPackagesUsername: ${{ github.actor }}
           ORG_GRADLE_PROJECT_githubPackagesPassword: ${{ secrets.GITHUB_TOKEN }}
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.GPG_SECRET_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.GPG_PASSWORD }}
+
+      - name: Read version from gradle.properties
+        if: steps.changes.outputs.has_changes == 'true'
+        id: version
+        run: |
+          VERSION=$(grep '^POM_VERSION=' gradle.properties | cut -d'=' -f2)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Version: $VERSION"
+
+      - name: Create git tag and GitHub release
+        if: steps.changes.outputs.has_changes == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "Tag $VERSION already exists — skipping tag and release"
+          else
+            git tag "$VERSION"
+            git push origin "$VERSION"
+            gh release create "$VERSION" --generate-notes --title "v$VERSION"
+          fi
+
+      - name: Bump patch version
+        if: steps.changes.outputs.has_changes == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          IFS='.' read -r major minor patch <<< "$VERSION"
+          NEXT_VERSION="$major.$minor.$((patch + 1))"
+          BRANCH="bump-version-to-$NEXT_VERSION"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          sed -i '' "s/^POM_VERSION=.*/POM_VERSION=$NEXT_VERSION/" gradle.properties
+          GROUP_ID=$(grep '^POM_GROUP_ID=' gradle.properties | cut -d'=' -f2)
+          sed -i '' "s|${GROUP_ID}:anchor:[0-9]*\.[0-9]*\.[0-9]*|${GROUP_ID}:anchor:${VERSION}|g" README.md
+          sed -i '' "s|version: \"[0-9]*\.[0-9]*\.[0-9]*\"|version: \"${VERSION}\"|" mkdocs.yml
+          sed -i '' "s|Published version: \`[0-9]*\.[0-9]*\.[0-9]*\`|Published version: \`${VERSION}\`|g" CLAUDE.md
+          bash scripts/generate-llms-full.sh
+          sed -i '' "s|${GROUP_ID}:anchor:[0-9]*\.[0-9]*\.[0-9]*|${GROUP_ID}:anchor:${VERSION}|g" AGENTS.md
+          sed -i '' "s|Published version: [0-9]*\.[0-9]*\.[0-9]*|Published version: ${VERSION}|" AGENTS.md
+          git add gradle.properties README.md mkdocs.yml CLAUDE.md AGENTS.md docs/llms-full.txt
+          git commit -m "🔖 Bump version to $NEXT_VERSION"
+          git push origin "$BRANCH"
+          gh pr create \
+            --title "🔖 Bump version to $NEXT_VERSION" \
+            --body "Automated version bump after publishing v$VERSION." \
+            --base master \
+            --head "$BRANCH"

@@ -1,27 +1,24 @@
-import com.android.build.api.dsl.androidLibrary
-
 plugins {
   alias(libs.plugins.android.multiplatformLibrary)
   alias(libs.plugins.kotlinMultiplatform)
-  alias(libs.plugins.compose.multiplatform)
-  alias(libs.plugins.compose.compiler)
 
-  id("co.touchlab.skie") version "0.10.6"
 }
 
 kotlin {
   explicitApi()
 
-  androidLibrary {
+  android {
     namespace = "dev.kioba.anchor.umbrella"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
     minSdk = libs.versions.android.minSdk.get().toInt()
 
     compilations.configureEach {
-      compilerOptions.configure {
-        jvmTarget.set(
-          org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11
-        )
+      compileTaskProvider.configure {
+        compilerOptions {
+          jvmTarget.set(
+            org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+          )
+        }
       }
     }
   }
@@ -37,6 +34,7 @@ kotlin {
       binaryOption("bundleId", "dev.kioba.anchor.umbrella")
       binaryOption("bundleVersion", "2")
       export(projects.anchor)
+      export(projects.anchorCompose)
       export(projects.anchorTest)
       export(projects.features.main)
       export(projects.features.config)
@@ -47,6 +45,7 @@ kotlin {
   sourceSets {
     commonMain.dependencies {
       api(projects.anchor)
+      api(projects.anchorCompose)
       api(projects.anchorTest)
       api(projects.features.main)
       api(projects.features.config)

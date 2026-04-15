@@ -5,15 +5,15 @@ import dev.kioba.anchor.ViewState
 import dev.kioba.anchor.test.AnchorTestDsl
 
 @PublishedApi
-internal class GivenScopeImpl<E, S> : GivenScope<E, S> where E : Effect, S : ViewState {
+internal class GivenScopeImpl<R, S> : GivenScope<R, S> where R : Effect, S : ViewState {
   @PublishedApi
   internal var initState: S? = null
 
   @PublishedApi
-  internal var effectScope: E? = null
+  internal var effectScope: R? = null
 
   @PublishedApi
-  internal val effects: MutableList<(E.() -> Unit)> = mutableListOf()
+  internal val effects: MutableList<(R.() -> Unit)> = mutableListOf()
 
   @AnchorTestDsl
   override fun initialState(
@@ -24,13 +24,13 @@ internal class GivenScopeImpl<E, S> : GivenScope<E, S> where E : Effect, S : Vie
 
   @AnchorTestDsl
   override suspend fun effect(
-    f: E.() -> Unit,
+    f: R.() -> Unit,
   ) {
     effects.add(f)
   }
 
   override suspend fun effectScope(
-    f: () -> E,
+    f: () -> R,
   ) {
     effectScope = f()
   }

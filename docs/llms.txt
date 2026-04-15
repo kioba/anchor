@@ -1,0 +1,25 @@
+# Anchor
+
+> A lightweight, type-safe state management architecture for Kotlin Multiplatform with Jetpack Compose integration.
+
+Anchor uses Unidirectional Data Flow (UDF) with immutable state, receiver-based DSLs, and Flow-based reactivity. It targets Android, iOS (via iosX64, iosArm64, iosSimulatorArm64), and Desktop (JVM).
+
+The core type is `Anchor<R, S, Err>` where `R : Effect` (dependencies), `S : ViewState` (state), and `Err : Any` (domain error type). Use `Nothing` as `Err` when no domain errors are needed, or the `PureAnchor<R, S>` typealias.
+
+## Docs
+
+- [Introduction](https://kioba.github.io/anchor/): Installation, quick start, and feature overview
+- [Core Concepts](https://kioba.github.io/anchor/concepts/): ViewState, Effect, Anchor engine, Actions, Signals, Events & Subscriptions
+- [Compose Integration](https://kioba.github.io/anchor/compose/): RememberAnchor, collectState, anchor() callbacks, HandleSignal, PreviewAnchor
+- [Testing](https://kioba.github.io/anchor/testing/): BDD-style testing DSL with runAnchorTest, given/on/verify, assertions
+- [API Reference](https://kioba.github.io/anchor/api/): Complete public API surface for core and Compose modules
+- [Examples](https://kioba.github.io/anchor/examples/): End-to-end counter example with state, signals, and async operations
+
+## Source
+
+- [GitHub Repository](https://github.com/kioba/anchor)
+- [AGENTS.md](https://github.com/kioba/anchor/blob/master/AGENTS.md): Build commands, architecture, development patterns
+
+## Optional
+
+- [Full Documentation](https://kioba.github.io/anchor/llms-full.txt): Complete documentation in a single file

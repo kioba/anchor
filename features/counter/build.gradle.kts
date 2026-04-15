@@ -4,25 +4,23 @@ plugins {
   alias(libs.plugins.compose.compiler)
   alias(libs.plugins.compose.multiplatform)
 
-  id("co.touchlab.skie") version "0.10.6"
 }
 
 kotlin {
   explicitApi()
 
-  androidLibrary {
+  android {
     namespace = "dev.kioba.anchor.features.counter"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
     minSdk = libs.versions.android.minSdk.get().toInt()
 
-    @Suppress("UnstableApiUsage")
-    withHostTestBuilder {}.configure {}
-
     compilations.configureEach {
-      compilerOptions.configure {
-        jvmTarget.set(
-          org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11
-        )
+      compileTaskProvider.configure {
+        compilerOptions {
+          jvmTarget.set(
+            org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+          )
+        }
       }
     }
 
@@ -35,6 +33,7 @@ kotlin {
   ).forEach {
     it.binaries.framework {
       isStatic = true
+      binaryOption("bundleId", "dev.kioba.anchor.features.counter")
     }
   }
 
@@ -59,17 +58,11 @@ kotlin {
       }
     }
 
-    getByName("androidHostTest") {
-      dependencies {
-        implementation(libs.kotlin.test)
-        implementation(projects.anchorTest)
-      }
-    }
-
     commonMain {
       dependencies {
         implementation(libs.kotlin.coroutinesCore)
         implementation(projects.anchor)
+        implementation(projects.anchorCompose)
       }
     }
   }

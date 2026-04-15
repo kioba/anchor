@@ -6,7 +6,7 @@ import dev.kioba.anchor.RememberAnchorScope
 import dev.kioba.anchor.features.counter.model.ConfigState
 
 public class ConfigEffect(): Effect
-internal typealias ConfigAnchor = Anchor<ConfigEffect, ConfigState>
+internal typealias ConfigAnchor = Anchor<ConfigEffect, ConfigState, Nothing>
 
 public fun RememberAnchorScope.configAnchor(): ConfigAnchor =
   create(

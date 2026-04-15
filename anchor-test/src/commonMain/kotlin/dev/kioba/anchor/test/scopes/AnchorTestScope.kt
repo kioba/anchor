@@ -9,30 +9,30 @@ import dev.kioba.anchor.test.AnchorTestDsl
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 
-public class AnchorTestScope<E : Effect, S : ViewState>(
+public class AnchorTestScope<R : Effect, S : ViewState>(
   @PublishedApi
-  internal val anchorFactory: RememberAnchorScope.() -> Anchor<E, S>,
+  internal val anchorFactory: RememberAnchorScope.() -> Anchor<R, S, *>,
 ) {
   @PublishedApi
-  internal val givenScope: GivenScopeImpl<E, S> = GivenScopeImpl()
+  internal val givenScope: GivenScopeImpl<R, S> = GivenScopeImpl()
 
   @PublishedApi
-  internal val verifyScope: VerifyScopeImpl<E, S> = VerifyScopeImpl()
+  internal val verifyScope: VerifyScopeImpl<R, S> = VerifyScopeImpl()
 
   @PublishedApi
-  internal lateinit var action: suspend Anchor<E, S>.() -> Unit
+  internal lateinit var action: suspend Anchor<R, S, Nothing>.() -> Unit
 
   @AnchorTestDsl
   public inline fun given(
     @Suppress("UNUSED_PARAMETER") description: String,
-    block: GivenScope<E, S>.() -> Unit,
+    block: GivenScope<R, S>.() -> Unit,
   ): Unit =
     givenScope.block()
 
   @AnchorTestDsl
   public fun on(
     @Suppress("UNUSED_PARAMETER") description: String,
-    anchorOf: suspend Anchor<E, S>.() -> Unit,
+    anchorOf: suspend Anchor<R, S, Nothing>.() -> Unit,
   ) {
     action = anchorOf
   }
@@ -40,39 +40,42 @@ public class AnchorTestScope<E : Effect, S : ViewState>(
   @AnchorTestDsl
   public inline fun verify(
     @Suppress("UNUSED_PARAMETER") description: String,
-    block: VerifyScope<E, S>.() -> Unit,
+    block: VerifyScope<R, S>.() -> Unit,
   ) {
     verifyScope.block()
   }
 }
 
 @PublishedApi
-internal suspend inline fun <reified E : Effect, reified S : ViewState> AnchorTestScope<E, S>.assert() {
-  val rememberAnchorScope = object : RememberAnchorScope {
-    @Suppress("UNCHECKED_CAST")
-    override fun <E : Effect, S : ViewState> create(
-      effectScope: () -> E,
-      initialState: () -> S,
-      init: (suspend Anchor<E, S>.() -> Unit)?,
-      subscriptions: (suspend SubscriptionsScope<E, S>.() -> Unit)?
-    ): Anchor<E, S> =
-      AnchorTestRuntime(
-        givenScope.effectScope as? E ?: effectScope(),
-        givenScope.initState as? S ?: initialState(),
-      )
-  }
-  val anchor: AnchorTestRuntime<E, S> = rememberAnchorScope.anchorFactory() as AnchorTestRuntime<E, S>
+internal suspend inline fun <reified R : Effect, reified S : ViewState> AnchorTestScope<R, S>.assert() {
+  val rememberAnchorScope =
+    object : RememberAnchorScope {
+      @Suppress("UNCHECKED_CAST")
+      override fun <R : Effect, S : ViewState, Err : Any> create(
+        effectScope: () -> R,
+        initialState: () -> S,
+        init: (suspend Anchor<R, S, Err>.() -> Unit)?,
+        onDomainError: (suspend Anchor<R, S, Err>.(Err) -> Unit)?,
+        defect: (suspend Anchor<R, S, Err>.(Throwable) -> Unit)?,
+        subscriptions: (suspend SubscriptionsScope<R, S, Err>.() -> Unit)?,
+      ): Anchor<R, S, Err> =
+        AnchorTestRuntime(
+          givenScope.effectScope as? R ?: effectScope(),
+          givenScope.initState as? S ?: initialState(),
+        ) as Anchor<R, S, Err>
+    }
+  val anchor: AnchorTestRuntime<R, S> = rememberAnchorScope.anchorFactory() as AnchorTestRuntime<R, S>
 
   anchor.action()
 
-  assertEvents<E, S>(anchor.verifyActions, anchor.initState, anchor.effectScope)
+  assertEvents<R, S>(anchor.verifyActions, anchor.initState, anchor.effectScope)
 }
 
 @PublishedApi
-internal inline fun <reified E : Effect, reified S : ViewState> AnchorTestScope<E, S>.assertEvents(
+internal inline fun <reified R : Effect, reified S : ViewState> AnchorTestScope<R, S>.assertEvents(
   actualActions: MutableList<VerifyAction>,
   initialState: S,
-  effectScope: E,
+  effectScope: R,
 ) {
   assertEquals(verifyScope.expectedActions.size, actualActions.size)
 
@@ -81,7 +84,7 @@ internal inline fun <reified E : Effect, reified S : ViewState> AnchorTestScope<
       when (action) {
         is EffectAction<*> -> {
           @Suppress("UNCHECKED_CAST")
-          (action as EffectAction<E>).effect(effectScope)
+          (action as EffectAction<R>).effect(effectScope)
           currentState
         }
 

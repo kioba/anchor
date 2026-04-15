@@ -1,83 +1,113 @@
-# ⚓️ anchor
+# ⚓️ Anchor
 
 [![GitHub](https://img.shields.io/github/license/kioba/anchor?style=flat-square)](LICENSE)
 [![Website](https://img.shields.io/badge/website-up-green?style=flat-square&link=http%3A%2F%2Fkioba.github.io%2Fanchor%2F)](https://kioba.github.io/anchor/)
 [![Follow @k10b4](https://img.shields.io/twitter/follow/k10b4?style=flat-square&link=https%3A%2F%2Ftwitter.com%2Fintent%2Ffollow%3Fscreen_name%3Dk10b4)](https://x.com/k10b4)
 
-Anchor is a simple and extensible state management architecture built on Kotlin's Context receivers
-with Jetpack Compose integration.
+**Anchor** is a lightweight, type-safe state management architecture for Kotlin Multiplatform projects, specifically designed for Jetpack Compose. It leverages Kotlin's modern features like Context Receivers and SAM conversions to provide a clean, expressive, and powerful DSL.
 
-Visit [kioba.github.io/anchor/](https://kioba.github.io/anchor/) for more!
+Visit [kioba.github.io/anchor/](https://kioba.github.io/anchor/) for the full documentation!
 
-Counter
-=======
+---
 
-A counter example to showcase the usage of Anchor architecture. The screen displays a count, and the
-ability to increment and decrement the count.
+## 🚀 Key Features
 
-![counter example](https://github.com/kioba/anchor/blob/master/docs/images/counter_example.png)
+- **Built for Compose**: Native integration with Jetpack Compose on Android and Desktop.
+- **Kotlin Multiplatform**: Shared logic across Android and iOS.
+- **Type-Safe**: Compile-time safety for State, Effects, Signals, and Events.
+- **Lifecycle-Aware**: Automatic state retention across configuration changes via ViewModel integration.
+- **Granular Recomposition**: Efficiently observe only the state properties you need.
+- **Cancellable Jobs**: Easily manage and debounce long-running asynchronous operations.
+
+---
+
+## 📦 Installation
+
+Add the dependencies to your `build.gradle.kts`:
 
 ```kotlin
-// type alias to easily reference our Scope without repeating the type arguments
-typealias CounterScope = AnchorScope<CounterState, Unit>
-
-// function to generate the Scope with the initial state
-fun counterScope(): CounterScope =
-  anchorScope(initialState = ::CounterState)
-
-// Provide the AnchorScope abilities with a receiver 
-context(CounterScope)
-fun increment() {
-  // modify the view state by incrementing the value
-  reduce { copy(count = count.inc()) }
-}
-
-context(CounterScope)
-fun decrement() {
-  reduce { copy(count = count.dec()) }
+dependencies {
+    implementation("dev.kioba.anchor:anchor:0.1.1")
+    implementation("dev.kioba.anchor:anchor-compose:0.1.0")
+    testImplementation("dev.kioba.anchor:anchor-test:0.1.0")
 }
 ```
+
+---
+
+## 🛠 Quick Start
+
+Defining a simple Counter component with Anchor:
+
+### 1. Define State and Anchor
+
+```kotlin
+data class CounterState(val count: Int = 0) : ViewState
+
+typealias CounterAnchor = Anchor<EmptyEffect, CounterState, Nothing>
+
+fun RememberAnchorScope.counterAnchor(): CounterAnchor =
+    create(initialState = ::CounterState, effectScope = { EmptyEffect })
+```
+
+### 2. Define Actions
+
+```kotlin
+fun CounterAnchor.increment() {
+    reduce { copy(count = count + 1) }
+}
+
+fun CounterAnchor.decrement() {
+    reduce { copy(count = count - 1) }
+}
+```
+
+### 3. Integrate with Compose
 
 ```kotlin
 @Composable
 fun CounterUi() {
-  // Scope computations are remembered and retained across configuration changes
-  RememberAnchor(scope = ::counterScope) { state ->
-    Scaffold { paddingValues ->
-      Box(
-        modifier = Modifier
-          .padding(paddingValues)
-          .fillMaxSize()
-      ) {
-        Column(modifier = Modifier.align(Center)) {
-          Text(
-            modifier = Modifier.Companion.align(CenterHorizontally),
-            text = state.count.toString(),
-            style = MaterialTheme.typography.headlineMedium,
-          )
-          Spacer(modifier = Modifier.size(32.dp))
-          Row {
-            Button(
-              // within a RememberAnchor actions can be executed
-              // without the requirement to pass around the scope
-              onClick = anchor(::decrement)
-            ) { DecrementIcon() }
-            Spacer(modifier = Modifier.size(16.dp))
-            Button(
-              onClick = anchor(::increment),
-            ) { IncrementIcon() }
-          }
+    RememberAnchor(scope = { counterAnchor() }) {
+        val count = collectState { it.count }
+
+        Column {
+            Text("Count: $count")
+            Row {
+                Button(onClick = anchor(CounterAnchor::decrement)) { Text("-") }
+                Button(onClick = anchor(CounterAnchor::increment)) { Text("+") }
+            }
         }
-      }
     }
-  }
 }
 ```
 
-License
---------
+---
 
-    Copyright 2023 Karoly Somodi
+## 📖 Learn More
+
+For comprehensive details, check out our documentation:
+
+- [**Core Concepts**](https://kioba.github.io/anchor/concepts/): Learn about State, Effects, Signals, and the engine.
+- [**API Reference**](https://kioba.github.io/anchor/api/): Detailed documentation for all library functions.
+- [**Examples**](https://kioba.github.io/anchor/examples/): Real-world usage scenarios and advanced patterns.
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! If you'd like to help improve Anchor, feel free to:
+
+- **Submit a Pull Request**: Found a bug or have a feature idea? We'd love to see your code!
+- **Open an Issue**: Report bugs or suggest enhancements via the [GitHub Issues](https://github.com/kioba/anchor/issues) page.
+- **Join the Discussion**: Share your thoughts and feedback to help shape the future of the library.
+
+When contributing, please ensure your code follows the existing style and includes appropriate tests.
+
+---
+
+## 📄 License
+
+    Copyright 2026 Karoly Somodi
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.

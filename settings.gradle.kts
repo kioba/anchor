@@ -9,9 +9,9 @@ pluginManagement {
   includeBuild("convention-plugins")
   repositories {
     google()
-    maven("https://maven.pkg.jetbrains.space/public/p/compose/dev")
     mavenCentral()
     gradlePluginPortal()
+    maven("https://maven.pkg.jetbrains.space/public/p/compose/dev")
   }
 }
 
@@ -36,6 +36,7 @@ dependencyResolutionManagement {
 
 rootProject.name = "anchorS"
 include(":anchor")
+include(":anchor-compose")
 include(":anchor-test")
 include(":androidApp")
 include(":features:config")

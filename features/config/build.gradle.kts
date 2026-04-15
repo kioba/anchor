@@ -1,5 +1,3 @@
-import com.android.build.api.dsl.androidLibrary
-
 plugins {
   alias(libs.plugins.android.multiplatformLibrary)
   alias(libs.plugins.kotlinMultiplatform)
@@ -10,23 +8,18 @@ plugins {
 kotlin {
   explicitApi()
 
-  androidLibrary {
-    namespace = "dev.kioba.anchor.features.counter"
+  android {
+    namespace = "dev.kioba.anchor.features.config"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
     minSdk = libs.versions.android.minSdk.get().toInt()
 
-    @Suppress("UnstableApiUsage")
-    withHostTestBuilder {}.configure {}
-    @Suppress("UnstableApiUsage")
-    withDeviceTestBuilder {
-      sourceSetTreeName = "test"
-    }
-
     compilations.configureEach {
-      compilerOptions.configure {
-        jvmTarget.set(
-          org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11
-        )
+      compileTaskProvider.configure {
+        compilerOptions {
+          jvmTarget.set(
+            org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+          )
+        }
       }
     }
   }
@@ -39,6 +32,7 @@ kotlin {
   ).forEach {
     it.binaries.framework {
       isStatic = true
+      binaryOption("bundleId", "dev.kioba.anchor.features.config")
     }
   }
 
@@ -48,6 +42,7 @@ kotlin {
         implementation(libs.kotlin.coroutinesCore)
         implementation(libs.kotlin.serializationJson)
         implementation(projects.anchor)
+        implementation(projects.anchorCompose)
       }
     }
 
@@ -64,12 +59,6 @@ kotlin {
       }
     }
 
-    getByName("androidHostTest") {
-      dependencies {
-        implementation(libs.kotlin.test)
-        implementation(projects.anchorTest)
-      }
-    }
   }
 }
 
