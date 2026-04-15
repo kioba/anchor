@@ -9,9 +9,9 @@ import dev.kioba.anchor.test.AnchorTestDsl
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 
-public class AnchorTestScope<R : Effect, S : ViewState>(
+public class AnchorTestScope<R : Effect, S : ViewState, Err : Any>(
   @PublishedApi
-  internal val anchorFactory: RememberAnchorScope.() -> Anchor<R, S, *>,
+  internal val anchorFactory: RememberAnchorScope.() -> Anchor<R, S, Err>,
 ) {
   @PublishedApi
   internal val givenScope: GivenScopeImpl<R, S> = GivenScopeImpl()
@@ -20,7 +20,7 @@ public class AnchorTestScope<R : Effect, S : ViewState>(
   internal val verifyScope: VerifyScopeImpl<R, S> = VerifyScopeImpl()
 
   @PublishedApi
-  internal lateinit var action: suspend Anchor<R, S, Nothing>.() -> Unit
+  internal lateinit var action: suspend Anchor<R, S, Err>.() -> Unit
 
   @AnchorTestDsl
   public inline fun given(
@@ -32,7 +32,7 @@ public class AnchorTestScope<R : Effect, S : ViewState>(
   @AnchorTestDsl
   public fun on(
     @Suppress("UNUSED_PARAMETER") description: String,
-    anchorOf: suspend Anchor<R, S, Nothing>.() -> Unit,
+    anchorOf: suspend Anchor<R, S, Err>.() -> Unit,
   ) {
     action = anchorOf
   }
@@ -47,7 +47,7 @@ public class AnchorTestScope<R : Effect, S : ViewState>(
 }
 
 @PublishedApi
-internal suspend inline fun <reified R : Effect, reified S : ViewState> AnchorTestScope<R, S>.assert() {
+internal suspend inline fun <reified R : Effect, reified S : ViewState, Err : Any> AnchorTestScope<R, S, Err>.assert() {
   val rememberAnchorScope =
     object : RememberAnchorScope {
       @Suppress("UNCHECKED_CAST")
@@ -59,20 +59,20 @@ internal suspend inline fun <reified R : Effect, reified S : ViewState> AnchorTe
         defect: (suspend Anchor<R, S, Err>.(Throwable) -> Unit)?,
         subscriptions: (suspend SubscriptionsScope<R, S, Err>.() -> Unit)?,
       ): Anchor<R, S, Err> =
-        AnchorTestRuntime(
+        AnchorTestRuntime<R, S, Err>(
           givenScope.effectScope as? R ?: effectScope(),
           givenScope.initState as? S ?: initialState(),
-        ) as Anchor<R, S, Err>
+        )
     }
-  val anchor: AnchorTestRuntime<R, S> = rememberAnchorScope.anchorFactory() as AnchorTestRuntime<R, S>
+  val anchor: AnchorTestRuntime<R, S, Err> = rememberAnchorScope.anchorFactory() as AnchorTestRuntime<R, S, Err>
 
   anchor.action()
 
-  assertEvents<R, S>(anchor.verifyActions, anchor.initState, anchor.effectScope)
+  assertEvents<R, S, Err>(anchor.verifyActions, anchor.initState, anchor.effectScope)
 }
 
 @PublishedApi
-internal inline fun <reified R : Effect, reified S : ViewState> AnchorTestScope<R, S>.assertEvents(
+internal inline fun <reified R : Effect, reified S : ViewState, Err : Any> AnchorTestScope<R, S, Err>.assertEvents(
   actualActions: MutableList<VerifyAction>,
   initialState: S,
   effectScope: R,
