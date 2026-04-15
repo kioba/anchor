@@ -44,7 +44,7 @@ Defining a simple Counter component with Anchor:
 ```kotlin
 data class CounterState(val count: Int = 0) : ViewState
 
-typealias CounterAnchor = Anchor<EmptyEffect, CounterState>
+typealias CounterAnchor = Anchor<EmptyEffect, CounterState, Nothing>
 
 fun RememberAnchorScope.counterAnchor(): CounterAnchor =
     create(initialState = ::CounterState, effectScope = { EmptyEffect })

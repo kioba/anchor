@@ -148,13 +148,13 @@ public fun <S : ViewState> PreviewAnchor(
 @Suppress("ModifierRequired")
 @Composable
 public inline fun <reified S, R> RememberAnchor(
-  noinline scope: @DisallowComposableCalls RememberAnchorScope.() -> Anchor<R, S>,
+  noinline scope: @DisallowComposableCalls RememberAnchorScope.() -> Anchor<R, S, *>,
   customKey: String? = null,
   crossinline content: @Composable AnchorStateScope<S>.() -> Unit,
 ) where R : Effect, S : ViewState {
   val key = customKey ?: S::class.qualifiedName.orEmpty()
 
-  val anchorScope: ContainerViewModel<R, S> =
+  val anchorScope: ContainerViewModel<R, S, *> =
     viewModel(
       key = key,
       factory = anchorContainerViewModelFactory { scope() },

@@ -22,7 +22,7 @@ sealed interface CounterSignal : Signal {
 ```kotlin
 class CounterEffect : Effect
 
-typealias CounterAnchor = Anchor<CounterEffect, CounterState>
+typealias CounterAnchor = Anchor<CounterEffect, CounterState, Nothing>
 
 fun RememberAnchorScope.counterAnchor(): CounterAnchor =
     create(

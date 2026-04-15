@@ -33,15 +33,18 @@ import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
 
 @PublishedApi
-internal class AnchorRuntime<R, S>(
+internal class AnchorRuntime<R, S, Err>(
   val initialState: () -> S,
   val effectScope: () -> R,
-  internal val init: (suspend Anchor<R, S>.() -> Unit)? = null,
-  internal val subscriptions: (suspend SubscriptionsScope<R, S>.() -> Unit)? = null,
-) : AnchorSink<R, S>()
+  internal val init: (suspend Anchor<R, S, Err>.() -> Unit)? = null,
+  internal val subscriptions: (suspend SubscriptionsScope<R, S, Err>.() -> Unit)? = null,
+  internal val onDomainError: (suspend Anchor<R, S, Err>.(Err) -> Unit)? = null,
+  internal val defect: (suspend Anchor<R, S, Err>.(Throwable) -> Unit)? = null,
+) : AnchorSink<R, S, Err>()
   where
         R : Effect,
-        S : ViewState {
+        S : ViewState,
+        Err : Any {
   @PublishedApi
   @Suppress("ktlint:standard:backing-property-naming", "PropertyName")
   internal val _viewState: MutableStateFlow<S> = MutableStateFlow(initialState())
@@ -84,7 +87,7 @@ internal class AnchorRuntime<R, S>(
   }
 
   private suspend fun <T : Event> SharedFlow<T>.handlers(): Flow<Any?> =
-    SubscriptionsScope(this, anchor = this@AnchorRuntime, effect = effect)
+    SubscriptionsScope<R, S, Err>(this, anchor = this@AnchorRuntime, effect = effect)
       .also { scope -> subscriptions?.invoke(scope) }
       .flows
       .merge()
@@ -134,7 +137,7 @@ internal class AnchorRuntime<R, S>(
    */
   override suspend fun cancellable(
     key: Any,
-    block: suspend Anchor<R, S>.() -> Unit,
+    block: suspend Anchor<R, S, Err>.() -> Unit,
   ) {
     coroutineScope {
       val jobToWait =

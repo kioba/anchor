@@ -11,7 +11,7 @@ import kotlin.test.assertIs
 
 public class AnchorTestScope<R : Effect, S : ViewState>(
   @PublishedApi
-  internal val anchorFactory: RememberAnchorScope.() -> Anchor<R, S>,
+  internal val anchorFactory: RememberAnchorScope.() -> Anchor<R, S, *>,
 ) {
   @PublishedApi
   internal val givenScope: GivenScopeImpl<R, S> = GivenScopeImpl()
@@ -20,7 +20,7 @@ public class AnchorTestScope<R : Effect, S : ViewState>(
   internal val verifyScope: VerifyScopeImpl<R, S> = VerifyScopeImpl()
 
   @PublishedApi
-  internal lateinit var action: suspend Anchor<R, S>.() -> Unit
+  internal lateinit var action: suspend Anchor<R, S, Nothing>.() -> Unit
 
   @AnchorTestDsl
   public inline fun given(
@@ -32,7 +32,7 @@ public class AnchorTestScope<R : Effect, S : ViewState>(
   @AnchorTestDsl
   public fun on(
     @Suppress("UNUSED_PARAMETER") description: String,
-    anchorOf: suspend Anchor<R, S>.() -> Unit,
+    anchorOf: suspend Anchor<R, S, Nothing>.() -> Unit,
   ) {
     action = anchorOf
   }
@@ -48,19 +48,22 @@ public class AnchorTestScope<R : Effect, S : ViewState>(
 
 @PublishedApi
 internal suspend inline fun <reified R : Effect, reified S : ViewState> AnchorTestScope<R, S>.assert() {
-  val rememberAnchorScope = object : RememberAnchorScope {
-    @Suppress("UNCHECKED_CAST")
-    override fun <R : Effect, S : ViewState> create(
-      effectScope: () -> R,
-      initialState: () -> S,
-      init: (suspend Anchor<R, S>.() -> Unit)?,
-      subscriptions: (suspend SubscriptionsScope<R, S>.() -> Unit)?
-    ): Anchor<R, S> =
-      AnchorTestRuntime(
-        givenScope.effectScope as? R ?: effectScope(),
-        givenScope.initState as? S ?: initialState(),
-      )
-  }
+  val rememberAnchorScope =
+    object : RememberAnchorScope {
+      @Suppress("UNCHECKED_CAST")
+      override fun <R : Effect, S : ViewState, Err : Any> create(
+        effectScope: () -> R,
+        initialState: () -> S,
+        init: (suspend Anchor<R, S, Err>.() -> Unit)?,
+        onDomainError: (suspend Anchor<R, S, Err>.(Err) -> Unit)?,
+        defect: (suspend Anchor<R, S, Err>.(Throwable) -> Unit)?,
+        subscriptions: (suspend SubscriptionsScope<R, S, Err>.() -> Unit)?,
+      ): Anchor<R, S, Err> =
+        AnchorTestRuntime(
+          givenScope.effectScope as? R ?: effectScope(),
+          givenScope.initState as? S ?: initialState(),
+        ) as Anchor<R, S, Err>
+    }
   val anchor: AnchorTestRuntime<R, S> = rememberAnchorScope.anchorFactory() as AnchorTestRuntime<R, S>
 
   anchor.action()

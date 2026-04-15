@@ -39,7 +39,7 @@ import dev.kioba.anchor.ViewState
 public fun <A> anchor(
   block: suspend A.() -> Unit,
 ): () -> Unit
-  where A : Anchor<out Effect, out ViewState> {
+  where A : Anchor<out Effect, out ViewState, *> {
   val scope = LocalAnchor.current
   return {
     @Suppress("UNCHECKED_CAST")
@@ -82,7 +82,7 @@ public fun <A> anchor(
 public fun <A, I> anchor(
   block: suspend A.(I) -> Unit,
 ): (I) -> Unit
-  where A : Anchor<out Effect, out ViewState> {
+  where A : Anchor<out Effect, out ViewState, *> {
   val scope = LocalAnchor.current
   return { i ->
     // Safe cast: A is constrained to be an Anchor subtype, and scope is provided
@@ -126,7 +126,7 @@ public fun <A, I> anchor(
 public fun <A, I, O> anchor(
   block: suspend A.(I, O) -> Unit,
 ): (I, O) -> Unit
-  where A : Anchor<out Effect, out ViewState> {
+  where A : Anchor<out Effect, out ViewState, *> {
   val scope = LocalAnchor.current
   return { i, o ->
     // Safe cast: A is constrained to be an Anchor subtype, and scope is provided
@@ -155,7 +155,7 @@ public fun <A, I, O> anchor(
 public fun <A, I, O, T> anchor(
   block: suspend A.(I, O, T) -> Unit,
 ): (I, O, T) -> Unit
-  where A : Anchor<out Effect, out ViewState> {
+  where A : Anchor<out Effect, out ViewState, *> {
   val scope = LocalAnchor.current
   return { i, o, t ->
     // Safe cast: A is constrained to be an Anchor subtype, and scope is provided

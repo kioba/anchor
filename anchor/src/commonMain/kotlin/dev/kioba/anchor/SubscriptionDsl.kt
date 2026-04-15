@@ -11,20 +11,21 @@ import kotlinx.coroutines.flow.onEach
  *
  * @param R The [Effect] type.
  * @param S The [ViewState] type.
+ * @param Err The domain error type.
  */
 @AnchorDsl
-public class SubscriptionsScope<R, S>(
+public class SubscriptionsScope<R, S, Err>(
   @PublishedApi
   internal val chain: Flow<Event>,
   @PublishedApi
-  internal val anchor: Anchor<R, S>,
+  internal val anchor: Anchor<R, S, Err>,
   /**
    * The [Effect] dependencies available in this scope.
    */
   public val effect: R,
   @PublishedApi
   internal val flows: MutableList<Flow<*>> = mutableListOf(),
-) where R : Effect, S : ViewState {
+) where R : Effect, S : ViewState, Err : Any {
 
   /**
    * Extension function to execute an action on the [Anchor] for each value emitted by a [Flow].
@@ -35,7 +36,7 @@ public class SubscriptionsScope<R, S>(
    */
   @AnchorDsl
   public fun <I> Flow<I>.anchor(
-    effect: Anchor<R, S>.(I) -> Unit,
+    effect: Anchor<R, S, Err>.(I) -> Unit,
   ): Flow<I> =
     onEach { value -> anchor.effect(value) }
 

@@ -4,16 +4,20 @@ This page provides a detailed reference for the public API of the Anchor library
 
 ## Core API
 
-### `Anchor<E, S>`
+### `Anchor<R, S, Err>`
 
-The main interface for state management.
+The main abstract class for state management. `R` is the Effect type, `S` is the ViewState type, and `Err` is the domain error type (use `Nothing` when no domain errors are needed).
 
 - `state: S`: The current state.
 - `reduce(reducer: S.() -> S)`: Updates the state.
-- `effect(coroutineContext, block: suspend E.() -> R): R`: Executes a side effect.
+- `effect(coroutineContext, block: suspend R.() -> T): T`: Executes a side effect.
 - `cancellable(key, block)`: Executes a block that can be cancelled by a key.
 - `post(block: SignalScope.() -> Signal)`: Posts a signal to the UI.
 - `emit(block: SubscriptionScope.() -> Event)`: Emits an internal event.
+
+### `PureAnchor<R, S>`
+
+A convenience typealias for `Anchor<R, S, Nothing>` — use when your anchor has no domain errors.
 
 ---
 
@@ -25,6 +29,8 @@ Creates an `Anchor` instance.
 - `effectScope`: Factory for effect dependencies.
 - `init`: Optional initialization block.
 - `subscriptions`: Optional subscription setup block.
+- `onDomainError`: Optional callback invoked when a domain error is raised (defaults to `null`).
+- `defect`: Optional callback invoked when an unexpected error occurs (defaults to `null`).
 
 ---
 

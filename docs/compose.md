@@ -160,7 +160,7 @@ sealed interface CounterSignal : Signal {
 }
 
 // Anchor factory
-typealias CounterAnchor = Anchor<EmptyEffect, CounterState>
+typealias CounterAnchor = Anchor<EmptyEffect, CounterState, Nothing>
 
 fun RememberAnchorScope.counterAnchor(): CounterAnchor =
     create(initialState = ::CounterState, effectScope = { EmptyEffect })
