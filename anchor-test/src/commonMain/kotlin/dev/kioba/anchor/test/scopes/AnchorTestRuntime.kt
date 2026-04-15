@@ -9,6 +9,8 @@ import dev.kioba.anchor.Signal
 import dev.kioba.anchor.SignalScope
 import dev.kioba.anchor.SubscriptionScope
 import dev.kioba.anchor.ViewState
+import dev.kioba.anchor.internal.DomainDefectException
+import dev.kioba.anchor.internal.RaisedException
 import kotlin.coroutines.CoroutineContext
 
 @PublishedApi
