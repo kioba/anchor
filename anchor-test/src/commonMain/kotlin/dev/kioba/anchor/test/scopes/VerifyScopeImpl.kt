@@ -71,11 +71,11 @@ internal data class EffectAction<R>(
 ) : VerifyAction
 
 @PublishedApi
-internal data class RaiseAction(
-  val error: Any,
+internal data class RaiseAction<Err : Any>(
+  val error: Err,
 ) : VerifyAction
 
 @PublishedApi
-internal data class OrDieAction(
-  val error: Any,
+internal data class OrDieAction<Err : Any>(
+  val error: Err,
 ) : VerifyAction

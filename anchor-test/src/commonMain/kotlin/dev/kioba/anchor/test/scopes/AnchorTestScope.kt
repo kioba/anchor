@@ -1,12 +1,12 @@
 package dev.kioba.anchor.test.scopes
 
 import dev.kioba.anchor.Anchor
+import dev.kioba.anchor.DomainDefectException
 import dev.kioba.anchor.Effect
+import dev.kioba.anchor.RaisedException
 import dev.kioba.anchor.RememberAnchorScope
 import dev.kioba.anchor.SubscriptionsScope
 import dev.kioba.anchor.ViewState
-import dev.kioba.anchor.DomainDefectException
-import dev.kioba.anchor.RaisedException
 import dev.kioba.anchor.test.AnchorTestDsl
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.test.assertEquals
@@ -121,14 +121,14 @@ internal inline fun <reified R : Effect, reified S : ViewState, Err : Any> Ancho
           currentState
         }
 
-        is RaiseAction -> {
-          val actualRaise = assertIs<RaiseAction>(actualActions.removeFirstOrNull())
+        is RaiseAction<*> -> {
+          val actualRaise = assertIs<RaiseAction<*>>(actualActions.removeFirstOrNull())
           assertEquals(action.error, actualRaise.error)
           currentState
         }
 
-        is OrDieAction -> {
-          val actualOrDie = assertIs<OrDieAction>(actualActions.removeFirstOrNull())
+        is OrDieAction<*> -> {
+          val actualOrDie = assertIs<OrDieAction<*>>(actualActions.removeFirstOrNull())
           assertEquals(action.error, actualOrDie.error)
           currentState
         }

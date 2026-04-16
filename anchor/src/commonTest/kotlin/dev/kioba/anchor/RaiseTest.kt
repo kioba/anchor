@@ -1,6 +1,8 @@
 package dev.kioba.anchor
 
 import dev.kioba.anchor.internal.AnchorRuntime
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -122,5 +124,47 @@ class RaiseTest {
     }
 
     assertEquals(0, anchor.jobs.size, "Job should be cleaned up after raise")
+  }
+
+  @Test
+  fun `raise inside subscription handler routes to onDomainError`() = runBlocking {
+    val capturedErrors = mutableListOf<TestError>()
+    val anchor = createAnchor()
+
+    val scope = SubscriptionsScope<EmptyEffect, TestState, TestError>(
+      chain = MutableSharedFlow(),
+      anchor = anchor,
+      effect = EmptyEffect,
+      onDomainError = { error -> capturedErrors.add(error) },
+    )
+
+    val resultFlow = with(scope) {
+      flowOf(Unit).anchor { raise(TestError.NotFound) }
+    }
+
+    resultFlow.collect {}
+
+    assertEquals(listOf<TestError>(TestError.NotFound), capturedErrors)
+  }
+
+  @Test
+  fun `subscription pipeline survives raise when onDomainError is configured`() = runBlocking {
+    val capturedErrors = mutableListOf<TestError>()
+    val anchor = createAnchor()
+
+    val scope = SubscriptionsScope<EmptyEffect, TestState, TestError>(
+      chain = MutableSharedFlow(),
+      anchor = anchor,
+      effect = EmptyEffect,
+      onDomainError = { error -> capturedErrors.add(error) },
+    )
+
+    val resultFlow = with(scope) {
+      flowOf(1, 2, 3).anchor { raise(TestError.NotFound) }
+    }
+
+    resultFlow.collect {}
+
+    assertEquals(3, capturedErrors.size, "All items should trigger onDomainError")
   }
 }

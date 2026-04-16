@@ -1,14 +1,14 @@
 package dev.kioba.anchor.test.scopes
 
 import dev.kioba.anchor.Anchor
+import dev.kioba.anchor.DomainDefectException
 import dev.kioba.anchor.Effect
 import dev.kioba.anchor.Event
+import dev.kioba.anchor.RaisedException
 import dev.kioba.anchor.Signal
 import dev.kioba.anchor.SignalScope
 import dev.kioba.anchor.SubscriptionScope
 import dev.kioba.anchor.ViewState
-import dev.kioba.anchor.DomainDefectException
-import dev.kioba.anchor.RaisedException
 import kotlin.coroutines.CoroutineContext
 
 @PublishedApi
