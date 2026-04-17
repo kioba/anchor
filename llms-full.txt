@@ -1,0 +1,831 @@
+# Anchor — Complete Documentation
+
+> A lightweight, type-safe state management architecture for Kotlin Multiplatform with Jetpack Compose integration.
+
+- Repository: https://github.com/kioba/anchor
+- Published version: 0.1.1
+- Group ID: dev.kioba.anchor
+- Artifacts: anchor, anchor-compose, anchor-test
+- Platforms: Android, iOS (iosX64, iosArm64, iosSimulatorArm64), Desktop (JVM)
+
+---
+
+# Welcome to ⚓️ anchor
+
+
+Anchor is a simple, lightweight, and extensible state management architecture built on Kotlin's Context receivers with Jetpack Compose integration for Kotlin Multiplatform projects.
+
+
+## Key Features
+
+- **Built for Compose**: Native integration with Jetpack Compose.
+- **Kotlin Multiplatform**: Supports Android and iOS.
+- **Type-Safe**: Leverages Kotlin's type system for state, effects, signals, and events.
+- **Lifecycle-Aware**: Automatically manages Anchor instances within ViewModels, retaining state across configuration changes.
+- **Context Receivers**: Uses modern Kotlin features for a clean and expressive DSL.
+- **Granular Recomposition**: Provides utilities to observe only the necessary parts of the state.
+
+## Installation
+
+Anchor is available on Maven Central. Add the dependencies to your `build.gradle.kts`:
+
+```kotlin
+dependencies {
+    implementation("dev.kioba.anchor:anchor:0.1.1")
+    implementation("dev.kioba.anchor:anchor-compose:0.1.1")
+    testImplementation("dev.kioba.anchor:anchor-test:0.1.1")
+}
+```
+
+| Module | Purpose |
+|--------|---------|
+| `anchor` | Core state management (ViewState, Effect, Anchor, Signals, Events) |
+| `anchor-compose` | Jetpack Compose bindings (RememberAnchor, collectState, anchor(), HandleSignal) |
+| `anchor-test` | BDD-style testing DSL (runAnchorTest, given/on/verify) |
+
+## Quick Start (Counter Example)
+
+Here's a simple counter example to get you started:
+
+```kotlin
+// 1. Define your State
+data class CounterState(val count: Int = 0) : ViewState
+
+// 2. Define your Anchor
+typealias CounterAnchor = Anchor<EmptyEffect, CounterState, Nothing>
+
+fun RememberAnchorScope.counterAnchor(): CounterAnchor =
+    create(initialState = ::CounterState, effectScope = { EmptyEffect })
+
+// 3. Define Actions
+fun CounterAnchor.increment() {
+    reduce { copy(count = count + 1) }
+}
+
+// 4. Use in UI
+@Composable
+fun CounterScreen() {
+    RememberAnchor(scope = { counterAnchor() }) {
+        val count = collectState { it.count }
+        Button(onClick = anchor(CounterAnchor::increment)) {
+            Text("Count: $count")
+        }
+    }
+}
+```
+
+## Next Steps
+
+- Explore the [Core Concepts](https://kioba.github.io/anchor/concepts/) to understand how Anchor works.
+- Check the [API Reference](https://kioba.github.io/anchor/api/) for detailed documentation.
+- See more [Examples](https://kioba.github.io/anchor/examples/) for real-world usage.
+
+---
+
+## License
+
+    Copyright 2026 Karoly Somodi
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+---
+
+# Core Concepts
+
+Anchor is based on a few core concepts that work together to manage state and side effects in a predictable way.
+
+## Overview
+
+The Anchor architecture consists of the following main components:
+
+- **ViewState**: The immutable representation of the UI state.
+- **Effect**: Dependencies required for side effects (e.g., repositories, services).
+- **Anchor**: The engine that manages state, executes effects, and handles communication.
+- **Actions**: Functions that define how to modify state or trigger side effects.
+- **Signals**: One-time messages sent from the Anchor to the UI.
+- **Events**: Internal messages within the Anchor used for complex logic.
+
+---
+
+## ViewState
+
+`ViewState` is a marker interface for your UI state. It should typically be an immutable `data class`.
+
+```kotlin
+data class MyState(
+    val isLoading: Boolean = false,
+    val items: List<String> = emptyList(),
+    val error: String? = null
+) : ViewState
+```
+
+## Effect
+
+`Effect` is a marker interface for dependencies used in side effects. This allows you to keep your Anchor logic pure and testable by injecting dependencies.
+
+```kotlin
+class MyEffect(
+    val repository: MyRepository
+) : Effect
+```
+
+## Anchor
+
+The `Anchor` is the central component. It manages the `ViewState` and provides a DSL for:
+
+- **reduce**: Updating the state.
+- **effect**: Executing suspendable side effects.
+- **cancellable**: Managing long-running jobs that can be cancelled.
+- **post**: Sending signals to the UI.
+- **emit**: Emitting internal events.
+
+## Actions
+
+Actions are usually extension functions on your specific `Anchor` type. They encapsulate the business logic.
+
+```kotlin
+suspend fun MyAnchor.loadData() {
+    reduce { copy(isLoading = true) }
+    try {
+        val result = effect { repository.fetchData() }
+        reduce { copy(isLoading = false, items = result) }
+    } catch (e: Exception) {
+        reduce { copy(isLoading = false, error = e.message) }
+    }
+}
+```
+
+## Signals
+
+`Signal`s are one-time messages for things that aren't part of the persistent state, like showing a Snackbar, a Toast, or navigating.
+
+```kotlin
+sealed interface MySignal : Signal {
+    data class ShowError(val message: String) : MySignal
+}
+
+// In an Action:
+post { MySignal.ShowError("Something went wrong") }
+
+// In UI:
+HandleSignal<MySignal.ShowError> { signal ->
+    snackbarHostState.showSnackbar(signal.message)
+}
+```
+
+## Events & Subscriptions
+
+`Event`s are internal messages. They are useful for complex logic where one action triggers another, or for reacting to lifecycle events like `Created`.
+
+```kotlin
+subscriptions = {
+    listen<Created> { events ->
+        events.anchor { loadData() }
+    }
+}
+```
+
+---
+
+# Compose Integration
+
+The `anchor-compose` module provides Jetpack Compose bindings for Anchor. It connects the Anchor state machine to the Compose lifecycle, giving you type-safe state observation, action dispatching, and signal handling — all scoped to a ViewModel.
+
+**Why a separate module?** Keeping Compose dependencies out of the core `anchor` module means your shared business logic stays free of UI framework dependencies. This is especially important for Kotlin Multiplatform projects where not every target uses Compose.
+
+## Installation
+
+```kotlin
+dependencies {
+    implementation("dev.kioba.anchor:anchor-compose:0.1.1")
+}
+```
+
+    `anchor-compose` transitively includes the core `anchor` module, so you don't need to add both.
+
+---
+
+## RememberAnchor
+
+`RememberAnchor` is the primary composable that sets up an Anchor-powered screen. It creates a ViewModel-scoped Anchor instance, collects state, and provides the necessary CompositionLocals for `anchor()` and `HandleSignal`.
+
+```kotlin
+@Composable
+fun CounterScreen() {
+    RememberAnchor(scope = { counterAnchor() }) {
+        val count = collectState { it.count }
+
+        Text("Count: $count")
+        Button(onClick = anchor(CounterAnchor::increment)) {
+            Text("+")
+        }
+    }
+}
+```
+
+### Parameters
+
+| Parameter   | Description                                                                 |
+|-------------|-----------------------------------------------------------------------------|
+| `scope`     | Factory that creates the Anchor instance (called once per ViewModel)        |
+| `customKey` | Optional key for ViewModel storage (defaults to the ViewState class name)   |
+| `content`   | Composable block receiving `AnchorStateScope<S>`                            |
+
+### Lifecycle
+
+1. On first composition, `RememberAnchor` creates a `ContainerViewModel` that holds the `AnchorRuntime`
+2. The Anchor's `init` block runs once, and `subscriptions` are set up
+3. State is collected via `collectAsStateWithLifecycle()` on `Main.immediate`
+4. The ViewModel survives configuration changes — state is retained automatically
+
+---
+
+## Observing State
+
+Inside `RememberAnchor`, you have access to `AnchorStateScope<S>` which provides two ways to observe state:
+
+### `state` — Full state access
+
+```kotlin
+RememberAnchor(scope = { counterAnchor() }) {
+    Text("Count: ${state.count}")
+}
+```
+
+Any change to the state triggers recomposition of the entire content block.
+
+### `collectState` — Granular recomposition
+
+```kotlin
+RememberAnchor(scope = { counterAnchor() }) {
+    val count = collectState { it.count }
+    val isLoading = collectState { it.isLoading }
+
+    // Only recomposes when the selected value changes,
+    // not when other state fields change.
+}
+```
+
+`collectState` applies a selector function and only triggers recomposition when the selected value changes. Prefer this for screens with many state fields.
+
+---
+
+## Dispatching Actions
+
+The `anchor()` composable creates type-safe callbacks from Anchor action functions. It supports 0 to 3 parameters:
+
+```kotlin
+// No parameters — returns () -> Unit
+Button(onClick = anchor(CounterAnchor::increment)) {
+    Text("+")
+}
+
+// One parameter — returns (I) -> Unit
+TextField(onValueChange = anchor(ConfigAnchor::updateText))
+
+// Two parameters — returns (I, O) -> Unit
+CustomSlider(onChange = anchor(SettingsAnchor::updateRange))
+```
+
+Actions are executed asynchronously on `Dispatchers.Default` within the ViewModel's coroutine scope.
+
+---
+
+## Handling Signals
+
+Signals are one-time events (navigation, snackbars, toasts) that shouldn't persist in state. Use `HandleSignal` to react to them:
+
+```kotlin
+RememberAnchor(scope = { counterAnchor() }) {
+    HandleSignal<CounterSignal> { signal ->
+        when (signal) {
+            CounterSignal.Increment -> snackbarHostState.showSnackbar("Incremented!")
+            CounterSignal.Decrement -> snackbarHostState.showSnackbar("Decremented!")
+        }
+    }
+
+    // ... UI content
+}
+```
+
+`HandleSignal` uses `LaunchedEffect` internally — it respects the composable lifecycle and automatically stops collecting when the composable leaves the composition.
+
+---
+
+## Compose Previews
+
+Use `PreviewAnchor` to provide static state for `@Preview` composables without needing a full Anchor setup:
+
+```kotlin
+@Preview
+@Composable
+fun CounterPreview() {
+    PreviewAnchor(state = CounterState(count = 42)) {
+        val count = collectState { it.count }
+        Text("Count: $count")
+    }
+}
+```
+
+`PreviewAnchor` wraps the state in an `AnchorStateScope` so your content composable works identically to production. Actions dispatched via `anchor()` become no-ops in previews.
+
+---
+
+## Full Example
+
+Putting it all together:
+
+```kotlin
+// State
+data class CounterState(
+    val count: Int = 0,
+) : ViewState
+
+// Signals
+sealed interface CounterSignal : Signal {
+    data object Increment : CounterSignal
+    data object Decrement : CounterSignal
+}
+
+// Anchor factory
+typealias CounterAnchor = Anchor<EmptyEffect, CounterState, Nothing>
+
+fun RememberAnchorScope.counterAnchor(): CounterAnchor =
+    create(initialState = ::CounterState, effectScope = { EmptyEffect })
+
+// Actions
+suspend fun CounterAnchor.increment() {
+    reduce { copy(count = count + 1) }
+    post { CounterSignal.Increment }
+}
+
+suspend fun CounterAnchor.decrement() {
+    reduce { copy(count = count - 1) }
+    post { CounterSignal.Decrement }
+}
+
+// UI
+@Composable
+fun CounterScreen(snackbarHostState: SnackbarHostState) {
+    RememberAnchor(scope = { counterAnchor() }) {
+        HandleSignal<CounterSignal> { signal ->
+            val message = when (signal) {
+                CounterSignal.Increment -> "Incremented"
+                CounterSignal.Decrement -> "Decremented"
+            }
+            snackbarHostState.showSnackbar(message)
+        }
+
+        val count = collectState { it.count }
+
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = count.toString(),
+                style = MaterialTheme.typography.headlineMedium,
+            )
+            Row {
+                Button(onClick = anchor(CounterAnchor::decrement)) { Text("-") }
+                Button(onClick = anchor(CounterAnchor::increment)) { Text("+") }
+            }
+        }
+    }
+}
+
+// Preview
+@Preview
+@Composable
+fun CounterPreview() {
+    PreviewAnchor(state = CounterState(count = 10)) {
+        val count = collectState { it.count }
+        Text("Count: $count")
+    }
+}
+```
+
+---
+
+# Testing
+
+The `anchor-test` module provides a BDD-style DSL for testing Anchor actions. It lets you verify state changes, signals, events, and effects deterministically — without Compose, ViewModels, or coroutine complexity.
+
+## Installation
+
+```kotlin
+dependencies {
+    testImplementation("dev.kioba.anchor:anchor-test:0.1.1")
+}
+```
+
+    `anchor-test` transitively includes the core `anchor` module and `kotlinx-coroutines-test`.
+
+---
+
+## runAnchorTest
+
+`runAnchorTest` is the entry point for all Anchor tests. Pass it the same anchor factory you use in production, then structure your test with `given`, `on`, and `verify` blocks.
+
+```kotlin
+@Test
+fun `counter increment updates state`() {
+    runAnchorTest(RememberAnchorScope::counterAnchor) {
+        given("the screen started") {
+            initialState { CounterState(count = -1) }
+        }
+
+        on("incrementing the counter", CounterAnchor::increment)
+
+        verify("the state updated with the incremented value") {
+            assertState { copy(count = 0) }
+            assertSignal { CounterSignal.Increment }
+        }
+    }
+}
+```
+
+The test uses a `AnchorTestRuntime` under the hood — a recording implementation that captures every `reduce`, `post`, `emit`, and `effect` call in order, then replays your assertions against the recording.
+
+---
+
+## Given — Setup
+
+The `given` block sets up preconditions for the test.
+
+### `initialState`
+
+Override the default initial state:
+
+```kotlin
+given("a counter that already has a value") {
+    initialState { CounterState(count = 100) }
+}
+```
+
+The lambda returns the state to start with. If omitted, the anchor factory's default `initialState` is used.
+
+### `effectScope`
+
+Provide a custom effect scope (useful for injecting test doubles):
+
+```kotlin
+given("the API returns a specific user") {
+    effectScope { MyEffect(api = FakeApi()) }
+}
+```
+
+---
+
+## On — Action
+
+The `on` block specifies which action to execute. You can pass a function reference or a lambda:
+
+```kotlin
+// Function reference
+on("incrementing the counter", CounterAnchor::increment)
+
+// Lambda (for actions with parameters)
+on("updating the text") {
+    updateText("Hello")
+}
+```
+
+---
+
+## Verify — Assertions
+
+The `verify` block asserts the outcomes of the action. Assertions must be declared **in the same order** the action produces them.
+
+### `assertState`
+
+Verifies a state reduction occurred. The lambda receives the previous state and returns the expected new state:
+
+```kotlin
+verify("the count increased") {
+    assertState { copy(count = count + 1) }
+}
+```
+
+### `assertSignal`
+
+Verifies a signal was posted:
+
+```kotlin
+verify("an increment signal was sent") {
+    assertSignal { CounterSignal.Increment }
+}
+```
+
+### `assertEvent`
+
+Verifies an internal event was emitted:
+
+```kotlin
+verify("a cancel event was emitted") {
+    assertEvent { MainEvent.Cancel }
+}
+```
+
+### `assertEffect`
+
+Verifies an effect block was executed:
+
+```kotlin
+verify("the API was called") {
+    assertEffect { api.fetchData() }
+}
+```
+
+### Ordering
+
+Assertions are matched against recorded actions **in order**. If an action calls `reduce`, then `post`, your verify block must call `assertState` before `assertSignal`:
+
+```kotlin
+// Action
+suspend fun CounterAnchor.increment() {
+    reduce { copy(count = count + 1) }    // 1st
+    post { CounterSignal.Increment }       // 2nd
+}
+
+// Test
+verify("state updated and signal posted") {
+    assertState { copy(count = 0) }        // matches 1st
+    assertSignal { CounterSignal.Increment } // matches 2nd
+}
+```
+
+---
+
+## Examples
+
+### Basic state and signal test
+
+```kotlin
+@Test
+fun `counter increment updates state`() {
+    runAnchorTest(RememberAnchorScope::counterAnchor) {
+        given("the screen started") {
+            initialState { CounterState(count = -1) }
+        }
+
+        on("incrementing the counter", CounterAnchor::increment)
+
+        verify("the state updated with the incremented value") {
+            assertState { copy(count = 0) }
+            assertSignal { CounterSignal.Increment }
+        }
+    }
+}
+```
+
+### Testing events
+
+```kotlin
+@Test
+fun `clear cancels the counting`() {
+    runAnchorTest(RememberAnchorScope::mainAnchor) {
+        given("the initial state started to count up") {
+            initialState { mainViewState().copy(hundreds = 100, iterationCounter = "100") }
+        }
+
+        on("clearing", MainAnchor::clear)
+
+        verify("cancel event emitted and state cleared") {
+            assertEvent { MainEvent.Cancel }
+            assertState { copy(details = "cleared", iterationCounter = null) }
+        }
+    }
+}
+```
+
+### Providing a custom effect scope
+
+```kotlin
+@Test
+fun `refresh triggers the subscription`() {
+    runAnchorTest(RememberAnchorScope::mainAnchor) {
+        given("the screen is ready") {
+            initialState { mainViewState() }
+            effectScope { MainEffect() }
+        }
+
+        on("refreshing", MainAnchor::refresh)
+
+        verify("refresh event emitted") {
+            assertEvent { MainEvent.Refresh }
+        }
+    }
+}
+```
+
+### Skipping the given block
+
+If you don't need custom setup, you can omit the `given` block entirely. The test will use the anchor factory's default state and effect scope:
+
+```kotlin
+@Test
+fun `sayHi sets the details`() {
+    runAnchorTest(RememberAnchorScope::mainAnchor) {
+        on("saying hi", MainAnchor::sayHi)
+
+        verify("the details are set") {
+            assertState { copy(details = "Hello Android!") }
+        }
+    }
+}
+```
+
+---
+
+# API Reference
+
+This page provides a detailed reference for the public API of the Anchor library.
+
+## Core API
+
+### `Anchor<R, S, Err>`
+
+The main abstract class for state management. `R` is the Effect type, `S` is the ViewState type, and `Err` is the domain error type (use `Nothing` when no domain errors are needed).
+
+- `state: S`: The current state.
+- `reduce(reducer: S.() -> S)`: Updates the state.
+- `effect(coroutineContext, block: suspend R.() -> T): T`: Executes a side effect.
+- `cancellable(key, block)`: Executes a block that can be cancelled by a key.
+- `post(block: SignalScope.() -> Signal)`: Posts a signal to the UI.
+- `emit(block: SubscriptionScope.() -> Event)`: Emits an internal event.
+
+### `PureAnchor<R, S>`
+
+A convenience typealias for `Anchor<R, S, Nothing>` — use when your anchor has no domain errors.
+
+---
+
+### `RememberAnchorScope.create(...)`
+
+Creates an `Anchor` instance.
+
+- `initialState`: Factory for the initial state.
+- `effectScope`: Factory for effect dependencies.
+- `init`: Optional initialization block.
+- `subscriptions`: Optional subscription setup block.
+- `onDomainError`: Optional callback invoked when a domain error is raised (defaults to `null`).
+- `defect`: Optional callback invoked when an unexpected error occurs (defaults to `null`).
+
+---
+
+## Compose API (Android)
+
+### `RememberAnchor(scope, customKey, content)`
+
+Sets up Anchor in a Composable.
+
+- `scope`: Factory block to create the Anchor.
+- `customKey`: Optional key for state retention.
+- `content`: Composable block receiving `AnchorStateScope`.
+
+---
+
+### `AnchorStateScope<S>`
+
+Scope available inside `RememberAnchor`.
+
+- `state`: Accesses the current state (triggers recomposition for any change).
+- `collectState(selector: (S) -> T): T`: Observes a specific part of the state (granular recomposition).
+
+---
+
+### `anchor(block)`
+
+Helper to create UI action callbacks.
+
+- `anchor(suspend A.() -> Unit): () -> Unit`
+- `anchor(suspend A.(I) -> Unit): (I) -> Unit`
+- `anchor(suspend A.(I, O) -> Unit): (I, O) -> Unit`
+
+---
+
+### `HandleSignal<T>(block)`
+
+Handles one-time signals of type `T`.
+
+```kotlin
+HandleSignal<MySignal> { signal ->
+    // Handle the signal
+}
+```
+
+---
+
+### `PreviewAnchor(state, content)`
+
+A utility for Compose Previews.
+
+```kotlin
+@Preview
+@Composable
+fun MyPreview() {
+    PreviewAnchor(state = MyState()) {
+        MyUi()
+    }
+}
+```
+
+---
+
+# Examples
+
+## Comprehensive Counter Example
+
+This example demonstrates state, actions, and signals.
+
+### 1. State and Signals
+
+```kotlin
+data class CounterState(
+    val count: Int = 0,
+    val isLoading: Boolean = false
+) : ViewState
+
+sealed interface CounterSignal : Signal {
+    data class ShowToast(val message: String) : CounterSignal
+}
+```
+
+### 2. Anchor Definition
+
+```kotlin
+class CounterEffect : Effect
+
+typealias CounterAnchor = Anchor<CounterEffect, CounterState, Nothing>
+
+fun RememberAnchorScope.counterAnchor(): CounterAnchor =
+    create(
+        initialState = ::CounterState,
+        effectScope = { CounterEffect() }
+    )
+```
+
+### 3. Actions
+
+```kotlin
+fun CounterAnchor.increment() {
+    reduce { copy(count = count + 1) }
+}
+
+fun CounterAnchor.decrement() {
+    reduce { copy(count = count - 1) }
+}
+
+suspend fun CounterAnchor.reset() {
+    reduce { copy(isLoading = true) }
+    delay(1000) // Simulate work
+    reduce { copy(count = 0, isLoading = false) }
+    post { CounterSignal.ShowToast("Counter reset!") }
+}
+```
+
+### 4. UI Implementation
+
+```kotlin
+@Composable
+fun CounterPage() {
+    RememberAnchor(scope = { counterAnchor() }) {
+        // Handle signals
+        HandleSignal<CounterSignal.ShowToast> { signal ->
+            // Show toast/snackbar
+        }
+
+        val count = collectState { it.count }
+        val isLoading = collectState { it.isLoading }
+
+        Column {
+            Text("Count: $count")
+
+            if (isLoading) {
+                CircularProgressIndicator()
+            } else {
+                Row {
+                    Button(onClick = anchor(CounterAnchor::increment)) {
+                        Text("+")
+                    }
+                    Button(onClick = anchor(CounterAnchor::decrement)) {
+                        Text("-")
+                    }
+                    Button(onClick = anchor(CounterAnchor::reset)) {
+                        Text("Reset")
+                    }
+                }
+            }
+        }
+    }
+}
+```
+
