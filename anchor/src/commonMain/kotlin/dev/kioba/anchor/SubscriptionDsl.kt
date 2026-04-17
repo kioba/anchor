@@ -24,21 +24,35 @@ public class SubscriptionsScope<R, S, Err>(
    */
   public val effect: R,
   @PublishedApi
+  internal val onDomainError: (suspend Anchor<R, S, Err>.(Err) -> Unit)? = null,
+  @PublishedApi
   internal val flows: MutableList<Flow<*>> = mutableListOf(),
 ) where R : Effect, S : ViewState, Err : Any {
 
   /**
    * Extension function to execute an action on the [Anchor] for each value emitted by a [Flow].
    *
+   * If the action calls [Raise.raise], the error is routed to the `onDomainError` handler
+   * without killing the subscription pipeline. If no handler is configured, the exception
+   * propagates and cancels the subscription.
+   *
    * @param I The type of values emitted by the [Flow].
-   * @param effect The action to execute on the [Anchor].
+   * @param action The action to execute on the [Anchor].
    * @return The original [Flow].
    */
   @AnchorDsl
   public fun <I> Flow<I>.anchor(
-    effect: Anchor<R, S, Err>.(I) -> Unit,
+    action: Anchor<R, S, Err>.(I) -> Unit,
   ): Flow<I> =
-    onEach { value -> anchor.effect(value) }
+    onEach { value ->
+      try {
+        anchor.action(value)
+      } catch (e: RaisedException) {
+        @Suppress("UNCHECKED_CAST")
+        val error = e.error as Err
+        onDomainError?.invoke(anchor, error) ?: throw e
+      }
+    }
 
   /**
    * Listens for internal [Event]s of type [A].

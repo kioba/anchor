@@ -3,8 +3,10 @@ package dev.kioba.anchor.internal
 import dev.kioba.anchor.Anchor
 import dev.kioba.anchor.AnchorSink
 import dev.kioba.anchor.Created
+import dev.kioba.anchor.DomainDefectException
 import dev.kioba.anchor.Effect
 import dev.kioba.anchor.Event
+import dev.kioba.anchor.RaisedException
 import dev.kioba.anchor.Signal
 import dev.kioba.anchor.SignalProvider
 import dev.kioba.anchor.SignalScope
@@ -31,6 +33,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.cancellation.CancellationException
 
 @PublishedApi
 internal class AnchorRuntime<R, S, Err>(
@@ -87,7 +90,12 @@ internal class AnchorRuntime<R, S, Err>(
   }
 
   private suspend fun <T : Event> SharedFlow<T>.handlers(): Flow<Any?> =
-    SubscriptionsScope<R, S, Err>(this, anchor = this@AnchorRuntime, effect = effect)
+    SubscriptionsScope<R, S, Err>(
+      chain = this,
+      anchor = this@AnchorRuntime,
+      effect = effect,
+      onDomainError = onDomainError,
+    )
       .also { scope -> subscriptions?.invoke(scope) }
       .flows
       .merge()
@@ -106,6 +114,12 @@ internal class AnchorRuntime<R, S, Err>(
     reducer: S.() -> S,
   ): Unit =
     _viewState.update(reducer)
+
+  override fun raise(error: Err): Nothing =
+    throw RaisedException(error)
+
+  override fun orDie(error: Err): Nothing =
+    throw DomainDefectException(error)
 
   override suspend fun <T> effect(
     coroutineContext: CoroutineContext,
@@ -140,6 +154,8 @@ internal class AnchorRuntime<R, S, Err>(
     block: suspend Anchor<R, S, Err>.() -> Unit,
   ) {
     coroutineScope {
+      var raised: RaisedException? = null
+
       val jobToWait =
         jobsMutex.withLock {
           // Cancel and remove old job if it exists
@@ -151,6 +167,9 @@ internal class AnchorRuntime<R, S, Err>(
             launch {
               try {
                 block()
+              } catch (e: RaisedException) {
+                raised = e
+                throw e
               } finally {
                 // Clean up completed job to prevent memory leak
                 // Only remove if this job is still the current one for this key
@@ -168,6 +187,10 @@ internal class AnchorRuntime<R, S, Err>(
 
       // Wait for the job to complete (outside the lock)
       jobToWait.join()
+
+      // Propagate RaisedException after join — CancellationException semantics
+      // cause join() to complete normally, but the domain error must propagate.
+      raised?.let { throw it }
     }
   }
 

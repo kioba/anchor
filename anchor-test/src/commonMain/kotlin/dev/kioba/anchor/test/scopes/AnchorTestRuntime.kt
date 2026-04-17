@@ -1,8 +1,10 @@
 package dev.kioba.anchor.test.scopes
 
 import dev.kioba.anchor.Anchor
+import dev.kioba.anchor.DomainDefectException
 import dev.kioba.anchor.Effect
 import dev.kioba.anchor.Event
+import dev.kioba.anchor.RaisedException
 import dev.kioba.anchor.Signal
 import dev.kioba.anchor.SignalScope
 import dev.kioba.anchor.SubscriptionScope
@@ -55,4 +57,13 @@ internal class AnchorTestRuntime<R, S, Err>(
     currentState = currentState.reducer()
   }
 
+  override fun raise(error: Err): Nothing {
+    verifyActions.add(RaiseAction(error))
+    throw RaisedException(error)
+  }
+
+  override fun orDie(error: Err): Nothing {
+    verifyActions.add(OrDieAction(error))
+    throw DomainDefectException(error)
+  }
 }

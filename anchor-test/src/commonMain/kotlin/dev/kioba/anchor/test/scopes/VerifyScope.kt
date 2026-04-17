@@ -7,7 +7,7 @@ import dev.kioba.anchor.ViewState
 import dev.kioba.anchor.test.AnchorTestDsl
 
 @AnchorTestDsl
-public interface VerifyScope<R, S> where R : Effect, S : ViewState {
+public interface VerifyScope<R, S, Err> where R : Effect, S : ViewState, Err : Any {
   @AnchorTestDsl
   public fun assertState(
     f: S.() -> S,
@@ -26,5 +26,25 @@ public interface VerifyScope<R, S> where R : Effect, S : ViewState {
   @AnchorTestDsl
   public fun assertEffect(
     f: R.() -> Unit,
+  )
+
+  /**
+   * Asserts that [raise] was called with the given error.
+   *
+   * @param f A block that returns the expected error value.
+   */
+  @AnchorTestDsl
+  public fun assertRaise(
+    f: () -> Err,
+  )
+
+  /**
+   * Asserts that [orDie] was called with the given error.
+   *
+   * @param f A block that returns the expected error value.
+   */
+  @AnchorTestDsl
+  public fun assertOrDie(
+    f: () -> Err,
   )
 }
