@@ -148,6 +148,63 @@ class RaiseTest {
   }
 
   @Test
+  fun `ensure does nothing when condition is true`() = runBlocking {
+    val anchor = createAnchor()
+
+    with(anchor) {
+      reduce { copy(value = 1) }
+      ensure(true) { TestError.NotFound }
+      reduce { copy(value = 2) }
+    }
+
+    assertEquals(2, anchor.state.value)
+  }
+
+  @Test
+  fun `ensure raises when condition is false`() = runBlocking {
+    val anchor = createAnchor()
+
+    val exception = assertFailsWith<RaisedException> {
+      anchor.ensure(false) { TestError.NotFound }
+    }
+
+    assertEquals(TestError.NotFound, exception.error)
+  }
+
+  @Test
+  fun `ensure short-circuits execution`() = runBlocking {
+    val anchor = createAnchor()
+    var reachedAfterEnsure = false
+
+    assertFailsWith<RaisedException> {
+      with(anchor) {
+        reduce { copy(value = 1) }
+        ensure(false) { TestError.Invalid("check failed") }
+        @Suppress("UNREACHABLE_CODE")
+        reachedAfterEnsure = true
+      }
+    }
+
+    assertTrue(!reachedAfterEnsure)
+    assertEquals(1, anchor.state.value)
+  }
+
+  @Test
+  fun `ensure inside cancellable propagates correctly`() = runBlocking {
+    val anchor = createAnchor()
+
+    val exception = assertFailsWith<RaisedException> {
+      anchor.cancellable("ensure-test") {
+        reduce { copy(value = 10) }
+        ensure(false) { TestError.NotFound }
+      }
+    }
+
+    assertEquals(TestError.NotFound, exception.error)
+    assertEquals(10, anchor.state.value)
+  }
+
+  @Test
   fun `subscription pipeline survives raise when onDomainError is configured`() = runBlocking {
     val capturedErrors = mutableListOf<TestError>()
     val anchor = createAnchor()

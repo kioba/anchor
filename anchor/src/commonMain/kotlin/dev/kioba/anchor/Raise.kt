@@ -24,4 +24,22 @@ public interface Raise<Err> where Err : Any {
    */
   @AnchorDsl
   public fun raise(error: Err): Nothing
+
+  /**
+   * Ensures that [condition] is true, otherwise raises a domain error.
+   *
+   * The [error] lambda is only evaluated when the condition is false.
+   *
+   * Example:
+   * ```kotlin
+   * ensure(user.isActive) { UserError.Inactive }
+   * ```
+   *
+   * @param condition The condition to check.
+   * @param error A lazy provider for the domain error to raise when the condition is false.
+   */
+  @AnchorDsl
+  public fun ensure(condition: Boolean, error: () -> Err) {
+    if (!condition) raise(error())
+  }
 }
