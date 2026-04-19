@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onSubscription
@@ -33,7 +34,6 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
-import kotlin.coroutines.cancellation.CancellationException
 
 @PublishedApi
 internal class AnchorRuntime<R, S, Err>(
@@ -95,10 +95,16 @@ internal class AnchorRuntime<R, S, Err>(
       anchor = this@AnchorRuntime,
       effect = effect,
       onDomainError = onDomainError,
-    )
-      .also { scope -> subscriptions?.invoke(scope) }
+      defect = defect,
+    ).also { scope -> subscriptions?.invoke(scope) }
       .flows
-      .merge()
+      .map { flow ->
+        flow.catch { e ->
+          safeExecute(this@AnchorRuntime, onDomainError, defect) {
+            throw e
+          }
+        }
+      }.merge()
 
   suspend fun CoroutineScope.subscribe(): Job =
     emitter
@@ -115,10 +121,14 @@ internal class AnchorRuntime<R, S, Err>(
   ): Unit =
     _viewState.update(reducer)
 
-  override fun raise(error: Err): Nothing =
+  override fun raise(
+    error: Err,
+  ): Nothing =
     throw RaisedException(error)
 
-  override fun orDie(error: Err): Nothing =
+  override fun orDie(
+    error: Err,
+  ): Nothing =
     throw DomainDefectException(error)
 
   override suspend fun <T> effect(

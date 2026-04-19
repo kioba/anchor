@@ -16,11 +16,17 @@ S : ViewState,
 Err : Any {
   val anchor: A
   val coroutineScope: CoroutineScope
+  val onDomainError: (suspend Anchor<R, S, Err>.(Err) -> Unit)?
+  val defect: (suspend Anchor<R, S, Err>.(Throwable) -> Unit)?
 }
 
 @PublishedApi
 internal fun <A, R, S, Err> ContainedScope<A, R, S, Err>.execute(
   block: suspend Anchor<*, *, *>.() -> Unit,
 ) where A : Anchor<R, S, Err>, R : Effect, S : ViewState, Err : Any {
-  coroutineScope.launch(Dispatchers.Default) { anchor.block() }
+  coroutineScope.launch(Dispatchers.Default) {
+    safeExecute(anchor, onDomainError, defect) {
+      anchor.block()
+    }
+  }
 }

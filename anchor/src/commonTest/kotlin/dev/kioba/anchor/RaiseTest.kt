@@ -2,6 +2,8 @@ package dev.kioba.anchor
 
 import dev.kioba.anchor.internal.AnchorRuntime
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
@@ -223,5 +225,107 @@ class RaiseTest {
     resultFlow.collect {}
 
     assertEquals(3, capturedErrors.size, "All items should trigger onDomainError")
+  }
+
+  @Test
+  fun `DomainDefectException in subscription anchor routes to defect handler`(): Unit = runBlocking {
+    val capturedDefects = mutableListOf<Throwable>()
+    val anchor = createAnchor()
+
+    val scope = SubscriptionsScope<EmptyEffect, TestState, TestError>(
+      chain = MutableSharedFlow(),
+      anchor = anchor,
+      effect = EmptyEffect,
+      onDomainError = { _ -> },
+      defect = { error -> capturedDefects.add(error) },
+    )
+
+    val resultFlow = with(scope) {
+      flowOf(Unit).anchor { orDie(TestError.NotFound) }
+    }
+
+    resultFlow.collect {}
+
+    assertEquals(1, capturedDefects.size)
+    assertIs<DomainDefectException>(capturedDefects.first())
+  }
+
+  @Test
+  fun `general Throwable in subscription anchor routes to defect handler`(): Unit = runBlocking {
+    val capturedDefects = mutableListOf<Throwable>()
+    val anchor = createAnchor()
+
+    val scope = SubscriptionsScope<EmptyEffect, TestState, TestError>(
+      chain = MutableSharedFlow(),
+      anchor = anchor,
+      effect = EmptyEffect,
+      defect = { error -> capturedDefects.add(error) },
+    )
+
+    val resultFlow = with(scope) {
+      flowOf(Unit).anchor { throw IllegalStateException("boom") }
+    }
+
+    resultFlow.collect {}
+
+    assertEquals(1, capturedDefects.size)
+    assertIs<IllegalStateException>(capturedDefects.first())
+  }
+
+  @Test
+  fun `subscription pipeline survives defect when handler is configured`() = runBlocking {
+    val capturedDefects = mutableListOf<Throwable>()
+    val anchor = createAnchor()
+
+    val scope = SubscriptionsScope<EmptyEffect, TestState, TestError>(
+      chain = MutableSharedFlow(),
+      anchor = anchor,
+      effect = EmptyEffect,
+      defect = { error -> capturedDefects.add(error) },
+    )
+
+    val resultFlow = with(scope) {
+      flowOf(1, 2, 3).anchor { throw RuntimeException("defect $it") }
+    }
+
+    resultFlow.collect {}
+
+    assertEquals(3, capturedDefects.size, "All items should trigger defect handler")
+  }
+
+  @Test
+  fun `subscription flow catch routes DomainDefectException to defect handler`(): Unit = runBlocking {
+    val capturedDefects = mutableListOf<Throwable>()
+    val anchor = createAnchor(
+      defect = { error -> capturedDefects.add(error) },
+    )
+
+    // Error thrown outside .anchor() — caught by flow-level .catch{}
+    val errorFlow = flow<Unit> { throw DomainDefectException(TestError.NotFound) }
+
+    // Simulate what AnchorRuntime.handlers() does: per-flow .catch
+    errorFlow
+      .catch { e ->
+        anchor.defect?.invoke(anchor, e) ?: throw e
+      }
+      .collect {}
+
+    assertEquals(1, capturedDefects.size)
+    assertIs<DomainDefectException>(capturedDefects.first())
+  }
+
+  @Test
+  fun `subscription flow catch rethrows when no defect handler`(): Unit = runBlocking {
+    val anchor = createAnchor(defect = null)
+
+    val errorFlow = flow<Unit> { throw DomainDefectException(TestError.NotFound) }
+
+    assertFailsWith<DomainDefectException> {
+      errorFlow
+        .catch { e ->
+          anchor.defect?.invoke(anchor, e) ?: throw e
+        }
+        .collect {}
+    }
   }
 }
