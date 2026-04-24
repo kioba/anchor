@@ -47,4 +47,30 @@ public interface VerifyScope<R, S, Err> where R : Effect, S : ViewState, Err : A
   public fun assertOrDie(
     f: () -> Err,
   )
+
+  /**
+   * Asserts that the `onDomainError` handler was invoked with the given error.
+   *
+   * @param f A block that returns the expected error value.
+   */
+  @AnchorTestDsl
+  public fun assertDomainError(
+    f: () -> Err,
+  )
+
+  /**
+   * Asserts that no domain error occurred during the action.
+   */
+  @AnchorTestDsl
+  public fun assertNoDomainError()
+
+  /**
+   * Asserts that the `defect` handler was invoked with the given throwable.
+   *
+   * @param f A block that returns the expected throwable.
+   */
+  @AnchorTestDsl
+  public fun assertDefect(
+    f: () -> Throwable,
+  )
 }

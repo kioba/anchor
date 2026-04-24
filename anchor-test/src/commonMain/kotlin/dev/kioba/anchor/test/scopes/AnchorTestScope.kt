@@ -12,13 +12,14 @@ import dev.kioba.anchor.test.AnchorTestDsl
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertTrue
 
 public class AnchorTestScope<R : Effect, S : ViewState, Err : Any>(
   @PublishedApi
   internal val anchorFactory: RememberAnchorScope.() -> Anchor<R, S, Err>,
 ) {
   @PublishedApi
-  internal val givenScope: GivenScopeImpl<R, S> = GivenScopeImpl()
+  internal val givenScope: GivenScopeImpl<R, S, Err> = GivenScopeImpl()
 
   @PublishedApi
   internal val verifyScope: VerifyScopeImpl<R, S, Err> = VerifyScopeImpl()
@@ -29,7 +30,7 @@ public class AnchorTestScope<R : Effect, S : ViewState, Err : Any>(
   @AnchorTestDsl
   public inline fun given(
     @Suppress("UNUSED_PARAMETER") description: String,
-    block: GivenScope<R, S>.() -> Unit,
+    block: GivenScope<R, S, Err>.() -> Unit,
   ): Unit =
     givenScope.block()
 
@@ -52,6 +53,11 @@ public class AnchorTestScope<R : Effect, S : ViewState, Err : Any>(
 
 @PublishedApi
 internal suspend inline fun <reified R : Effect, reified S : ViewState, Err : Any> AnchorTestScope<R, S, Err>.assert() {
+  var resolvedOnDomainError: (suspend Anchor<R, S, Err>.(Err) -> Unit)? = null
+  var resolvedDefect: (suspend Anchor<R, S, Err>.(Throwable) -> Unit)? = null
+  var factoryOnDomainError: Any? = null
+  var factoryDefect: Any? = null
+
   val rememberAnchorScope =
     object : RememberAnchorScope {
       @Suppress("UNCHECKED_CAST")
@@ -62,25 +68,67 @@ internal suspend inline fun <reified R : Effect, reified S : ViewState, Err : An
         onDomainError: (suspend ErrorScope<R, S>.(Err) -> Unit)?,
         defect: (suspend ErrorScope<R, S>.(Throwable) -> Unit)?,
         subscriptions: (suspend SubscriptionsScope<R, S, Err>.() -> Unit)?,
-      ): Anchor<R, S, Err> =
-        AnchorTestRuntime<R, S, Err>(
+      ): Anchor<R, S, Err> {
+        factoryOnDomainError = onDomainError
+        factoryDefect = defect
+        return AnchorTestRuntime<R, S, Err>(
           givenScope.effectScope as? R ?: effectScope(),
           givenScope.initState as? S ?: initialState(),
         )
+      }
     }
+
   val anchor: AnchorTestRuntime<R, S, Err> = rememberAnchorScope.anchorFactory() as AnchorTestRuntime<R, S, Err>
+
+  @Suppress("UNCHECKED_CAST")
+  resolvedOnDomainError = givenScope.onDomainError
+    ?: factoryOnDomainError as? (suspend Anchor<R, S, Err>.(Err) -> Unit)
+  @Suppress("UNCHECKED_CAST")
+  resolvedDefect = givenScope.defect
+    ?: factoryDefect as? (suspend Anchor<R, S, Err>.(Throwable) -> Unit)
 
   try {
     anchor.action()
-  } catch (_: RaisedException) {
-    // Expected when action calls raise() — recorded in verifyActions
+  } catch (e: RaisedException) {
+    val handler = resolvedOnDomainError
+    if (handler != null) {
+      @Suppress("UNCHECKED_CAST")
+      val error = e.error as Err
+      anchor.domainErrors.add(error)
+      handler.invoke(anchor, error)
+    }
   } catch (e: CancellationException) {
     throw e
-  } catch (_: DomainDefectException) {
-    // Expected when action calls orDie() — recorded in verifyActions
+  } catch (e: DomainDefectException) {
+    val handler = resolvedDefect
+    if (handler != null) {
+      anchor.defects.add(e)
+      handler.invoke(anchor, e)
+    }
   }
 
   assertEvents<R, S, Err>(anchor.verifyActions, anchor.initState, anchor.effectScope)
+  assertHandlers(anchor)
+}
+
+@PublishedApi
+internal fun <R : Effect, S : ViewState, Err : Any> AnchorTestScope<R, S, Err>.assertHandlers(
+  anchor: AnchorTestRuntime<R, S, Err>,
+) {
+  verifyScope.domainErrorAssertion?.let { assertion ->
+    assertTrue(anchor.domainErrors.isNotEmpty(), "Expected onDomainError to be called, but it was not")
+    @Suppress("UNCHECKED_CAST")
+    assertEquals(assertion(), anchor.domainErrors.first() as Err)
+  }
+
+  if (verifyScope.noDomainErrorFlag) {
+    assertTrue(anchor.domainErrors.isEmpty(), "Expected no domain error, but got: ${anchor.domainErrors}")
+  }
+
+  verifyScope.defectAssertion?.let { assertion ->
+    assertTrue(anchor.defects.isNotEmpty(), "Expected defect handler to be called, but it was not")
+    assertEquals(assertion(), anchor.defects.first())
+  }
 }
 
 @PublishedApi

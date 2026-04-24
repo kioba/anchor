@@ -20,6 +20,11 @@ internal class AnchorTestRuntime<R, S, Err>(
 ) : Anchor<R, S, Err>() where R : Effect, S : ViewState, Err : Any {
 
   val verifyActions = mutableListOf<VerifyAction>()
+  @PublishedApi
+  internal val domainErrors: MutableList<Any> = mutableListOf()
+
+  @PublishedApi
+  internal val defects: MutableList<Throwable> = mutableListOf()
   private var currentState = initState
 
   override val state: S
