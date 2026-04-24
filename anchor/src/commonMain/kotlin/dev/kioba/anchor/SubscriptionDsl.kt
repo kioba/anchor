@@ -1,5 +1,6 @@
 package dev.kioba.anchor
 
+import dev.kioba.anchor.internal.safeExecute
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.onEach
@@ -26,6 +27,8 @@ public class SubscriptionsScope<R, S, Err>(
   @PublishedApi
   internal val onDomainError: (suspend Anchor<R, S, Err>.(Err) -> Unit)? = null,
   @PublishedApi
+  internal val defect: (suspend Anchor<R, S, Err>.(Throwable) -> Unit)? = null,
+  @PublishedApi
   internal val flows: MutableList<Flow<*>> = mutableListOf(),
 ) where R : Effect, S : ViewState, Err : Any {
 
@@ -45,12 +48,8 @@ public class SubscriptionsScope<R, S, Err>(
     action: Anchor<R, S, Err>.(I) -> Unit,
   ): Flow<I> =
     onEach { value ->
-      try {
+      safeExecute(anchor, onDomainError, defect) {
         anchor.action(value)
-      } catch (e: RaisedException) {
-        @Suppress("UNCHECKED_CAST")
-        val error = e.error as Err
-        onDomainError?.invoke(anchor, error) ?: throw e
       }
     }
 
