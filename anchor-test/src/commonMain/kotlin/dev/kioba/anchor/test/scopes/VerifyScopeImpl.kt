@@ -45,6 +45,33 @@ internal class VerifyScopeImpl<R, S, Err>(
   ) {
     expectedActions.add(OrDieAction(f()))
   }
+
+  @PublishedApi
+  internal var domainErrorAssertion: (() -> Err)? = null
+
+  @PublishedApi
+  internal var noDomainErrorFlag: Boolean = false
+
+  @PublishedApi
+  internal var defectAssertion: (() -> Throwable)? = null
+
+  override fun assertDomainError(
+    f: () -> Err,
+  ) {
+    check(!noDomainErrorFlag) { "assertDomainError and assertNoDomainError are mutually exclusive" }
+    domainErrorAssertion = f
+  }
+
+  override fun assertNoDomainError() {
+    check(domainErrorAssertion == null) { "assertNoDomainError and assertDomainError are mutually exclusive" }
+    noDomainErrorFlag = true
+  }
+
+  override fun assertDefect(
+    f: () -> Throwable,
+  ) {
+    defectAssertion = f
+  }
 }
 
 @PublishedApi

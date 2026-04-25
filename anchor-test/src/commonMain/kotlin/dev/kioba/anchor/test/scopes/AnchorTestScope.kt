@@ -11,13 +11,14 @@ import dev.kioba.anchor.test.AnchorTestDsl
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertTrue
 
 public class AnchorTestScope<R : Effect, S : ViewState, Err : Any>(
   @PublishedApi
   internal val anchorFactory: RememberAnchorScope.() -> Anchor<R, S, Err>,
 ) {
   @PublishedApi
-  internal val givenScope: GivenScopeImpl<R, S> = GivenScopeImpl()
+  internal val givenScope: GivenScopeImpl<R, S, Err> = GivenScopeImpl()
 
   @PublishedApi
   internal val verifyScope: VerifyScopeImpl<R, S, Err> = VerifyScopeImpl()
@@ -28,7 +29,7 @@ public class AnchorTestScope<R : Effect, S : ViewState, Err : Any>(
   @AnchorTestDsl
   public inline fun given(
     @Suppress("UNUSED_PARAMETER") description: String,
-    block: GivenScope<R, S>.() -> Unit,
+    block: GivenScope<R, S, Err>.() -> Unit,
   ): Unit =
     givenScope.block()
 
@@ -63,23 +64,70 @@ internal suspend inline fun <reified R : Effect, reified S : ViewState, Err : An
         subscriptions: (suspend SubscriptionsScope<R, S, Err>.() -> Unit)?,
       ): Anchor<R, S, Err> =
         AnchorTestRuntime<R, S, Err>(
-          givenScope.effectScope as? R ?: effectScope(),
-          givenScope.initState as? S ?: initialState(),
+          effectScope = givenScope.effectScope as? R ?: effectScope(),
+          initState = givenScope.initState as? S ?: initialState(),
+          onDomainError = onDomainError,
+          defect = defect,
         )
     }
+
   val anchor: AnchorTestRuntime<R, S, Err> = rememberAnchorScope.anchorFactory() as AnchorTestRuntime<R, S, Err>
 
   try {
     anchor.action()
-  } catch (_: RaisedException) {
-    // Expected when action calls raise() — recorded in verifyActions
+  } catch (e: RaisedException) {
+    val resolvedOnDomainError = givenScope.onDomainError ?: anchor.onDomainError
+    if (resolvedOnDomainError != null) {
+      @Suppress("UNCHECKED_CAST")
+      val error = e.error as Err
+      anchor.domainErrors.add(error)
+      resolvedOnDomainError.invoke(anchor, error)
+    } else {
+      throw AssertionError(
+        "raise() was called but no onDomainError handler is configured. " +
+          "Add onDomainError { } in given {} or the anchor factory.",
+        e,
+      )
+    }
   } catch (e: CancellationException) {
     throw e
-  } catch (_: DomainDefectException) {
-    // Expected when action calls orDie() — recorded in verifyActions
+  } catch (e: DomainDefectException) {
+    val resolvedDefect = givenScope.defect ?: anchor.defect
+    if (resolvedDefect != null) {
+      anchor.defects.add(e)
+      resolvedDefect.invoke(anchor, e)
+    } else {
+      throw AssertionError(
+        "orDie() was called but no defect handler is configured. " +
+          "Add defect { } in given {} or the anchor factory.",
+        e,
+      )
+    }
   }
 
   assertEvents<R, S, Err>(anchor.verifyActions, anchor.initState, anchor.effectScope)
+  assertHandlers(anchor)
+}
+
+@PublishedApi
+internal fun <R : Effect, S : ViewState, Err : Any> AnchorTestScope<R, S, Err>.assertHandlers(
+  anchor: AnchorTestRuntime<R, S, Err>,
+) {
+  verifyScope.domainErrorAssertion?.let { assertion ->
+    assertTrue(anchor.domainErrors.isNotEmpty(), "Expected onDomainError to be called, but it was not")
+    assertEquals(1, anchor.domainErrors.size, "Expected exactly one domain error, but got: ${anchor.domainErrors}")
+    assertEquals(assertion(), anchor.domainErrors.first())
+  }
+
+  if (verifyScope.noDomainErrorFlag) {
+    assertTrue(anchor.domainErrors.isEmpty(), "Expected no domain error, but got: ${anchor.domainErrors}")
+  }
+
+  verifyScope.defectAssertion?.let { assertion ->
+    assertTrue(anchor.defects.isNotEmpty(), "Expected defect handler to be called, but it was not")
+    assertEquals(1, anchor.defects.size, "Expected exactly one defect, but got: ${anchor.defects}")
+    assertEquals(assertion(), anchor.defects.first())
+  }
 }
 
 @PublishedApi
