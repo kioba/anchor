@@ -53,11 +53,6 @@ public class AnchorTestScope<R : Effect, S : ViewState, Err : Any>(
 
 @PublishedApi
 internal suspend inline fun <reified R : Effect, reified S : ViewState, Err : Any> AnchorTestScope<R, S, Err>.assert() {
-  var resolvedOnDomainError: (suspend Anchor<R, S, Err>.(Err) -> Unit)? = null
-  var resolvedDefect: (suspend Anchor<R, S, Err>.(Throwable) -> Unit)? = null
-  var factoryOnDomainError: Any? = null
-  var factoryDefect: Any? = null
-
   val rememberAnchorScope =
     object : RememberAnchorScope {
       @Suppress("UNCHECKED_CAST")
@@ -68,42 +63,34 @@ internal suspend inline fun <reified R : Effect, reified S : ViewState, Err : An
         onDomainError: (suspend ErrorScope<R, S>.(Err) -> Unit)?,
         defect: (suspend ErrorScope<R, S>.(Throwable) -> Unit)?,
         subscriptions: (suspend SubscriptionsScope<R, S, Err>.() -> Unit)?,
-      ): Anchor<R, S, Err> {
-        factoryOnDomainError = onDomainError
-        factoryDefect = defect
-        return AnchorTestRuntime<R, S, Err>(
-          givenScope.effectScope as? R ?: effectScope(),
-          givenScope.initState as? S ?: initialState(),
+      ): Anchor<R, S, Err> =
+        AnchorTestRuntime<R, S, Err>(
+          effectScope = givenScope.effectScope as? R ?: effectScope(),
+          initState = givenScope.initState as? S ?: initialState(),
+          onDomainError = onDomainError,
+          defect = defect,
         )
-      }
     }
 
   val anchor: AnchorTestRuntime<R, S, Err> = rememberAnchorScope.anchorFactory() as AnchorTestRuntime<R, S, Err>
 
-  @Suppress("UNCHECKED_CAST")
-  resolvedOnDomainError = givenScope.onDomainError
-    ?: factoryOnDomainError as? (suspend Anchor<R, S, Err>.(Err) -> Unit)
-  @Suppress("UNCHECKED_CAST")
-  resolvedDefect = givenScope.defect
-    ?: factoryDefect as? (suspend Anchor<R, S, Err>.(Throwable) -> Unit)
-
   try {
     anchor.action()
   } catch (e: RaisedException) {
-    val handler = resolvedOnDomainError
-    if (handler != null) {
+    val resolvedOnDomainError = givenScope.onDomainError ?: anchor.onDomainError
+    if (resolvedOnDomainError != null) {
       @Suppress("UNCHECKED_CAST")
       val error = e.error as Err
       anchor.domainErrors.add(error)
-      handler.invoke(anchor, error)
+      resolvedOnDomainError.invoke(anchor, error)
     }
   } catch (e: CancellationException) {
     throw e
   } catch (e: DomainDefectException) {
-    val handler = resolvedDefect
-    if (handler != null) {
+    val resolvedDefect = givenScope.defect ?: anchor.defect
+    if (resolvedDefect != null) {
       anchor.defects.add(e)
-      handler.invoke(anchor, e)
+      resolvedDefect.invoke(anchor, e)
     }
   }
 
@@ -117,8 +104,7 @@ internal fun <R : Effect, S : ViewState, Err : Any> AnchorTestScope<R, S, Err>.a
 ) {
   verifyScope.domainErrorAssertion?.let { assertion ->
     assertTrue(anchor.domainErrors.isNotEmpty(), "Expected onDomainError to be called, but it was not")
-    @Suppress("UNCHECKED_CAST")
-    assertEquals(assertion(), anchor.domainErrors.first() as Err)
+    assertEquals(assertion(), anchor.domainErrors.first())
   }
 
   if (verifyScope.noDomainErrorFlag) {
