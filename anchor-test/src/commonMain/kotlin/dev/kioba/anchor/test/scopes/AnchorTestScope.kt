@@ -82,6 +82,12 @@ internal suspend inline fun <reified R : Effect, reified S : ViewState, Err : An
       val error = e.error as Err
       anchor.domainErrors.add(error)
       resolvedOnDomainError.invoke(anchor, error)
+    } else {
+      throw AssertionError(
+        "raise() was called but no onDomainError handler is configured. " +
+          "Add onDomainError { } in given {} or the anchor factory.",
+        e,
+      )
     }
   } catch (e: CancellationException) {
     throw e
@@ -90,6 +96,12 @@ internal suspend inline fun <reified R : Effect, reified S : ViewState, Err : An
     if (resolvedDefect != null) {
       anchor.defects.add(e)
       resolvedDefect.invoke(anchor, e)
+    } else {
+      throw AssertionError(
+        "orDie() was called but no defect handler is configured. " +
+          "Add defect { } in given {} or the anchor factory.",
+        e,
+      )
     }
   }
 
@@ -103,6 +115,7 @@ internal fun <R : Effect, S : ViewState, Err : Any> AnchorTestScope<R, S, Err>.a
 ) {
   verifyScope.domainErrorAssertion?.let { assertion ->
     assertTrue(anchor.domainErrors.isNotEmpty(), "Expected onDomainError to be called, but it was not")
+    assertEquals(1, anchor.domainErrors.size, "Expected exactly one domain error, but got: ${anchor.domainErrors}")
     assertEquals(assertion(), anchor.domainErrors.first())
   }
 
@@ -112,6 +125,7 @@ internal fun <R : Effect, S : ViewState, Err : Any> AnchorTestScope<R, S, Err>.a
 
   verifyScope.defectAssertion?.let { assertion ->
     assertTrue(anchor.defects.isNotEmpty(), "Expected defect handler to be called, but it was not")
+    assertEquals(1, anchor.defects.size, "Expected exactly one defect, but got: ${anchor.defects}")
     assertEquals(assertion(), anchor.defects.first())
   }
 }
