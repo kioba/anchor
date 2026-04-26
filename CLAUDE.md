@@ -12,22 +12,23 @@ Anchor is a **state management architecture** for Kotlin Multiplatform applicati
 
 This project uses **gitmoji** for all commit messages and PR titles. Every message must start with the appropriate emoji:
 
-| Emoji | Code | Usage |
-|-------|------|-------|
-| ✨ | `:sparkles:` | New feature |
-| ♻️ | `:recycle:` | Refactor code |
-| 🐛 | `:bug:` | Bug fix |
-| ⬆️ | `:arrow_up:` | Upgrade dependency |
-| 🔖 | `:bookmark:` | Version bump / release |
-| 🧪 | `:test_tube:` | Add/update tests |
-| 📝 | `:memo:` | Documentation |
-| 🏗️ | `:building_construction:` | Architectural changes |
-| 🔥 | `:fire:` | Remove code/files |
-| 💚 | `:green_heart:` | Fix CI build |
+| Emoji | Code                      | Usage                  |
+|-------|---------------------------|------------------------|
+| ✨     | `:sparkles:`              | New feature            |
+| ♻️    | `:recycle:`               | Refactor code          |
+| 🐛    | `:bug:`                   | Bug fix                |
+| ⬆️    | `:arrow_up:`              | Upgrade dependency     |
+| 🔖    | `:bookmark:`              | Version bump / release |
+| 🧪    | `:test_tube:`             | Add/update tests       |
+| 📝    | `:memo:`                  | Documentation          |
+| 🏗️   | `:building_construction:` | Architectural changes  |
+| 🔥    | `:fire:`                  | Remove code/files      |
+| 💚    | `:green_heart:`           | Fix CI build           |
 
 See https://gitmoji.dev for the full list.
 
 **Examples:**
+
 - `✨ Add AnchorEffect composable`
 - `♻️ Rename Effect type parameter E to R`
 - `⬆️ Bump ui from 1.9.0 to 1.10.1`
@@ -99,6 +100,7 @@ See https://gitmoji.dev for the full list.
 ```
 
 **Note**: Publishing requires credentials set via:
+
 - `gpr.user` and `gpr.key` properties (GitHub Packages)
 - Maven Central credentials via vaniktechMavenPublish plugin
 
@@ -109,22 +111,29 @@ See https://gitmoji.dev for the full list.
 The architecture is built on a hierarchy of capabilities provided through interfaces:
 
 ```
-Anchor<R, S, Err>  (abstract base — R: Effect, S: ViewState, Err: domain error type)
-├── StateAnchor<S>              - Read-only state access via `state: StateFlow<S>`
+BaseAnchorScope<R, S>           - State, effects, signals, events (no error raising)
 ├── MutableStateAnchor<S>       - State mutations via `reduce { copy(...) }`
+│   └── StateAnchor<S>          - Read-only state access via `state: StateFlow<S>`
 ├── EffectAnchor<R>             - Side effect execution with effect scope
+├── SignalAnchor                - One-time signals via `post { ... }`
+└── SubscriptionAnchor          - Event emission via `emit { ... }`
+
+Anchor<R, S, Err>  (abstract base — R: Effect, S: ViewState, Err: domain error type)
+├── BaseAnchorScope<R, S>       - Core capabilities (above)
 ├── CancellableAnchor<R,S,Err>  - Cancellable task management (keyed jobs)
-├── SubscriptionAnchor          - Event emission via `emit { ... }`
-└── SignalAnchor                - One-time signals via `post { ... }`
+├── Raise<Err>                  - Domain error raising via `raise(error)`
+└── DefectAnchor<Err>           - Defect escalation via `orDie(error)`
     └── AnchorSink<R, S, Err>   - Combines all above capabilities
         └── AnchorRuntime<R, S, Err>  - Concrete implementation
 
+ErrorScope<R, S> = BaseAnchorScope<R, S>  (typealias for error handler receivers)
 PureAnchor<R, S> = Anchor<R, S, Nothing>  (typealias for anchors without domain errors)
 ```
 
-**Note**: `AnchorScope<out R, out S>` intentionally stays at 2 type parameters — `Err` is carried on the `Anchor` receiver inside `execute`'s block only, since `raise()` would require contravariant position conflicting with `out` variance.
+**Note**: `AnchorScope<out R, out S>` intentionally stays at 2 type parameters — `Err` is carried on the `Anchor` receiver inside `execute`'s block only, since `raise()` would require contravariant position conflicting with `out` variance. Similarly, `ErrorScope<R, S>` is 2-param by design — error handlers should not be able to call `raise()` or `orDie()`.
 
 **Implementation**: `AnchorRuntime` (`anchor/src/commonMain/kotlin/dev/kioba/anchor/internal/AnchorRuntime.kt`) manages:
+
 - State via `MutableStateFlow<S>`
 - Signals via `MutableSharedFlow<SignalProvider>` (one-time UI events)
 - Events via `MutableSharedFlow<Event>` (internal reactive stream)
@@ -158,6 +167,7 @@ UI Recomposition
 ```
 
 **Parallel flows**:
+
 - `post { Signal }` → `MutableSharedFlow<SignalProvider>` → `HandleSignal` → LaunchedEffect
 - `emit { Event }` → `MutableSharedFlow<Event>` → Subscription chains
 - `effect { }` → Coroutine execution with R (Effect) receiver
@@ -167,6 +177,7 @@ UI Recomposition
 **Primary composable**: `RememberAnchor` (`anchor-compose/src/commonMain/kotlin/dev/kioba/anchor/compose/RememberAnchor.kt`)
 
 Responsibilities:
+
 1. Creates/retrieves ViewModel-scoped `AnchorRuntime` via `ContainerViewModel`
 2. Collects `state: StateFlow<S>` as `State<S>` (Main.immediate dispatcher)
 3. Collects `signals: StateFlow<SignalProvider>` as `State<SignalProvider>`
@@ -174,6 +185,7 @@ Responsibilities:
 5. Provides `SignalProvider` via `LocalSignals` CompositionLocal
 
 **Action creation**: Four overloaded `anchor()` composables (`AnchorAction.kt`) create type-safe callbacks:
+
 ```kotlin
 anchor(CounterAnchor::increment)              // () -> Unit
 anchor(CounterAnchor::updateById)             // (Int) -> Unit
@@ -201,6 +213,7 @@ onClick = anchor(CounterAnchor::increment)
 ```
 
 The `AnchorScope<R, S>` is a `fun interface` with SAM conversion (stays 2-param — no `Err`):
+
 ```kotlin
 fun interface AnchorScope<out R : Effect, out S : ViewState> {
   fun execute(block: suspend Anchor<@UnsafeVariance R, @UnsafeVariance S, *>.() -> Unit)
@@ -231,6 +244,7 @@ internal fun MainSubScope.refresh(flow: Flow<MainEvent>): Flow<Int> =
 ```
 
 **Lifecycle**:
+
 - `init` block: Runs on scope initialization
 - `subscriptions` block: Sets up reactive chains (via `anchor.subscribe()` in ContainerViewModel)
 
@@ -256,6 +270,7 @@ runAnchorTest(RememberAnchorScope::counterAnchor) {
 ```
 
 **Test scopes**:
+
 - `GivenScope<R, S>` - Setup initial state, effect scope, preconditions
 - `VerifyScope<R, S>` - Assert state changes, signals, events, effects
 - `AnchorTestScope<R, S>` - Orchestrator connecting given/on/verify
@@ -305,6 +320,7 @@ androidApp/                  # Sample Android application
 ### Creating a New Feature
 
 1. **Define state and markers**:
+
 ```kotlin
 data class MyState(val value: Int = 0) : ViewState
 class MyEffect : Effect
@@ -317,6 +333,7 @@ sealed interface MyEvent : Event {
 ```
 
 2. **Create anchor factory**:
+
 ```kotlin
 fun RememberAnchorScope.myAnchor(): Anchor<MyEffect, MyState, Nothing> =
   create(
@@ -328,6 +345,7 @@ fun RememberAnchorScope.myAnchor(): Anchor<MyEffect, MyState, Nothing> =
 ```
 
 3. **Define actions as extension functions**:
+
 ```kotlin
 suspend fun MyAnchor.increment() {
   reduce { copy(value = value + 1) }
@@ -343,6 +361,7 @@ suspend fun MyAnchor.loadData() {
 ```
 
 4. **Use in Compose UI**:
+
 ```kotlin
 @Composable
 fun MyFeature() {
@@ -456,5 +475,6 @@ The library uses `kotlin { explicitApi() }`, requiring all public APIs to have e
 ### GitHub Packages Authentication
 
 If you encounter authentication issues with GitHub Packages, set:
+
 - `gpr.user` (GitHub username) and `gpr.key` (Personal Access Token) in `~/.gradle/gradle.properties`
 - Or use environment variables `USERNAME` and `TOKEN`

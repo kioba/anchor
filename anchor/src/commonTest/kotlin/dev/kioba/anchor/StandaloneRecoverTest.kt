@@ -8,7 +8,6 @@ import kotlin.test.assertIs
 import kotlin.test.assertNull
 
 class StandaloneRecoverTest {
-
   // -- Result variant --
 
   @Test
@@ -29,9 +28,10 @@ class StandaloneRecoverTest {
 
   @Test
   fun `recover preserves typed error details`() {
-    val result: Recover<TestError, String> = recover {
-      raise(TestError.Invalid("bad"))
-    }
+    val result: Recover<TestError, String> =
+      recover {
+        raise(TestError.Invalid("bad"))
+      }
 
     assertIs<Recover.Error<TestError>>(result)
     val error = result.error
@@ -102,21 +102,23 @@ class StandaloneRecoverTest {
 
   @Test
   fun `nested recover catches inner raise only`() {
-    val outer: Recover<TestError, Recover<TestError, String>> = recover {
-      val inner: Recover<TestError, String> = recover { raise(TestError.NotFound) }
-      inner
-    }
+    val outer: Recover<TestError, Recover<TestError, String>> =
+      recover {
+        val inner: Recover<TestError, String> = recover { raise(TestError.NotFound) }
+        inner
+      }
 
     assertIs<Recover.Ok<Recover<TestError, String>>>(outer)
     assertIs<Recover.Error<TestError>>(outer.value)
-    assertEquals(TestError.NotFound, (outer.value as Recover.Error).error)
+    assertEquals(TestError.NotFound, outer.value.error)
   }
 
   @Test
   fun `outer recover catches raise propagated from inner via getOrRaise`() {
-    val outer: Recover<TestError, String> = recover {
-      recover<TestError, String> { raise(TestError.NotFound) }.getOrRaise()
-    }
+    val outer: Recover<TestError, String> =
+      recover {
+        recover<TestError, String> { raise(TestError.NotFound) }.getOrRaise()
+      }
 
     assertIs<Recover.Error<TestError>>(outer)
     assertEquals(TestError.NotFound, outer.error)
@@ -126,10 +128,11 @@ class StandaloneRecoverTest {
 
   @Test
   fun `ensure passes when condition is true`() {
-    val result: Recover<TestError, String> = recover {
-      ensure(true) { TestError.NotFound }
-      "ok"
-    }
+    val result: Recover<TestError, String> =
+      recover {
+        ensure(true) { TestError.NotFound }
+        "ok"
+      }
 
     assertIs<Recover.Ok<String>>(result)
     assertEquals("ok", result.value)
@@ -137,10 +140,11 @@ class StandaloneRecoverTest {
 
   @Test
   fun `ensure raises when condition is false`() {
-    val result: Recover<TestError, String> = recover {
-      ensure(false) { TestError.NotFound }
-      "ok"
-    }
+    val result: Recover<TestError, String> =
+      recover {
+        ensure(false) { TestError.NotFound }
+        "ok"
+      }
 
     assertIs<Recover.Error<TestError>>(result)
     assertEquals(TestError.NotFound, result.error)
@@ -151,7 +155,9 @@ class StandaloneRecoverTest {
 
   @Test
   fun `Raise extension function raise is caught by standalone recover`() {
-    fun Raise<TestError>.validate(value: Int): String {
+    fun Raise<TestError>.validate(
+      value: Int,
+    ): String {
       ensure(value > 0) { TestError.Invalid("must be positive") }
       return "valid: $value"
     }
@@ -167,9 +173,10 @@ class StandaloneRecoverTest {
 
   @Test
   fun `unhandled raise propagates as RaisedException`() {
-    val result = recover<TestError, String> {
-      recover<TestError, String> { raise(TestError.NotFound) }.getOrRaise()
-    }
+    val result =
+      recover<TestError, String> {
+        recover<TestError, String> { raise(TestError.NotFound) }.getOrRaise()
+      }
 
     assertIs<Recover.Error<TestError>>(result)
     assertEquals(TestError.NotFound, result.error)
@@ -179,10 +186,11 @@ class StandaloneRecoverTest {
 
   @Test
   fun `getOrRaise unwraps Ok`() {
-    val result: Recover<TestError, String> = recover {
-      val inner = recover<TestError, String> { "hello" }
-      inner.getOrRaise()
-    }
+    val result: Recover<TestError, String> =
+      recover {
+        val inner = recover<TestError, String> { "hello" }
+        inner.getOrRaise()
+      }
 
     assertIs<Recover.Ok<String>>(result)
     assertEquals("hello", result.value)
@@ -190,10 +198,11 @@ class StandaloneRecoverTest {
 
   @Test
   fun `getOrRaise re-raises Error`() {
-    val result: Recover<TestError, String> = recover {
-      val inner = recover<TestError, String> { raise(TestError.NotFound) }
-      inner.getOrRaise()
-    }
+    val result: Recover<TestError, String> =
+      recover {
+        val inner = recover<TestError, String> { raise(TestError.NotFound) }
+        inner.getOrRaise()
+      }
 
     assertIs<Recover.Error<TestError>>(result)
     assertEquals(TestError.NotFound, result.error)
@@ -202,43 +211,50 @@ class StandaloneRecoverTest {
   // -- Anchor-level recover --
 
   @Test
-  fun `Anchor-level recover returns Ok on success`() = runBlocking {
-    val anchor = dev.kioba.anchor.internal.AnchorRuntime<EmptyEffect, TestState, TestError>(
-      initialState = { TestState(value = 0) },
-      effectScope = { EmptyEffect },
-    )
+  fun `Anchor-level recover returns Ok on success`() =
+    runBlocking {
+      val anchor =
+        dev.kioba.anchor.internal.AnchorRuntime<EmptyEffect, TestState, TestError>(
+          initialState = { TestState(value = 0) },
+          effectScope = { EmptyEffect },
+        )
 
-    val result = anchor.recover { "success" }
+      val result = anchor.recover { "success" }
 
-    assertIs<Recover.Ok<String>>(result)
-    assertEquals("success", result.value)
-  }
-
-  @Test
-  fun `Anchor-level recover catches raise`() = runBlocking {
-    val anchor = dev.kioba.anchor.internal.AnchorRuntime<EmptyEffect, TestState, TestError>(
-      initialState = { TestState(value = 0) },
-      effectScope = { EmptyEffect },
-    )
-
-    val result = anchor.recover { raise(TestError.NotFound) }
-
-    assertIs<Recover.Error<TestError>>(result)
-    assertEquals(TestError.NotFound, result.error)
-  }
-
-  @Test
-  fun `Anchor-level recover with getOrRaise re-raises`() = runBlocking {
-    val anchor = dev.kioba.anchor.internal.AnchorRuntime<EmptyEffect, TestState, TestError>(
-      initialState = { TestState(value = 0) },
-      effectScope = { EmptyEffect },
-    )
-
-    val exception = assertFailsWith<RaisedException> {
-      with(anchor) {
-        recover { raise(TestError.NotFound) }.getOrRaise()
-      }
+      assertIs<Recover.Ok<String>>(result)
+      assertEquals("success", result.value)
     }
-    assertEquals(TestError.NotFound, exception.error)
-  }
+
+  @Test
+  fun `Anchor-level recover catches raise`() =
+    runBlocking {
+      val anchor =
+        dev.kioba.anchor.internal.AnchorRuntime<EmptyEffect, TestState, TestError>(
+          initialState = { TestState(value = 0) },
+          effectScope = { EmptyEffect },
+        )
+
+      val result = anchor.recover { raise(TestError.NotFound) }
+
+      assertIs<Recover.Error<TestError>>(result)
+      assertEquals(TestError.NotFound, result.error)
+    }
+
+  @Test
+  fun `Anchor-level recover with getOrRaise re-raises`() =
+    runBlocking {
+      val anchor =
+        dev.kioba.anchor.internal.AnchorRuntime<EmptyEffect, TestState, TestError>(
+          initialState = { TestState(value = 0) },
+          effectScope = { EmptyEffect },
+        )
+
+      val exception =
+        assertFailsWith<RaisedException> {
+          with(anchor) {
+            recover { raise(TestError.NotFound) }.getOrRaise()
+          }
+        }
+      assertEquals(TestError.NotFound, exception.error)
+    }
 }
