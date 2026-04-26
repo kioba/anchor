@@ -3,13 +3,13 @@ package dev.kioba.anchor.features.main.data
 import dev.kioba.anchor.features.main.model.MainEvent
 import kotlinx.coroutines.delay
 
-internal fun MainAnchor.onError(
+internal fun MainErrorScope.onError(
   n: Nothing,
 ) {
   TODO()
 }
 
-internal fun MainAnchor.defect(
+internal fun MainErrorScope.defect(
   throwable: Throwable,
 ) {
   reduce {

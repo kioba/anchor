@@ -20,8 +20,8 @@ sealed interface TestError {
 class RaiseTest {
 
   private fun createAnchor(
-    onDomainError: (suspend Anchor<EmptyEffect, TestState, TestError>.(TestError) -> Unit)? = null,
-    defect: (suspend Anchor<EmptyEffect, TestState, TestError>.(Throwable) -> Unit)? = null,
+    onDomainError: (suspend ErrorScope<EmptyEffect, TestState>.(TestError) -> Unit)? = null,
+    defect: (suspend ErrorScope<EmptyEffect, TestState>.(Throwable) -> Unit)? = null,
   ): AnchorRuntime<EmptyEffect, TestState, TestError> =
     AnchorRuntime(
       initialState = { TestState(value = 0) },

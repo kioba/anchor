@@ -25,9 +25,9 @@ public class SubscriptionsScope<R, S, Err>(
    */
   public val effect: R,
   @PublishedApi
-  internal val onDomainError: (suspend Anchor<R, S, Err>.(Err) -> Unit)? = null,
+  internal val onDomainError: (suspend ErrorScope<R, S>.(Err) -> Unit)? = null,
   @PublishedApi
-  internal val defect: (suspend Anchor<R, S, Err>.(Throwable) -> Unit)? = null,
+  internal val defect: (suspend ErrorScope<R, S>.(Throwable) -> Unit)? = null,
   @PublishedApi
   internal val flows: MutableList<Flow<*>> = mutableListOf(),
 ) where R : Effect, S : ViewState, Err : Any {

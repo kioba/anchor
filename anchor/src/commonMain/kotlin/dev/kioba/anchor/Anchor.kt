@@ -120,11 +120,8 @@ public interface DefectAnchor<Err> where Err : Any {
  */
 @AnchorDsl
 public abstract class Anchor<R, S, Err> :
-  MutableStateAnchor<S>,
-  EffectAnchor<R>,
+  BaseAnchorScope<R, S>,
   CancellableAnchor<R, S, Err>,
-  SubscriptionAnchor,
-  SignalAnchor,
   Raise<Err>,
   DefectAnchor<Err>
   where

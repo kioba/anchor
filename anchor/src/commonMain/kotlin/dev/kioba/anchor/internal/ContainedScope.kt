@@ -2,6 +2,7 @@ package dev.kioba.anchor.internal
 
 import dev.kioba.anchor.Anchor
 import dev.kioba.anchor.Effect
+import dev.kioba.anchor.ErrorScope
 import dev.kioba.anchor.ViewState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -16,8 +17,8 @@ S : ViewState,
 Err : Any {
   val anchor: A
   val coroutineScope: CoroutineScope
-  val onDomainError: (suspend Anchor<R, S, Err>.(Err) -> Unit)?
-  val defect: (suspend Anchor<R, S, Err>.(Throwable) -> Unit)?
+  val onDomainError: (suspend ErrorScope<R, S>.(Err) -> Unit)?
+  val defect: (suspend ErrorScope<R, S>.(Throwable) -> Unit)?
 }
 
 @PublishedApi

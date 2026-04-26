@@ -5,6 +5,7 @@ import dev.kioba.anchor.AnchorSink
 import dev.kioba.anchor.Created
 import dev.kioba.anchor.DomainDefectException
 import dev.kioba.anchor.Effect
+import dev.kioba.anchor.ErrorScope
 import dev.kioba.anchor.Event
 import dev.kioba.anchor.RaisedException
 import dev.kioba.anchor.Signal
@@ -41,8 +42,8 @@ internal class AnchorRuntime<R, S, Err>(
   val effectScope: () -> R,
   internal val init: (suspend Anchor<R, S, Err>.() -> Unit)? = null,
   internal val subscriptions: (suspend SubscriptionsScope<R, S, Err>.() -> Unit)? = null,
-  internal val onDomainError: (suspend Anchor<R, S, Err>.(Err) -> Unit)? = null,
-  internal val defect: (suspend Anchor<R, S, Err>.(Throwable) -> Unit)? = null,
+  internal val onDomainError: (suspend ErrorScope<R, S>.(Err) -> Unit)? = null,
+  internal val defect: (suspend ErrorScope<R, S>.(Throwable) -> Unit)? = null,
 ) : AnchorSink<R, S, Err>()
   where
         R : Effect,
