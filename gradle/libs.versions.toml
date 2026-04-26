@@ -71,6 +71,10 @@ material = { group = "com.google.android.material", name = "material", version.r
 # Publishing
 maven-publish-plugin = { module = "com.vanniktech:gradle-maven-publish-plugin", version.ref = "maven-publish" }
 
+# Build
+agp = { module = "com.android.tools.build:gradle", version.ref = "agp" }
+kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
+
 [plugins]
 # Android plugins
 android-application = { id = "com.android.application", version.ref = "agp" }

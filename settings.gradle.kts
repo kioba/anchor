@@ -38,6 +38,7 @@ rootProject.name = "anchorS"
 include(":anchor")
 include(":anchor-compose")
 include(":anchor-test")
+include(":anchor-internal")
 include(":androidApp")
 include(":features:config")
 include(":features:counter")
