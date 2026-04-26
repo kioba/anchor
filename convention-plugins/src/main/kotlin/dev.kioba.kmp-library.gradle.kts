@@ -11,6 +11,7 @@ kotlin {
   jvm("desktop")
 
   android {
+    namespace = "dev.kioba.${project.name.replace("-", ".")}"
     compileSdk = 36
     minSdk = 23
 
