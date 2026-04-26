@@ -48,12 +48,12 @@ jobs:
           fi
           echo "llms-full.txt is up to date"
 
-      - name: set up JDK 17
+      - name: set up JDK 21
         if: steps.changes.outputs.has_changes == 'true'
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: 'zulu'
+          java-version: '21'
 
       - name: Setup Android SDK
         if: steps.changes.outputs.has_changes == 'true'
