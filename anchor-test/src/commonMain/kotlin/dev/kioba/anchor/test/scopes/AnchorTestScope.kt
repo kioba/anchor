@@ -8,7 +8,6 @@ import dev.kioba.anchor.RaisedException
 import dev.kioba.anchor.RememberAnchorScope
 import dev.kioba.anchor.SubscriptionsScope
 import dev.kioba.anchor.ViewState
-import dev.kioba.anchor.test.AnchorTestDsl
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -27,14 +26,12 @@ public class AnchorTestScope<R : Effect, S : ViewState, Err : Any>(
   @PublishedApi
   internal lateinit var action: suspend Anchor<R, S, Err>.() -> Unit
 
-  @AnchorTestDsl
   public inline fun given(
     @Suppress("UNUSED_PARAMETER") description: String,
     block: GivenScope<R, S, Err>.() -> Unit,
   ): Unit =
     givenScope.block()
 
-  @AnchorTestDsl
   public fun on(
     @Suppress("UNUSED_PARAMETER") description: String,
     anchorOf: suspend Anchor<R, S, Err>.() -> Unit,
@@ -42,7 +39,6 @@ public class AnchorTestScope<R : Effect, S : ViewState, Err : Any>(
     action = anchorOf
   }
 
-  @AnchorTestDsl
   public inline fun verify(
     @Suppress("UNUSED_PARAMETER") description: String,
     block: VerifyScope<R, S, Err>.() -> Unit,

@@ -8,6 +8,10 @@ plugins {
 kotlin {
   explicitApi()
 
+  compilerOptions {
+    allWarningsAsErrors.set(true)
+  }
+
   jvm("desktop")
 
   android {

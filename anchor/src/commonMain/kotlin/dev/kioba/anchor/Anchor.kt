@@ -104,7 +104,6 @@ public interface DefectAnchor<Err> where Err : Any {
    *
    * @param error The domain error to escalate.
    */
-  @AnchorDsl
   public fun orDie(error: Err): Nothing
 }
 
@@ -139,7 +138,6 @@ public interface StateAnchor<S> where S : ViewState {
   /**
    * The current state.
    */
-  @AnchorDsl
   public val state: S
 
   /**
@@ -148,7 +146,6 @@ public interface StateAnchor<S> where S : ViewState {
    * @param block The block to execute.
    * @return The result of the block.
    */
-  @AnchorDsl
   public fun <T> withState(
     block: S.() -> T,
   ): T =
@@ -172,7 +169,6 @@ public interface MutableStateAnchor<S> : StateAnchor<S> where S : ViewState {
    * reduce { copy(count = count + 1) }
    * ```
    */
-  @AnchorDsl
   public fun reduce(
     reducer: S.() -> S,
   )
@@ -197,7 +193,6 @@ public interface EffectAnchor<R> where R : Effect {
    * val result = effect { repository.getData() }
    * ```
    */
-  @AnchorDsl
   public suspend fun <T> effect(
     coroutineContext: CoroutineContext = Dispatchers.IO,
     block: suspend R.() -> T,
@@ -229,7 +224,6 @@ public interface CancellableAnchor<R, S, Err> where R : Effect, S : ViewState, E
    * }
    * ```
    */
-  @AnchorDsl
   public suspend fun cancellable(
     key: Any,
     block: suspend Anchor<R, S, Err>.() -> Unit,
@@ -257,7 +251,6 @@ public interface SubscriptionAnchor {
    * emit { MyEvent.Finished }
    * ```
    */
-  @AnchorDsl
   public suspend fun emit(
     block: SubscriptionScope.() -> Event,
   )
@@ -284,7 +277,6 @@ public interface SignalAnchor {
    * post { CounterSignal.Increment }
    * ```
    */
-  @AnchorDsl
   public suspend fun post(
     block: SignalScope.() -> Signal,
   )

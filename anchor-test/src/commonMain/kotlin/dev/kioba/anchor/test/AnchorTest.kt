@@ -9,7 +9,6 @@ import dev.kioba.anchor.test.scopes.assert
 import kotlinx.coroutines.test.TestResult
 import kotlinx.coroutines.test.runTest
 
-@AnchorTestDsl
 public inline fun <reified R, reified S, Err : Any> runAnchorTest(
   noinline builder: RememberAnchorScope.() -> Anchor<R, S, Err>,
   crossinline block: suspend AnchorTestScope<R, S, Err>.() -> Unit,

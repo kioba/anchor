@@ -22,7 +22,6 @@ public interface Raise<Err> where Err : Any {
    *
    * @param error The domain error to raise.
    */
-  @AnchorDsl
   public fun raise(error: Err): Nothing
 
   /**
@@ -38,7 +37,6 @@ public interface Raise<Err> where Err : Any {
    * @param condition The condition to check.
    * @param error A lazy provider for the domain error to raise when the condition is false.
    */
-  @AnchorDsl
   public fun ensure(condition: Boolean, error: () -> Err) {
     if (!condition) raise(error())
   }
