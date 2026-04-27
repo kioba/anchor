@@ -165,7 +165,7 @@ class StandaloneRecoverTest {
     val result: Recover<TestError, String> = recover { validate(-1) }
 
     assertIs<Recover.Error<TestError>>(result)
-    assertIs<TestError.Invalid>((result as Recover.Error).error)
+    assertIs<TestError.Invalid>(result.error)
     Unit
   }
 

@@ -69,6 +69,7 @@ class ErrorHandlingTest {
       verify("both raises were recorded") {
         assertRaise { TestErr.NotFound }
         assertRaise { TestErr.NotFound }
+        assertDomainError { TestErr.NotFound }
       }
     }
 
@@ -81,6 +82,7 @@ class ErrorHandlingTest {
 
       verify("orDie was recorded") {
         assertOrDie { TestErr.NotFound }
+        assertDefect { dev.kioba.anchor.DomainDefectException(TestErr.NotFound) }
       }
     }
 

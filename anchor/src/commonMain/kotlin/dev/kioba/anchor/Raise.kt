@@ -51,7 +51,6 @@ public interface Raise<Err> where Err : Any {
    * val user: User = recover { fetchUser(id) }.getOrRaise()
    * ```
    */
-  @AnchorDsl
   public fun <T> Recover<Err, T>.getOrRaise(): T =
     when (this) {
       is Recover.Ok -> value

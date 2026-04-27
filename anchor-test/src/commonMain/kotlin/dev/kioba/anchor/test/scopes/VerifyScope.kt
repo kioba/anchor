@@ -52,11 +52,6 @@ public interface VerifyScope<R, S, Err> where R : Effect, S : ViewState, Err : A
   )
 
   /**
-   * Asserts that no domain error occurred during the action.
-   */
-  public fun assertNoDomainError()
-
-  /**
    * Asserts that the `defect` handler was invoked with the given throwable.
    *
    * @param f A block that returns the expected throwable.

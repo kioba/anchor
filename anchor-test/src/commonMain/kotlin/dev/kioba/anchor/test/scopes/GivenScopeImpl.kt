@@ -1,7 +1,7 @@
 package dev.kioba.anchor.test.scopes
 
-import dev.kioba.anchor.Anchor
 import dev.kioba.anchor.Effect
+import dev.kioba.anchor.ErrorScope
 import dev.kioba.anchor.ViewState
 
 @PublishedApi
@@ -18,10 +18,10 @@ internal class GivenScopeImpl<R, S, Err> :
   internal val effects: MutableList<(R.() -> Unit)> = mutableListOf()
 
   @PublishedApi
-  internal var onDomainError: (suspend Anchor<R, S, Err>.(Err) -> Unit)? = null
+  internal var onDomainError: (suspend ErrorScope<R, S>.(Err) -> Unit)? = null
 
   @PublishedApi
-  internal var defect: (suspend Anchor<R, S, Err>.(Throwable) -> Unit)? = null
+  internal var defect: (suspend ErrorScope<R, S>.(Throwable) -> Unit)? = null
 
   override fun initialState(
     f: () -> S,
@@ -42,13 +42,13 @@ internal class GivenScopeImpl<R, S, Err> :
   }
 
   override fun onDomainError(
-    f: suspend Anchor<R, S, Err>.(Err) -> Unit,
+    f: suspend ErrorScope<R, S>.(Err) -> Unit,
   ) {
     onDomainError = f
   }
 
   override fun defect(
-    f: suspend Anchor<R, S, Err>.(Throwable) -> Unit,
+    f: suspend ErrorScope<R, S>.(Throwable) -> Unit,
   ) {
     defect = f
   }
