@@ -10,9 +10,12 @@ import kotlin.coroutines.cancellation.CancellationException
  * this before the standard [CancellationException] re-throw.
  *
  * @property error The domain error value that was raised.
+ * @property token Opaque identity token for scoped standalone [recover].
+ *   `null` when raised from an [Anchor] (no scope boundary).
  */
 public class RaisedException(
   public val error: Any,
+  public val token: Any? = null,
 ) : CancellationException("Domain error raised: $error")
 
 /**

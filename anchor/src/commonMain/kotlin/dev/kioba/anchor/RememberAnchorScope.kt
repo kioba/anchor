@@ -37,8 +37,8 @@ public interface RememberAnchorScope {
     effectScope: () -> R,
     initialState: () -> S,
     init: (suspend Anchor<R, S, Err>.() -> Unit)? = null,
-    onDomainError: (suspend Anchor<R, S, Err>.(Err) -> Unit)? = null,
-    defect: (suspend Anchor<R, S, Err>.(Throwable) -> Unit)? = null,
+    onDomainError: (suspend ErrorScope<R, S>.(Err) -> Unit)? = null,
+    defect: (suspend ErrorScope<R, S>.(Throwable) -> Unit)? = null,
     subscriptions: (suspend SubscriptionsScope<R, S, Err>.() -> Unit)? = null,
   ): Anchor<R, S, Err> where R : Effect, S : ViewState, Err : Any
 }
@@ -51,8 +51,8 @@ internal object AnchorRuntimeScope : RememberAnchorScope {
     effectScope: () -> R,
     initialState: () -> S,
     init: (suspend Anchor<R, S, Err>.() -> Unit)?,
-    onDomainError: (suspend Anchor<R, S, Err>.(Err) -> Unit)?,
-    defect: (suspend Anchor<R, S, Err>.(Throwable) -> Unit)?,
+    onDomainError: (suspend ErrorScope<R, S>.(Err) -> Unit)?,
+    defect: (suspend ErrorScope<R, S>.(Throwable) -> Unit)?,
     subscriptions: (suspend SubscriptionsScope<R, S, Err>.() -> Unit)?,
   ): Anchor<R, S, Err> =
     AnchorRuntime(

@@ -29,7 +29,7 @@ public interface VerifyScope<R, S, Err> where R : Effect, S : ViewState, Err : A
   )
 
   /**
-   * Asserts that [raise] was called with the given error.
+   * Asserts that [dev.kioba.anchor.Raise.raise] was called with the given error.
    *
    * @param f A block that returns the expected error value.
    */
@@ -39,7 +39,7 @@ public interface VerifyScope<R, S, Err> where R : Effect, S : ViewState, Err : A
   )
 
   /**
-   * Asserts that [orDie] was called with the given error.
+   * Asserts that [dev.kioba.anchor.orDie] was called with the given error.
    *
    * @param f A block that returns the expected error value.
    */

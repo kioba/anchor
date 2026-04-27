@@ -3,6 +3,7 @@ package dev.kioba.anchor.test.scopes
 import dev.kioba.anchor.Anchor
 import dev.kioba.anchor.DomainDefectException
 import dev.kioba.anchor.Effect
+import dev.kioba.anchor.ErrorScope
 import dev.kioba.anchor.RaisedException
 import dev.kioba.anchor.RememberAnchorScope
 import dev.kioba.anchor.SubscriptionsScope
@@ -58,8 +59,8 @@ internal suspend inline fun <reified R : Effect, reified S : ViewState, Err : An
         effectScope: () -> R,
         initialState: () -> S,
         init: (suspend Anchor<R, S, Err>.() -> Unit)?,
-        onDomainError: (suspend Anchor<R, S, Err>.(Err) -> Unit)?,
-        defect: (suspend Anchor<R, S, Err>.(Throwable) -> Unit)?,
+        onDomainError: (suspend ErrorScope<R, S>.(Err) -> Unit)?,
+        defect: (suspend ErrorScope<R, S>.(Throwable) -> Unit)?,
         subscriptions: (suspend SubscriptionsScope<R, S, Err>.() -> Unit)?,
       ): Anchor<R, S, Err> =
         AnchorTestRuntime<R, S, Err>(

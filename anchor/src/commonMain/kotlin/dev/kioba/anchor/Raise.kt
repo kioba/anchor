@@ -42,4 +42,21 @@ public interface Raise<Err> where Err : Any {
   public fun ensure(condition: Boolean, error: () -> Err) {
     if (!condition) raise(error())
   }
+
+  /**
+   * Unwraps a [Recover.Ok] value or re-raises the [Recover.Error].
+   *
+   * This is a member extension so it is only callable inside a [Raise]
+   * scope (Anchor actions, standalone `recover` blocks).
+   *
+   * ```kotlin
+   * val user: User = recover { fetchUser(id) }.getOrRaise()
+   * ```
+   */
+  @AnchorDsl
+  public fun <T> Recover<Err, T>.getOrRaise(): T =
+    when (this) {
+      is Recover.Ok -> value
+      is Recover.Error -> raise(error)
+    }
 }

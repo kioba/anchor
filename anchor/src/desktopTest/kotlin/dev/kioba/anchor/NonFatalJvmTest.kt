@@ -10,7 +10,7 @@ import kotlin.test.assertFailsWith
 class NonFatalJvmTest {
 
   private fun createAnchor(
-    defect: (suspend Anchor<EmptyEffect, TestState, Nothing>.(Throwable) -> Unit)? = null,
+    defect: (suspend ErrorScope<EmptyEffect, TestState>.(Throwable) -> Unit)? = null,
   ): AnchorRuntime<EmptyEffect, TestState, Nothing> =
     AnchorRuntime(
       initialState = { TestState(value = 0) },
