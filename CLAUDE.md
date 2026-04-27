@@ -460,7 +460,7 @@ Each new `search()` call cancels the previous job with key `"search"`.
 
 ### Current Version
 
-Published version: `0.1.2` (see `gradle.properties:16`)
+Published version: `0.1.3` (see `gradle.properties:16`)
 
 ## Common Issues
 
