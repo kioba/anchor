@@ -3,6 +3,7 @@ package dev.kioba.anchor.test.scopes
 import dev.kioba.anchor.Anchor
 import dev.kioba.anchor.DomainDefectException
 import dev.kioba.anchor.Effect
+import dev.kioba.anchor.ErrorScope
 import dev.kioba.anchor.Event
 import dev.kioba.anchor.RaisedException
 import dev.kioba.anchor.Signal
@@ -17,9 +18,19 @@ internal class AnchorTestRuntime<R, S, Err>(
   internal val effectScope: R,
   @PublishedApi
   internal val initState: S,
+  @PublishedApi
+  internal val onDomainError: (suspend ErrorScope<R, S>.(Err) -> Unit)? = null,
+  @PublishedApi
+  internal val defect: (suspend ErrorScope<R, S>.(Throwable) -> Unit)? = null,
 ) : Anchor<R, S, Err>() where R : Effect, S : ViewState, Err : Any {
 
   val verifyActions = mutableListOf<VerifyAction>()
+
+  @PublishedApi
+  internal var capturedDomainError: Err? = null
+
+  @PublishedApi
+  internal var capturedDefect: Throwable? = null
   private var currentState = initState
 
   override val state: S

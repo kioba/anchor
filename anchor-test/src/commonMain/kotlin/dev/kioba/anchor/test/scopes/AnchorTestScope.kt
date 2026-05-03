@@ -4,21 +4,21 @@ import dev.kioba.anchor.Anchor
 import dev.kioba.anchor.DomainDefectException
 import dev.kioba.anchor.Effect
 import dev.kioba.anchor.ErrorScope
-import dev.kioba.anchor.RaisedException
 import dev.kioba.anchor.RememberAnchorScope
 import dev.kioba.anchor.SubscriptionsScope
 import dev.kioba.anchor.ViewState
-import dev.kioba.anchor.test.AnchorTestDsl
-import kotlin.coroutines.cancellation.CancellationException
+import dev.kioba.anchor.internal.safeExecute
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 
 public class AnchorTestScope<R : Effect, S : ViewState, Err : Any>(
   @PublishedApi
   internal val anchorFactory: RememberAnchorScope.() -> Anchor<R, S, Err>,
 ) {
   @PublishedApi
-  internal val givenScope: GivenScopeImpl<R, S> = GivenScopeImpl()
+  internal val givenScope: GivenScopeImpl<R, S, Err> = GivenScopeImpl()
 
   @PublishedApi
   internal val verifyScope: VerifyScopeImpl<R, S, Err> = VerifyScopeImpl()
@@ -26,14 +26,12 @@ public class AnchorTestScope<R : Effect, S : ViewState, Err : Any>(
   @PublishedApi
   internal lateinit var action: suspend Anchor<R, S, Err>.() -> Unit
 
-  @AnchorTestDsl
   public inline fun given(
     @Suppress("UNUSED_PARAMETER") description: String,
-    block: GivenScope<R, S>.() -> Unit,
+    block: GivenScope<R, S, Err>.() -> Unit,
   ): Unit =
     givenScope.block()
 
-  @AnchorTestDsl
   public fun on(
     @Suppress("UNUSED_PARAMETER") description: String,
     anchorOf: suspend Anchor<R, S, Err>.() -> Unit,
@@ -41,7 +39,6 @@ public class AnchorTestScope<R : Effect, S : ViewState, Err : Any>(
     action = anchorOf
   }
 
-  @AnchorTestDsl
   public inline fun verify(
     @Suppress("UNUSED_PARAMETER") description: String,
     block: VerifyScope<R, S, Err>.() -> Unit,
@@ -64,23 +61,55 @@ internal suspend inline fun <reified R : Effect, reified S : ViewState, Err : An
         subscriptions: (suspend SubscriptionsScope<R, S, Err>.() -> Unit)?,
       ): Anchor<R, S, Err> =
         AnchorTestRuntime<R, S, Err>(
-          givenScope.effectScope as? R ?: effectScope(),
-          givenScope.initState as? S ?: initialState(),
+          effectScope = givenScope.effectScope as? R ?: effectScope(),
+          initState = givenScope.initState as? S ?: initialState(),
+          onDomainError = givenScope.onDomainError as? (suspend ErrorScope<R, S>.(Err) -> Unit) ?: onDomainError,
+          defect = givenScope.defect as? (suspend ErrorScope<R, S>.(Throwable) -> Unit) ?: defect,
         )
     }
+
   val anchor: AnchorTestRuntime<R, S, Err> = rememberAnchorScope.anchorFactory() as AnchorTestRuntime<R, S, Err>
 
-  try {
+  val recordingOnDomainError: suspend ErrorScope<R, S>.(Err) -> Unit = { error: Err ->
+    anchor.capturedDomainError = error
+    anchor.onDomainError?.invoke(this, error)
+  }
+
+  val recordingDefect: suspend ErrorScope<R, S>.(Throwable) -> Unit = { throwable: Throwable ->
+    anchor.capturedDefect = throwable
+    anchor.defect?.invoke(this, throwable)
+  }
+
+  safeExecute(anchor, recordingOnDomainError, recordingDefect) {
     anchor.action()
-  } catch (_: RaisedException) {
-    // Expected when action calls raise() — recorded in verifyActions
-  } catch (e: CancellationException) {
-    throw e
-  } catch (_: DomainDefectException) {
-    // Expected when action calls orDie() — recorded in verifyActions
   }
 
   assertEvents<R, S, Err>(anchor.verifyActions, anchor.initState, anchor.effectScope)
+  assertHandlers(anchor)
+}
+
+@PublishedApi
+internal fun <R : Effect, S : ViewState, Err : Any> AnchorTestScope<R, S, Err>.assertHandlers(
+  anchor: AnchorTestRuntime<R, S, Err>,
+) {
+  val expectedDomainError = verifyScope.domainErrorAssertion
+  if (expectedDomainError != null) {
+    assertEquals(expectedDomainError, anchor.capturedDomainError, "Expected domain error does not match")
+  } else {
+    assertNull(anchor.capturedDomainError, "Expected no domain error, but got: ${anchor.capturedDomainError}")
+  }
+
+  val expectedDefect = verifyScope.defectAssertion
+  if (expectedDefect != null) {
+    val actual = assertNotNull(anchor.capturedDefect, "Expected defect handler to be called, but it was not")
+    if (expectedDefect is DomainDefectException && actual is DomainDefectException) {
+      assertEquals(expectedDefect.error, actual.error, "Expected defect error does not match")
+    } else {
+      assertEquals(expectedDefect, actual, "Expected defect does not match")
+    }
+  } else {
+    assertNull(anchor.capturedDefect, "Expected no defect, but got: ${anchor.capturedDefect}")
+  }
 }
 
 @PublishedApi

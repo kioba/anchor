@@ -45,6 +45,24 @@ internal class VerifyScopeImpl<R, S, Err>(
   ) {
     expectedActions.add(OrDieAction(f()))
   }
+
+  @PublishedApi
+  internal var domainErrorAssertion: Err? = null
+
+  @PublishedApi
+  internal var defectAssertion: Throwable? = null
+
+  override fun assertDomainError(
+    f: () -> Err,
+  ) {
+    domainErrorAssertion = f()
+  }
+
+  override fun assertDefect(
+    f: () -> Throwable,
+  ) {
+    defectAssertion = f()
+  }
 }
 
 @PublishedApi
