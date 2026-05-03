@@ -1,11 +1,13 @@
 package dev.kioba.anchor.test.scopes
 
 import dev.kioba.anchor.Effect
+import dev.kioba.anchor.ErrorScope
 import dev.kioba.anchor.ViewState
-import dev.kioba.anchor.test.AnchorTestDsl
 
 @PublishedApi
-internal class GivenScopeImpl<R, S> : GivenScope<R, S> where R : Effect, S : ViewState {
+internal class GivenScopeImpl<R, S, Err> :
+  GivenScope<R, S, Err>
+  where R : Effect, S : ViewState, Err : Any {
   @PublishedApi
   internal var initState: S? = null
 
@@ -15,14 +17,18 @@ internal class GivenScopeImpl<R, S> : GivenScope<R, S> where R : Effect, S : Vie
   @PublishedApi
   internal val effects: MutableList<(R.() -> Unit)> = mutableListOf()
 
-  @AnchorTestDsl
+  @PublishedApi
+  internal var onDomainError: (suspend ErrorScope<R, S>.(Err) -> Unit)? = null
+
+  @PublishedApi
+  internal var defect: (suspend ErrorScope<R, S>.(Throwable) -> Unit)? = null
+
   override fun initialState(
     f: () -> S,
   ) {
     initState = f()
   }
 
-  @AnchorTestDsl
   override suspend fun effect(
     f: R.() -> Unit,
   ) {
@@ -33,5 +39,17 @@ internal class GivenScopeImpl<R, S> : GivenScope<R, S> where R : Effect, S : Vie
     f: () -> R,
   ) {
     effectScope = f()
+  }
+
+  override fun onDomainError(
+    f: suspend ErrorScope<R, S>.(Err) -> Unit,
+  ) {
+    onDomainError = f
+  }
+
+  override fun defect(
+    f: suspend ErrorScope<R, S>.(Throwable) -> Unit,
+  ) {
+    defect = f
   }
 }

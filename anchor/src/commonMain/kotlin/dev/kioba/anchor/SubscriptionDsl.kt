@@ -43,7 +43,6 @@ public class SubscriptionsScope<R, S, Err>(
    * @param action The action to execute on the [Anchor].
    * @return The original [Flow].
    */
-  @AnchorDsl
   public fun <I> Flow<I>.anchor(
     action: Anchor<R, S, Err>.(I) -> Unit,
   ): Flow<I> =
@@ -66,7 +65,6 @@ public class SubscriptionsScope<R, S, Err>(
    * }
    * ```
    */
-  @AnchorDsl
   public suspend inline fun <reified A> listen(
     crossinline block: (Flow<A>) -> Flow<*>,
   ) where A : Event {

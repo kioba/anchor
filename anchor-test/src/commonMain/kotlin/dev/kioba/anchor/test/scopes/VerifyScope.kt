@@ -8,22 +8,18 @@ import dev.kioba.anchor.test.AnchorTestDsl
 
 @AnchorTestDsl
 public interface VerifyScope<R, S, Err> where R : Effect, S : ViewState, Err : Any {
-  @AnchorTestDsl
   public fun assertState(
     f: S.() -> S,
   )
 
-  @AnchorTestDsl
   public fun assertSignal(
     f: () -> Signal,
   )
 
-  @AnchorTestDsl
   public fun assertEvent(
     f: () -> Event,
   )
 
-  @AnchorTestDsl
   public fun assertEffect(
     f: R.() -> Unit,
   )
@@ -33,7 +29,6 @@ public interface VerifyScope<R, S, Err> where R : Effect, S : ViewState, Err : A
    *
    * @param f A block that returns the expected error value.
    */
-  @AnchorTestDsl
   public fun assertRaise(
     f: () -> Err,
   )
@@ -43,8 +38,25 @@ public interface VerifyScope<R, S, Err> where R : Effect, S : ViewState, Err : A
    *
    * @param f A block that returns the expected error value.
    */
-  @AnchorTestDsl
   public fun assertOrDie(
     f: () -> Err,
+  )
+
+  /**
+   * Asserts that the `onDomainError` handler was invoked with the given error.
+   *
+   * @param f A block that returns the expected error value.
+   */
+  public fun assertDomainError(
+    f: () -> Err,
+  )
+
+  /**
+   * Asserts that the `defect` handler was invoked with the given throwable.
+   *
+   * @param f A block that returns the expected throwable.
+   */
+  public fun assertDefect(
+    f: () -> Throwable,
   )
 }

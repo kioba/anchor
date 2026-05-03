@@ -38,7 +38,6 @@ public sealed interface Recover<out Err, out T> {
  * }
  * ```
  */
-@AnchorDsl
 public suspend inline fun <R, S, Err, T> Anchor<R, S, Err>.recover(
   crossinline block: suspend Anchor<R, S, Err>.() -> T,
 ): Recover<Err, T> where R : Effect, S : ViewState, Err : Any =
@@ -62,7 +61,6 @@ public suspend inline fun <R, S, Err, T> Anchor<R, S, Err>.recover(
  * val result: Recover<MyError, String> = recover { ensure(valid) { MyError }; "ok" }
  * ```
  */
-@AnchorDsl
 public inline fun <Err : Any, T> recover(
   block: Raise<Err>.() -> T,
 ): Recover<Err, T> {

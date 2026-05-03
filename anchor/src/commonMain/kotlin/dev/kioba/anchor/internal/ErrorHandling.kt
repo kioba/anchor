@@ -6,8 +6,7 @@ import dev.kioba.anchor.ErrorScope
 import dev.kioba.anchor.RaisedException
 import dev.kioba.anchor.ViewState
 
-@PublishedApi
-internal suspend inline fun <R, S, Err> catchDomainError(
+public suspend inline fun <R, S, Err> catchDomainError(
   anchor: Anchor<R, S, Err>,
   noinline onDomainError: (suspend ErrorScope<R, S>.(Err) -> Unit)?,
   block: () -> Unit,
@@ -21,8 +20,7 @@ internal suspend inline fun <R, S, Err> catchDomainError(
   }
 }
 
-@PublishedApi
-internal suspend inline fun <R, S, Err> catchDefects(
+public suspend inline fun <R, S, Err> catchDefects(
   anchor: Anchor<R, S, Err>,
   noinline defect: (suspend ErrorScope<R, S>.(Throwable) -> Unit)?,
   block: () -> Unit,
@@ -35,8 +33,7 @@ internal suspend inline fun <R, S, Err> catchDefects(
   }
 }
 
-@PublishedApi
-internal suspend inline fun <R, S, Err> safeExecute(
+public suspend inline fun <R, S, Err> safeExecute(
   anchor: Anchor<R, S, Err>,
   noinline onDomainError: (suspend ErrorScope<R, S>.(Err) -> Unit)?,
   noinline defect: (suspend ErrorScope<R, S>.(Throwable) -> Unit)?,
