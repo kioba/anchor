@@ -12,7 +12,7 @@ kotlin {
         api(projects.anchor)
         implementation(libs.lifecycle.viewmodel)
         implementation(libs.lifecycle.runtime)
-        implementation(compose.runtime)
+        implementation(libs.compose.multiplatform.runtime)
       }
     }
 
