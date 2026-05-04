@@ -84,4 +84,4 @@ jobs:
         uses: gradle/gradle-build-action@v2
 
       - name: run tests
-        run: ./gradlew check --no-daemon
+        run: ./gradlew build --no-daemon

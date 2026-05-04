@@ -40,6 +40,7 @@ compose-foundation = { module = "androidx.compose.foundation:foundation", versio
 compose-material3 = { module = "androidx.compose.material3:material3", version.ref = "material3" }
 compose-material3Android = { group = "androidx.compose.material3", name = "material3-android", version.ref = "material3Android" }
 compose-runtime = { module = "androidx.compose.runtime:runtime", version.ref = "runtime" }
+compose-multiplatform-runtime = { module = "org.jetbrains.compose.runtime:runtime", version.ref = "compose-plugin" }
 compose-ui = { module = "androidx.compose.ui:ui", version.ref = "ui" }
 compose-uiTooling = { module = "androidx.compose.ui:ui-tooling", version.ref = "ui" }
 compose-uiToolingPreview = { module = "androidx.compose.ui:ui-tooling-preview", version.ref = "ui" }
@@ -62,9 +63,9 @@ kotlin-coroutinesCore = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-cor
 kotlin-serializationCore = { module = "org.jetbrains.kotlinx:kotlinx-serialization-core-jvm", version.ref = "kotlinxSerializationCoreJvm" }
 kotlin-serializationJson = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }
 kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlin" }
-lifecycle-viewmodel-core = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel", version.ref = "viewmodel" }
+lifecycle-viewmodel-core = { module = "androidx.lifecycle:lifecycle-viewmodel", version.ref = "viewmodel" }
 lifecycle-viewmodel = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "viewmodel" }
-lifecycle-rumtime = { module = "org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose", version.ref = "viewmodel" }
+lifecycle-runtime = { module = "org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose", version.ref = "viewmodel" }
 appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
 
