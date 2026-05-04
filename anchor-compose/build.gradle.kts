@@ -11,7 +11,7 @@ kotlin {
       dependencies {
         api(projects.anchor)
         implementation(libs.lifecycle.viewmodel)
-        implementation(libs.lifecycle.rumtime)
+        implementation(libs.lifecycle.runtime)
         implementation(compose.runtime)
       }
     }
