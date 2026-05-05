@@ -70,6 +70,7 @@ nav:
   - 'Introduction': index.md
   - 'Core Concepts': concepts.md
   - 'Compose Integration': compose.md
+  - 'Error Handling': errors.md
   - 'Testing': testing.md
   - 'API Reference': api.md
   - 'Examples': examples.md
