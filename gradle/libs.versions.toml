@@ -15,7 +15,7 @@ coreKtx = "1.18.0"
 kotlin = "2.3.21"
 kotlinxCoroutines = "1.10.2"
 kotlinxCoroutinesAndroid = "1.10.2"
-kotlinxSerializationCoreJvm = "1.9.0"
+kotlinxSerializationCoreJvm = "1.11.0"
 kotlinxSerializationJson = "1.11.0"
 
 # Compose versions
