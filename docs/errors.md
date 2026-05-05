@@ -1,31 +1,14 @@
 # Error Handling
 
-This page explains how Anchor handles domain errors and unexpected failures in actions.
+Form validation that shows an inline message. An API call that returns a rejection the UI must acknowledge. A business rule that blocks invalid input before it reaches the database. These are **domain errors** — outcomes your logic actively produces, not crashes or programming mistakes.
+
+Anchor makes domain errors a first-class type parameter: `Anchor<R, S, Err>`. Every failure mode your feature can produce is declared in the signature, routed to a handler you register at construction time, and exhaustively matched by the compiler. Silent failures become impossible to write.
 
 ---
 
-## When you don't need this page
+## Declaring the error contract
 
-If your feature never has business-rule violations — no validation, no failed API calls you want to surface as typed errors — you don't need any of this. Use `PureAnchor<R, S>` (a typealias for `Anchor<R, S, Nothing>`) and ignore the `Err` type parameter entirely.
-
-```kotlin
-class CounterEffect : Effect
-typealias CounterAnchor = PureAnchor<CounterEffect, CounterState>
-
-fun RememberAnchorScope.counterAnchor(): CounterAnchor =
-    create(
-        initialState = ::CounterState,
-        effectScope = { CounterEffect() },
-    )
-```
-
-The type system makes `raise()` and `orDie()` statically uncallable on a `PureAnchor`. Keep reading only if you need typed domain errors.
-
----
-
-## Declaring your error type
-
-Define a sealed interface for your domain errors and pass it as the third type parameter to `Anchor<R, S, Err>`.
+Define a sealed interface for your domain errors and pass it as the third type parameter to `Anchor<R, S, Err>`. Then register `onDomainError` and `defect` in `create()` — this is the full error contract, declared once, in one place.
 
 ```kotlin
 sealed interface ConfigError {
@@ -34,17 +17,7 @@ sealed interface ConfigError {
 }
 
 typealias ConfigAnchor = Anchor<ConfigEffect, ConfigState, ConfigError>
-```
 
-Sealed interfaces work well here because `when` expressions on them are exhaustive — the compiler tells you if you miss a case.
-
----
-
-## Registering handlers in `create()`
-
-Pass `onDomainError` and `defect` to `create()` to decide what happens when an error reaches the top of the action stack.
-
-```kotlin
 fun RememberAnchorScope.configAnchor(): ConfigAnchor =
     create(
         initialState = ::ConfigState,
@@ -63,9 +36,21 @@ fun RememberAnchorScope.configAnchor(): ConfigAnchor =
     )
 ```
 
-The handler lambda receives `ErrorScope<R, S>` as its receiver. That scope provides `reduce`, `effect`, `post`, and `emit` — but intentionally **not** `raise` or `orDie`. Error handlers cannot re-raise; they are terminal.
+Sealed interfaces give you exhaustive `when` expressions — the compiler tells you if you add a new error variant and forget to handle it. The `onDomainError` lambda receives `ErrorScope<R, S>` as its receiver, which provides `reduce`, `effect`, `post`, and `emit` — but intentionally **not** `raise` or `orDie`. Error handlers are terminal; they cannot re-raise.
 
-Both handlers are optional. If you omit `onDomainError`, an unhandled `raise()` will crash the coroutine. If you omit `defect`, unexpected exceptions propagate normally.
+Both handlers are optional. Omitting `onDomainError` means an unhandled `raise()` crashes the coroutine. Omitting `defect` lets unexpected exceptions propagate normally.
+
+---
+
+## Domain errors vs defects
+
+Anchor separates failures into two categories, and the distinction matters.
+
+**Domain errors** are expected outcomes your business logic knows about — validation failures, auth rejections, resource constraints. You declare them as `Err`, raise them with `raise()` or `ensure()`, and handle them in `onDomainError`. They cancel the current action cleanly without crashing the coroutine scope.
+
+**Defects** are unexpected failures your code did not anticipate — a `null` that should never be `null`, an uncaught exception from a third-party library, a broken invariant. You handle them in `defect`, or escalate them intentionally with `orDie()`.
+
+This distinction is why `ErrorScope` omits `raise` and `orDie`. A handler that could re-raise would create unbounded recursion — so the type system makes it impossible.
 
 ---
 
@@ -235,3 +220,22 @@ fun `updateTextClamped silently truncates instead of propagating TooLong`() {
 ```
 
 The absence of `assertDomainError` is intentional and meaningful: it confirms the error was handled locally and never reached `onDomainError`.
+
+---
+
+## When there are no domain errors
+
+If a feature has no business-rule violations to surface, drop the `Err` type parameter entirely. `PureAnchor<R, S>` is a typealias for `Anchor<R, S, Nothing>`, and `Nothing` has no inhabitants — so `raise()` becomes a compile error, not a runtime one.
+
+```kotlin
+class CounterEffect : Effect
+typealias CounterAnchor = PureAnchor<CounterEffect, CounterState>
+
+fun RememberAnchorScope.counterAnchor(): CounterAnchor =
+    create(
+        initialState = ::CounterState,
+        effectScope = { CounterEffect() },
+    )
+```
+
+`onDomainError` is simply omitted because there is no `Err` type to match against. If you later discover the feature does need typed errors, swap `PureAnchor` for `Anchor<R, S, YourError>` and add `onDomainError` to `create()`.
