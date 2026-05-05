@@ -31,6 +31,7 @@ process_doc() {
     -e 's/](examples\.md)/](https:\/\/kioba.github.io\/anchor\/examples\/)/g' \
     -e 's/](compose\.md)/](https:\/\/kioba.github.io\/anchor\/compose\/)/g' \
     -e 's/](testing\.md)/](https:\/\/kioba.github.io\/anchor\/testing\/)/g' \
+    -e 's/](errors\.md)/](https:\/\/kioba.github.io\/anchor\/errors\/)/g' \
     "$file"
 }
 
@@ -53,6 +54,7 @@ DOCS=(
   "docs/index.md"
   "docs/concepts.md"
   "docs/compose.md"
+  "docs/errors.md"
   "docs/testing.md"
   "docs/api.md"
   "docs/examples.md"
