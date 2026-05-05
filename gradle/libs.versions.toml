@@ -15,13 +15,13 @@ coreKtx = "1.18.0"
 kotlin = "2.3.21"
 kotlinxCoroutines = "1.10.2"
 kotlinxCoroutinesAndroid = "1.10.2"
-kotlinxSerializationCoreJvm = "1.9.0"
+kotlinxSerializationCoreJvm = "1.11.0"
 kotlinxSerializationJson = "1.11.0"
 
 # Compose versions
-foundation = "1.10.6"
+foundation = "1.11.0"
 material3 = "1.5.0-alpha18"
-material3Android = "1.3.2"
+material3Android = "1.4.0"
 runtime = "1.11.0"
 ui = "1.11.0"
 viewmodel = "2.10.0"
@@ -31,7 +31,7 @@ espressoCore = "3.7.0"
 junit = "4.13.2"
 junitVersion = "1.3.0"
 appcompat = "1.7.1"
-material = "1.12.0"
+material = "1.13.0"
 
 [libraries]
 # Compose libraries
