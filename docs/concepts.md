@@ -47,6 +47,8 @@ The `Anchor` is the central component. It manages the `ViewState` and provides a
 - **post**: Sending signals to the UI.
 - **emit**: Emitting internal events.
 
+`Anchor<R, S, Err>` carries three type parameters: `R` (Effect), `S` (ViewState), and `Err` (domain error type). Use `PureAnchor<R, S>` when your anchor has no domain errors. See [Error Handling](errors.md) for the full error handling guide.
+
 ## Actions
 
 Actions are usually extension functions on your specific `Anchor` type. They encapsulate the business logic.
