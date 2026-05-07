@@ -65,6 +65,13 @@ kotlin {
         implementation(projects.anchorCompose)
       }
     }
+
+    commonTest {
+      dependencies {
+        implementation(libs.kotlin.test)
+        implementation(projects.anchorTest)
+      }
+    }
   }
 }
 
