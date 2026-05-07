@@ -20,14 +20,17 @@ class ConfigSequenceTest {
       given { initialState { ConfigState() } }
 
       sequence {
-        on { updateText("hello") }
-        verify {
-          assertState { copy(text = "hello") }
+        step("update to hello") {
+          on { updateText("hello") }
+          verify {
+            assertState { copy(text = "hello") }
+          }
         }
-
-        on { updateText("world") }
-        verify {
-          assertState { copy(text = "world") }
+        step("update to world") {
+          on { updateText("world") }
+          verify {
+            assertState { copy(text = "world") }
+          }
         }
       }
     }
@@ -42,14 +45,17 @@ class ConfigSequenceTest {
       given { initialState { ConfigState() } }
 
       sequence {
-        on { updateText("same") }
-        verify {
-          assertState { copy(text = "same") }
+        step("update to same first time") {
+          on { updateText("same") }
+          verify {
+            assertState { copy(text = "same") }
+          }
         }
-
-        on { updateText("same") }
-        verify {
-          assertState { copy(text = "same") }
+        step("update to same second time") {
+          on { updateText("same") }
+          verify {
+            assertState { copy(text = "same") }
+          }
         }
       }
     }

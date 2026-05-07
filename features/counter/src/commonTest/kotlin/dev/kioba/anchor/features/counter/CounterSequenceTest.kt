@@ -46,8 +46,8 @@ class CounterSequenceTest {
       given { initialState { CounterState(count = 5) } }
 
       sequence {
-        incrementStep()   // 5 → 6
-        decrementStep()   // 6 → 5
+        step { incrementStep() }   // 5 → 6
+        step { decrementStep() }   // 6 → 5
       }
     }
 
@@ -61,22 +61,26 @@ class CounterSequenceTest {
       given { initialState { CounterState(count = 0) } }
 
       sequence {
-        on { increment() }
-        verify {
-          assertState { copy(count = count.inc()) }   // 0 → 1
-          assertSignal { CounterSignal.Increment }
+        step("increment 1") {
+          on { increment() }
+          verify {
+            assertState { copy(count = count.inc()) }   // 0 → 1
+            assertSignal { CounterSignal.Increment }
+          }
         }
-
-        on { increment() }
-        verify {
-          assertState { copy(count = count.inc()) }   // 1 → 2
-          assertSignal { CounterSignal.Increment }
+        step("increment 2") {
+          on { increment() }
+          verify {
+            assertState { copy(count = count.inc()) }   // 1 → 2
+            assertSignal { CounterSignal.Increment }
+          }
         }
-
-        on { increment() }
-        verify {
-          assertState { copy(count = count.inc()) }   // 2 → 3
-          assertSignal { CounterSignal.Increment }
+        step("increment 3") {
+          on { increment() }
+          verify {
+            assertState { copy(count = count.inc()) }   // 2 → 3
+            assertSignal { CounterSignal.Increment }
+          }
         }
       }
     }
@@ -91,9 +95,9 @@ class CounterSequenceTest {
       given { initialState { CounterState(count = 0) } }
 
       sequence {
-        incrementStep()   // 0 → 1
-        incrementStep()   // 1 → 2
-        decrementStep()   // 2 → 1
+        step { incrementStep() }   // 0 → 1
+        step { incrementStep() }   // 1 → 2
+        step { decrementStep() }   // 2 → 1
       }
     }
 

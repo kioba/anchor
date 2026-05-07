@@ -53,9 +53,9 @@ class MainSequenceTest {
       given { initialState { mainViewState() } }
 
       sequence {
-        selectCounterStep()
-        selectConfigStep()
-        selectHomeStep()
+        step { selectCounterStep() }
+        step { selectConfigStep() }
+        step { selectHomeStep() }
       }
     }
 
@@ -70,14 +70,17 @@ class MainSequenceTest {
       given { initialState { mainViewState() } }
 
       sequence {
-        on { triggerLocalError() }
-        verify {
-          assertState { copy(errorDialog = "A locally caught error occurred.") }
+        step("trigger local error") {
+          on { triggerLocalError() }
+          verify {
+            assertState { copy(errorDialog = "A locally caught error occurred.") }
+          }
         }
-
-        on { dismissErrorDialog() }
-        verify {
-          assertState { copy(errorDialog = null) }
+        step("dismiss error dialog") {
+          on { dismissErrorDialog() }
+          verify {
+            assertState { copy(errorDialog = null) }
+          }
         }
       }
     }
@@ -94,21 +97,25 @@ class MainSequenceTest {
       given { initialState { mainViewState() } }
 
       sequence {
-        on { sayHi() }
-        verify {
-          assertState { copy(details = "Hello Android!") }
+        step("say hi") {
+          on { sayHi() }
+          verify {
+            assertState { copy(details = "Hello Android!") }
+          }
         }
-
-        on { iterationCounter(5) }
-        verify {
-          assertState { copy(details = "refreshed") }
-          assertState { copy(iterationCounter = "5") }
+        step("iteration counter") {
+          on { iterationCounter(5) }
+          verify {
+            assertState { copy(details = "refreshed") }
+            assertState { copy(iterationCounter = "5") }
+          }
         }
-
-        on { clear() }
-        verify {
-          assertEvent { MainEvent.Cancel }
-          assertState { copy(details = "cleared", iterationCounter = null) }
+        step("clear") {
+          on { clear() }
+          verify {
+            assertEvent { MainEvent.Cancel }
+            assertState { copy(details = "cleared", iterationCounter = null) }
+          }
         }
       }
     }

@@ -102,6 +102,16 @@ public class AnchorTestScope<R : Effect, S : ViewState, Err : Any>(
     block()
     inSequenceMode = false
   }
+
+  public inline fun step(
+    @Suppress("UNUSED_PARAMETER") description: String = "",
+    block: AnchorTestScope<R, S, Err>.() -> Unit,
+  ) {
+    check(inSequenceMode) {
+      "step() must be called inside sequence {}"
+    }
+    block()
+  }
 }
 
 // ── Execution ────────────────────────────────────────────────────────────────

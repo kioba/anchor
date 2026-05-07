@@ -71,13 +71,17 @@ class SequenceTest {
       given("start at 0") { initialState { SeqState(count = 0) } }
 
       sequence {
-        on("first increment") { increment() }
-        verify {
-          assertState { copy(count = count + 1) }  // 0 + 1 = 1
+        step("first increment") {
+          on { increment() }
+          verify {
+            assertState { copy(count = count + 1) }  // 0 + 1 = 1
+          }
         }
-        on("second increment") { increment() }
-        verify {
-          assertState { copy(count = count + 1) }  // 1 + 1 = 2
+        step("second increment") {
+          on { increment() }
+          verify {
+            assertState { copy(count = count + 1) }  // 1 + 1 = 2
+          }
         }
       }
     }
@@ -92,12 +96,14 @@ class SequenceTest {
       given("start at 5") { initialState { SeqState(count = 5) } }
 
       sequence {
-        given {
-          initialState { SeqState(count = 0) }  // ignored — count stays 5
-        }
-        on("increment") { increment() }
-        verify {
-          assertState { copy(count = count + 1) }  // 5 + 1 = 6
+        step {
+          given {
+            initialState { SeqState(count = 0) }  // ignored — count stays 5
+          }
+          on { increment() }
+          verify {
+            assertState { copy(count = count + 1) }  // 5 + 1 = 6
+          }
         }
       }
     }
@@ -112,20 +118,23 @@ class SequenceTest {
       given("empty state") { initialState { SeqState() } }
 
       sequence {
-        given {
-          effectScope { SeqEffect(api = object : SeqApi { override suspend fun fetch() = "step1" }) }
+        step("fetch step1") {
+          given {
+            effectScope { SeqEffect(api = object : SeqApi { override suspend fun fetch() = "step1" }) }
+          }
+          on { fetchAndSet() }
+          verify {
+            assertState { copy(value = "step1") }
+          }
         }
-        on("fetch") { fetchAndSet() }
-        verify {
-          assertState { copy(value = "step1") }
-        }
-
-        given {
-          effectScope { SeqEffect(api = object : SeqApi { override suspend fun fetch() = "step2" }) }
-        }
-        on("fetch") { fetchAndSet() }
-        verify {
-          assertState { copy(value = "step2") }
+        step("fetch step2") {
+          given {
+            effectScope { SeqEffect(api = object : SeqApi { override suspend fun fetch() = "step2" }) }
+          }
+          on { fetchAndSet() }
+          verify {
+            assertState { copy(value = "step2") }
+          }
         }
       }
     }
@@ -141,8 +150,8 @@ class SequenceTest {
       given("start at 0") { initialState { SeqState(count = 0) } }
 
       sequence {
-        incrementStep()  // 0 → 1
-        incrementStep()  // 1 → 2
+        step { incrementStep() }  // 0 → 1
+        step { incrementStep() }  // 1 → 2
       }
     }
 
@@ -156,7 +165,7 @@ class SequenceTest {
       given("start at 10") { initialState { SeqState(count = 10) } }
 
       sequence {
-        incrementStep()  // 10 → 11
+        step { incrementStep() }  // 10 → 11
       }
     }
 
