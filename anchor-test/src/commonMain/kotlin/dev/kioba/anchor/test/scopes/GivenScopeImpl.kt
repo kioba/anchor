@@ -23,10 +23,15 @@ internal class GivenScopeImpl<R, S, Err> :
   @PublishedApi
   internal var defect: (suspend ErrorScope<R, S>.(Throwable) -> Unit)? = null
 
+  @PublishedApi
+  internal var suppressInitialState: Boolean = false
+
   override fun initialState(
     f: () -> S,
   ) {
-    initState = f()
+    if (!suppressInitialState) {
+      initState = f()
+    }
   }
 
   override suspend fun effect(
