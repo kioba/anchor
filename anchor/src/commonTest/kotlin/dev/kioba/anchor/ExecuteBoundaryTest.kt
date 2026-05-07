@@ -229,6 +229,63 @@ class ExecuteBoundaryTest {
       assertIs<DomainDefectException>(capturedDefects.first())
     }
 
+  // -- subscribe {} setup path --
+
+  @Test
+  fun `raise in subscriptions setup routes to onDomainError`(): Unit =
+    runBlocking {
+      val capturedErrors = mutableListOf<TestError>()
+      val anchor =
+        createAnchor(
+          subscriptions = { anchor.raise(TestError.NotFound) },
+          onDomainError = { capturedErrors.add(it) },
+        )
+
+      safeExecute(anchor, anchor.onDomainError, anchor.defect) {
+        with(anchor) { subscribe() }
+      }
+
+      assertEquals(1, capturedErrors.size)
+      assertEquals(TestError.NotFound, capturedErrors.first())
+    }
+
+  @Test
+  fun `orDie in subscriptions setup routes to defect`(): Unit =
+    runBlocking {
+      val capturedDefects = mutableListOf<Throwable>()
+      val anchor =
+        createAnchor(
+          subscriptions = { anchor.orDie(TestError.Invalid("subscriptions defect")) },
+          defect = { capturedDefects.add(it) },
+        )
+
+      safeExecute(anchor, anchor.onDomainError, anchor.defect) {
+        with(anchor) { subscribe() }
+      }
+
+      assertEquals(1, capturedDefects.size)
+      assertIs<DomainDefectException>(capturedDefects.first())
+    }
+
+  @Test
+  fun `unexpected Throwable in subscriptions setup routes to defect`(): Unit =
+    runBlocking {
+      val capturedDefects = mutableListOf<Throwable>()
+      val anchor =
+        createAnchor(
+          subscriptions = { throw IllegalStateException("subscriptions boom") },
+          defect = { capturedDefects.add(it) },
+        )
+
+      safeExecute(anchor, anchor.onDomainError, anchor.defect) {
+        with(anchor) { subscribe() }
+      }
+
+      assertEquals(1, capturedDefects.size)
+      assertIs<IllegalStateException>(capturedDefects.first())
+      assertEquals("subscriptions boom", capturedDefects.first().message)
+    }
+
   // -- cross-cutting guarantees --
 
   @Test
