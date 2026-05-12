@@ -23,7 +23,7 @@ foundation = "1.11.0"
 material3 = "1.5.0-alpha18"
 material3Android = "1.4.0"
 runtime = "1.11.0"
-ui = "1.11.0"
+ui = "1.11.1"
 viewmodel = "2.10.0"
 
 # Testing versions
