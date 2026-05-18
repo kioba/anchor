@@ -4,19 +4,13 @@ import dev.kioba.anchor.Anchor
 import dev.kioba.anchor.Effect
 import dev.kioba.anchor.RememberAnchorScope
 import dev.kioba.anchor.ViewState
-import dev.kioba.anchor.test.scopes.AnchorTestScope
+import dev.kioba.anchor.test.scopes.AnchorStepScope
 import kotlin.test.Test
 import kotlin.test.assertFailsWith
 
 // ── Test types ────────────────────────────────────────────────────────────────
 
-private interface SeqApi {
-  suspend fun fetch(): String
-}
-
-private class SeqEffect(val api: SeqApi = object : SeqApi {
-  override suspend fun fetch() = "default"
-}) : Effect
+private class SeqEffect(var fetchResult: String = "default") : Effect
 
 private data class SeqState(
   val value: String = "",
@@ -36,21 +30,17 @@ private suspend fun SeqAnchor.increment() {
 }
 
 private suspend fun SeqAnchor.fetchAndSet() {
-  val result = effect { api.fetch() }
+  val result = effect { fetchResult }
   reduce { copy(value = result) }
 }
 
-// ── Composable step extension (defined once, reusable) ───────────────────────
+// ── Composable step extension ─────────────────────────────────────────────────
 
 /**
- * Standalone: initialState is live — starts at whatever the outer given provides.
- * In sequence: initialState is a no-op — state threads from the previous step.
- * In both cases the assertion is relative: `copy(count = count + 1)`.
+ * Reusable step: state threads from the previous step so `copy(count = count + 1)`
+ * always applies a relative delta regardless of the starting count.
  */
-private fun AnchorTestScope<SeqEffect, SeqState, Nothing>.incrementStep() {
-  given("initial sequence state") {
-    initialState { SeqState(count = 0) }
-  }
+private fun AnchorStepScope<SeqEffect, SeqState, Nothing>.incrementStep() {
   on("increment") { increment() }
   verify("count incremented by one") {
     assertState { copy(count = count + 1) }
@@ -67,129 +57,115 @@ class SequenceTest {
    */
   @Test
   fun sequenceThreadsStateBetweenSteps() =
-    runAnchorTest(RememberAnchorScope::seqAnchor) {
+    runAnchorSequenceTest(RememberAnchorScope::seqAnchor) {
       given("start at 0") { initialState { SeqState(count = 0) } }
 
-      sequence("two increments thread state") {
-        step("first increment") {
-          on("increment") { increment() }
-          verify("count is previous plus one") {
-            assertState { copy(count = count + 1) }  // 0 + 1 = 1
-          }
+      step("first increment") {
+        on("increment") { increment() }
+        verify("count is previous plus one") {
+          assertState { copy(count = count + 1) }  // 0 + 1 = 1
         }
-        step("second increment") {
-          on("increment") { increment() }
-          verify("count is previous plus one") {
-            assertState { copy(count = count + 1) }  // 1 + 1 = 2
-          }
+      }
+      step("second increment") {
+        on("increment") { increment() }
+        verify("count is previous plus one") {
+          assertState { copy(count = count + 1) }  // 1 + 1 = 2
         }
       }
     }
 
   /**
-   * `initialState` inside a step's given block is a no-op in sequence mode.
-   * The outer given's initialState (count = 5) drives the starting state.
+   * The outer `effectScope {}` creates the shared Effect instance used by all steps.
+   * Both steps fetch from the same instance and see the same configured value.
    */
   @Test
-  fun sequenceIgnoresStepLevelInitialState() =
-    runAnchorTest(RememberAnchorScope::seqAnchor) {
-      given("start at 5") { initialState { SeqState(count = 5) } }
+  fun outerEffectScopeIsSharedAcrossAllSteps() =
+    runAnchorSequenceTest(RememberAnchorScope::seqAnchor) {
+      given("shared effect scope") { effectScope { SeqEffect(fetchResult = "shared") } }
 
-      sequence("step initialState is ignored") {
-        step {
-          given("ignored initial state") {
-            initialState { SeqState(count = 0) }  // ignored — count stays 5
-          }
-          on("increment") { increment() }
-          verify("count from outer given plus one") {
-            assertState { copy(count = count + 1) }  // 5 + 1 = 6
-          }
+      step("first fetch") {
+        on("fetch and set") { fetchAndSet() }
+        verify("value from shared effect") {
+          assertState { copy(value = "shared") }
+        }
+      }
+      step("second fetch") {
+        on("fetch and set") { fetchAndSet() }
+        verify("same effect scope reused") {
+          assertState { copy(value = "shared") }
         }
       }
     }
 
   /**
-   * Each step can supply its own effect scope override. The override applies
-   * only to that step; the next step is unaffected.
+   * `effect {}` in a step's `given {}` mutates the shared Effect instance's behaviour
+   * for that step only. The Effect object itself is the same across all steps.
    */
   @Test
-  fun sequenceAppliesStepLevelEffectScope() =
-    runAnchorTest(RememberAnchorScope::seqAnchor) {
-      given("empty state") { initialState { SeqState() } }
+  fun stepEffectConfiguresMutableBehaviourPerStep() =
+    runAnchorSequenceTest(RememberAnchorScope::seqAnchor) {
+      given("base effect") { effectScope { SeqEffect() } }
 
-      sequence("per-step effect scope override") {
-        step("fetch step1") {
-          given("effect scope for this step") {
-            effectScope { SeqEffect(api = object : SeqApi { override suspend fun fetch() = "step1" }) }
-          }
-          on("fetch and set") { fetchAndSet() }
-          verify("value from step effect") {
-            assertState { copy(value = "step1") }
-          }
+      step("step returns step1") {
+        given("configure step1 result") { effect { fetchResult = "step1" } }
+        on("fetch and set") { fetchAndSet() }
+        verify("value is step1") {
+          assertState { copy(value = "step1") }
         }
-        step("fetch step2") {
-          given("effect scope for this step") {
-            effectScope { SeqEffect(api = object : SeqApi { override suspend fun fetch() = "step2" }) }
-          }
-          on("fetch and set") { fetchAndSet() }
-          verify("value from step effect") {
-            assertState { copy(value = "step2") }
-          }
+      }
+      step("step returns step2") {
+        given("configure step2 result") { effect { fetchResult = "step2" } }
+        on("fetch and set") { fetchAndSet() }
+        verify("value is step2") {
+          assertState { copy(value = "step2") }
         }
       }
     }
 
   /**
-   * An extension function on AnchorTestScope acts as a composable step:
-   * it can be called inside sequence {} just like any other DSL block.
-   * Two calls to incrementStep() thread state correctly (0 → 1 → 2).
+   * Two calls to the same composable step extension thread state correctly (0 → 1 → 2).
    */
   @Test
   fun composableStepExtensionComposesTwoIncrements() =
-    runAnchorTest(RememberAnchorScope::seqAnchor) {
+    runAnchorSequenceTest(RememberAnchorScope::seqAnchor) {
       given("start at 0") { initialState { SeqState(count = 0) } }
 
-      sequence("two composable increments thread state") {
-        step { incrementStep() }  // 0 → 1
-        step { incrementStep() }  // 1 → 2
-      }
+      step { incrementStep() }  // 0 → 1
+      step { incrementStep() }  // 1 → 2
     }
 
   /**
-   * The same composable step works at any starting count because
+   * The composable step works at any starting count because
    * assertState uses a relative delta `copy(count = count + 1)`.
    */
   @Test
   fun composableStepWorksAtAnyStartingCount() =
-    runAnchorTest(RememberAnchorScope::seqAnchor) {
+    runAnchorSequenceTest(RememberAnchorScope::seqAnchor) {
       given("start at 10") { initialState { SeqState(count = 10) } }
 
-      sequence("composable step works from arbitrary count") {
-        step { incrementStep() }  // 10 → 11
-      }
+      step { incrementStep() }  // 10 → 11
     }
 
   /**
-   * A standalone test that uses the same composable step extension
-   * in single-step mode (no sequence). Verifies that the step's own
-   * initialState is live in this context.
+   * A standalone single-action test verifying an increment from count = 0.
    */
   @Test
-  fun composableStepRunsStandaloneWithItsOwnInitialState() =
+  fun standaloneIncrementFromZero() =
     runAnchorTest(RememberAnchorScope::seqAnchor) {
-      incrementStep()  // initialState { SeqState(count = 0) } is live → 0 → 1
+      given("start at 0") { initialState { SeqState(count = 0) } }
+      on("increment") { increment() }
+      verify("count goes to 1") { assertState { copy(count = count + 1) } }
     }
 
   /**
-   * Calling on() twice without an intervening verify() inside sequence
+   * Calling on() twice without an intervening verify() inside a step
    * is a programming error and throws an IllegalStateException immediately.
    */
   @Test
-  fun sequenceOnCalledTwiceWithoutVerifyThrows() {
+  fun onCalledTwiceWithoutVerifyThrows() {
     assertFailsWith<IllegalStateException> {
-      runAnchorTest(RememberAnchorScope::seqAnchor) {
-        given("default") {}
-        sequence("on called twice throws") {
+      runAnchorSequenceTest(RememberAnchorScope::seqAnchor) {
+        step("on called twice throws") {
           on("first") { increment() }
           on("second without verify") { increment() }  // throws
           verify("unreachable") { assertState { copy(count = count + 1) } }

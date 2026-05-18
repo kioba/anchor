@@ -20,17 +20,11 @@ public class AnchorTestScope<R : Effect, S : ViewState, Err : Any>(
   @PublishedApi
   internal val givenScope: GivenScopeImpl<R, S, Err> = GivenScopeImpl()
 
-  // Non-null only while executing a step {} block; gives {} inside step routes here.
   @PublishedApi
-  internal var currentStepGiven: GivenScopeImpl<R, S, Err>? = null
+  internal var pendingAction: (suspend Anchor<R, S, Err>.() -> Unit)? = null
 
-  // Always-present accumulator — on {} and verify {} always land here.
   @PublishedApi
-  internal val stepBuilder: SequenceStepBuilder<R, S, Err> = SequenceStepBuilder()
-
-  // True only while executing a sequence {} block — used solely to validate step() placement.
-  @PublishedApi
-  internal var insideSequence: Boolean = false
+  internal var pendingVerify: VerifyScopeImpl<R, S, Err>? = null
 
   // ── DSL ──────────────────────────────────────────────────────────────────────
 
@@ -38,85 +32,69 @@ public class AnchorTestScope<R : Effect, S : ViewState, Err : Any>(
     @Suppress("UNUSED_PARAMETER") description: String,
     block: GivenScope<R, S, Err>.() -> Unit,
   ): Unit =
-    (currentStepGiven ?: givenScope).block()
+    givenScope.block()
 
   public fun on(
     @Suppress("UNUSED_PARAMETER") description: String,
     anchorOf: suspend Anchor<R, S, Err>.() -> Unit,
   ) {
-    check(stepBuilder.pendingAction == null) { "on() called twice without an intervening verify()" }
-    stepBuilder.pendingAction = anchorOf
+    check(pendingAction == null) { "on() called twice without an intervening verify()" }
+    pendingAction = anchorOf
   }
 
   public inline fun verify(
     @Suppress("UNUSED_PARAMETER") description: String,
     block: VerifyScope<R, S, Err>.() -> Unit,
   ) {
-    val stepVerify = VerifyScopeImpl<R, S, Err>()
-    stepVerify.block()
-    val action =
-      checkNotNull(stepBuilder.pendingAction) {
-        "verify() called without a preceding on()"
-      }
-    stepBuilder.steps.add(
-      SequenceStep(
-        given = currentStepGiven ?: GivenScopeImpl(),
-        action = action,
-        expectedActions = stepVerify.expectedActions.toList(),
-        domainErrorAssertion = stepVerify.domainErrorAssertion,
-        defectAssertion = stepVerify.defectAssertion,
-      ),
-    )
-    currentStepGiven = null
-    stepBuilder.pendingAction = null
-  }
-
-  public suspend inline fun sequence(
-    @Suppress("UNUSED_PARAMETER") description: String,
-    crossinline block: suspend AnchorTestScope<R, S, Err>.() -> Unit,
-  ) {
-    insideSequence = true
-    block()
-    insideSequence = false
-  }
-
-  public inline fun step(
-    @Suppress("UNUSED_PARAMETER") description: String = "",
-    block: AnchorTestScope<R, S, Err>.() -> Unit,
-  ) {
-    check(insideSequence) { "step() must be called inside sequence {}" }
-    currentStepGiven = GivenScopeImpl()
-    block()
-    // verify() resets currentStepGiven when it finalises the step
+    val verifyScope = VerifyScopeImpl<R, S, Err>()
+    verifyScope.block()
+    checkNotNull(pendingAction) { "verify() called without a preceding on()" }
+    pendingVerify = verifyScope
   }
 }
 
-// ── Internal helpers ─────────────────────────────────────────────────────────
+// ── Execution ─────────────────────────────────────────────────────────────────
 
-@PublishedApi
-internal class SequenceStepBuilder<R : Effect, S : ViewState, Err : Any> {
-  @PublishedApi
-  internal var pendingAction: (suspend Anchor<R, S, Err>.() -> Unit)? = null
-
-  @PublishedApi
-  internal val steps: MutableList<SequenceStep<R, S, Err>> = mutableListOf()
-}
-
-@PublishedApi
-internal class SequenceStep<R, S, Err>(
-  val given: GivenScopeImpl<R, S, Err>,
-  val action: suspend Anchor<R, S, Err>.() -> Unit,
-  val expectedActions: List<VerifyAction>,
-  val domainErrorAssertion: Err?,
-  val defectAssertion: Throwable?,
-) where R : Effect, S : ViewState, Err : Any
-
-// ── Execution ────────────────────────────────────────────────────────────────
-
-// A single test is a sequence of exactly one step — always use assertSequence.
 @PublishedApi
 internal suspend inline fun <reified R : Effect, reified S : ViewState, Err : Any> AnchorTestScope<R, S, Err>.assert() {
-  assertSequence<R, S, Err>()
+  val base: AnchorTestRuntime<R, S, Err> = buildBaseRuntime<R, S, Err>()
+  val action = checkNotNull(pendingAction) { "runAnchorTest block must call on()" }
+  val verify = checkNotNull(pendingVerify) { "runAnchorTest block must call verify()" }
+
+  val runtime =
+    AnchorTestRuntime<R, S, Err>(
+      effectScope = base.effectScope,
+      initState = base.initState,
+      onDomainError = base.onDomainError,
+      defect = base.defect,
+    )
+
+  val recordingDomainError: suspend ErrorScope<R, S>.(Err) -> Unit = { error: Err ->
+    runtime.capturedDomainError = error
+    base.onDomainError?.invoke(this, error)
+  }
+
+  val recordingDefect: suspend ErrorScope<R, S>.(Throwable) -> Unit = { throwable: Throwable ->
+    runtime.capturedDefect = throwable
+    base.defect?.invoke(this, throwable)
+  }
+
+  safeExecute(runtime, recordingDomainError, recordingDefect) {
+    action.invoke(runtime)
+  }
+
+  assertEvents<R, S, Err>(
+    actualActions = runtime.verifyActions,
+    initialState = base.initState,
+    effectScope = base.effectScope,
+    expectedActions = verify.expectedActions.toList(),
+  )
+
+  assertHandlers(
+    anchor = runtime,
+    domainErrorAssertion = verify.domainErrorAssertion,
+    defectAssertion = verify.defectAssertion,
+  )
 }
 
 @PublishedApi
@@ -143,57 +121,10 @@ internal suspend inline fun <reified R : Effect, reified S : ViewState, Err : An
   return rememberAnchorScope.anchorFactory() as AnchorTestRuntime<R, S, Err>
 }
 
-@PublishedApi
-internal suspend inline fun <reified R : Effect, reified S : ViewState, Err : Any> AnchorTestScope<R, S, Err>.assertSequence() {
-  val base: AnchorTestRuntime<R, S, Err> = buildBaseRuntime<R, S, Err>()
-  var currentState: S = base.initState
-
-  for (step in stepBuilder.steps) {
-    val stepEffectScope: R = step.given.effectScope ?: base.effectScope
-    val stepOnDomainError = step.given.onDomainError ?: base.onDomainError
-    val stepDefect = step.given.defect ?: base.defect
-
-    val stepRuntime =
-      AnchorTestRuntime<R, S, Err>(
-        effectScope = stepEffectScope,
-        initState = currentState,
-        onDomainError = stepOnDomainError,
-        defect = stepDefect,
-      )
-
-    val recordingDomainError: suspend ErrorScope<R, S>.(Err) -> Unit = { error: Err ->
-      stepRuntime.capturedDomainError = error
-      stepOnDomainError?.invoke(this, error)
-    }
-
-    val recordingDefect: suspend ErrorScope<R, S>.(Throwable) -> Unit = { throwable: Throwable ->
-      stepRuntime.capturedDefect = throwable
-      stepDefect?.invoke(this, throwable)
-    }
-
-    safeExecute(stepRuntime, recordingDomainError, recordingDefect) {
-      step.action.invoke(stepRuntime)
-    }
-
-    assertEvents<R, S, Err>(
-      actualActions = stepRuntime.verifyActions,
-      initialState = currentState,
-      effectScope = stepEffectScope,
-      expectedActions = step.expectedActions,
-    )
-
-    assertHandlers(
-      anchor = stepRuntime,
-      domainErrorAssertion = step.domainErrorAssertion,
-      defectAssertion = step.defectAssertion,
-    )
-
-    currentState = stepRuntime.state
-  }
-}
+// ── Shared assertion helpers (used by both AnchorTestScope and AnchorSequenceTestScope) ──
 
 @PublishedApi
-internal fun <R : Effect, S : ViewState, Err : Any> AnchorTestScope<R, S, Err>.assertHandlers(
+internal fun <R : Effect, S : ViewState, Err : Any> assertHandlers(
   anchor: AnchorTestRuntime<R, S, Err>,
   domainErrorAssertion: Err?,
   defectAssertion: Throwable?,
@@ -217,7 +148,7 @@ internal fun <R : Effect, S : ViewState, Err : Any> AnchorTestScope<R, S, Err>.a
 }
 
 @PublishedApi
-internal inline fun <reified R : Effect, reified S : ViewState, Err : Any> AnchorTestScope<R, S, Err>.assertEvents(
+internal inline fun <reified R : Effect, reified S : ViewState, Err : Any> assertEvents(
   actualActions: MutableList<VerifyAction>,
   initialState: S,
   effectScope: R,

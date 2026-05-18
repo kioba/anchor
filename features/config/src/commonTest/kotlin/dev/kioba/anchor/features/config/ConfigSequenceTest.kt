@@ -4,7 +4,7 @@ import dev.kioba.anchor.RememberAnchorScope
 import dev.kioba.anchor.features.config.data.configAnchor
 import dev.kioba.anchor.features.config.data.updateText
 import dev.kioba.anchor.features.config.model.ConfigState
-import dev.kioba.anchor.test.runAnchorTest
+import dev.kioba.anchor.test.runAnchorSequenceTest
 import kotlin.test.Test
 
 class ConfigSequenceTest {
@@ -16,21 +16,19 @@ class ConfigSequenceTest {
    */
   @Test
   fun updateText_thenUpdateAgain_threadsState() =
-    runAnchorTest(RememberAnchorScope::configAnchor) {
+    runAnchorSequenceTest(RememberAnchorScope::configAnchor) {
       given("initial config state") { initialState { ConfigState() } }
 
-      sequence("update text twice threads state") {
-        step("update to hello") {
-          on("update text") { updateText("hello") }
-          verify("text updated") {
-            assertState { copy(text = "hello") }
-          }
+      step("update to hello") {
+        on("update text") { updateText("hello") }
+        verify("text updated") {
+          assertState { copy(text = "hello") }
         }
-        step("update to world") {
-          on("update text") { updateText("world") }
-          verify("text updated") {
-            assertState { copy(text = "world") }
-          }
+      }
+      step("update to world") {
+        on("update text") { updateText("world") }
+        verify("text updated") {
+          assertState { copy(text = "world") }
         }
       }
     }
@@ -41,21 +39,19 @@ class ConfigSequenceTest {
    */
   @Test
   fun updateToSameValue_recordsBothReducers() =
-    runAnchorTest(RememberAnchorScope::configAnchor) {
+    runAnchorSequenceTest(RememberAnchorScope::configAnchor) {
       given("initial config state") { initialState { ConfigState() } }
 
-      sequence("update to same value twice") {
-        step("update to same first time") {
-          on("update text") { updateText("same") }
-          verify("text updated") {
-            assertState { copy(text = "same") }
-          }
+      step("update to same first time") {
+        on("update text") { updateText("same") }
+        verify("text updated") {
+          assertState { copy(text = "same") }
         }
-        step("update to same second time") {
-          on("update text") { updateText("same") }
-          verify("text updated") {
-            assertState { copy(text = "same") }
-          }
+      }
+      step("update to same second time") {
+        on("update text") { updateText("same") }
+        verify("text updated") {
+          assertState { copy(text = "same") }
         }
       }
     }
