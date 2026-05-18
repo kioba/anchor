@@ -1,4 +1,4 @@
-package dev.kioba.anchor.features.counter.ui
+package dev.kioba.anchor.features.config.ui
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,12 +17,13 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import dev.kioba.anchor.RememberAnchorScope
 import dev.kioba.anchor.compose.RememberAnchor
 import dev.kioba.anchor.compose.anchor
-import dev.kioba.anchor.features.counter.data.ConfigAnchor
-import dev.kioba.anchor.features.counter.data.configAnchor
-import dev.kioba.anchor.features.counter.data.updateText
+import dev.kioba.anchor.features.config.data.ConfigAnchor
+import dev.kioba.anchor.features.config.data.configAnchor
+import dev.kioba.anchor.features.config.data.updateText
 
 @Composable
 public fun ConfigPage(
@@ -53,6 +54,14 @@ public fun ConfigPage(
           text = state.text.toString(),
           style = MaterialTheme.typography.headlineMedium,
         )
+        state.errorMessage?.let { message ->
+          Text(
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+            text = message,
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color.Red,
+          )
+        }
       }
     }
   }

@@ -15,7 +15,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import dev.kioba.anchor.compose.AnchorStateScope
 import dev.kioba.anchor.compose.PreviewAnchor
-import dev.kioba.anchor.features.counter.ui.ConfigPage
+import dev.kioba.anchor.features.config.ui.ConfigPage
 import dev.kioba.anchor.features.counter.ui.CounterPage
 import dev.kioba.anchor.features.main.model.MainTab
 import dev.kioba.anchor.features.main.model.MainViewState

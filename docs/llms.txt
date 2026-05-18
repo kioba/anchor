@@ -11,6 +11,7 @@ The core type is `Anchor<R, S, Err>` where `R : Effect` (dependencies), `S : Vie
 - [Introduction](https://kioba.github.io/anchor/): Installation, quick start, and feature overview
 - [Core Concepts](https://kioba.github.io/anchor/concepts/): ViewState, Effect, Anchor engine, Actions, Signals, Events & Subscriptions
 - [Compose Integration](https://kioba.github.io/anchor/compose/): RememberAnchor, collectState, anchor() callbacks, HandleSignal, PreviewAnchor
+- [Error Handling](https://kioba.github.io/anchor/errors/): Typed domain errors, raise/ensure/recover/orDie strategies, onDomainError, defect handlers
 - [Testing](https://kioba.github.io/anchor/testing/): BDD-style testing DSL with runAnchorTest, given/on/verify, assertions
 - [API Reference](https://kioba.github.io/anchor/api/): Complete public API surface for core and Compose modules
 - [Examples](https://kioba.github.io/anchor/examples/): End-to-end counter example with state, signals, and async operations
