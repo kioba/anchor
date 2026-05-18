@@ -44,7 +44,7 @@ public class SubscriptionsScope<R, S, Err>(
    * @return The original [Flow].
    */
   public fun <I> Flow<I>.anchor(
-    action: Anchor<R, S, Err>.(I) -> Unit,
+    action: suspend Anchor<R, S, Err>.(I) -> Unit,
   ): Flow<I> =
     onEach { value ->
       safeExecute(anchor, onDomainError, defect) {
