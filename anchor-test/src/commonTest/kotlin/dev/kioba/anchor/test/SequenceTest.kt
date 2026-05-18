@@ -48,11 +48,11 @@ private suspend fun SeqAnchor.fetchAndSet() {
  * In both cases the assertion is relative: `copy(count = count + 1)`.
  */
 private fun AnchorTestScope<SeqEffect, SeqState, Nothing>.incrementStep() {
-  given {
+  given("initial sequence state") {
     initialState { SeqState(count = 0) }
   }
   on("increment") { increment() }
-  verify {
+  verify("count incremented by one") {
     assertState { copy(count = count + 1) }
   }
 }
@@ -70,16 +70,16 @@ class SequenceTest {
     runAnchorTest(RememberAnchorScope::seqAnchor) {
       given("start at 0") { initialState { SeqState(count = 0) } }
 
-      sequence {
+      sequence("two increments thread state") {
         step("first increment") {
-          on { increment() }
-          verify {
+          on("increment") { increment() }
+          verify("count is previous plus one") {
             assertState { copy(count = count + 1) }  // 0 + 1 = 1
           }
         }
         step("second increment") {
-          on { increment() }
-          verify {
+          on("increment") { increment() }
+          verify("count is previous plus one") {
             assertState { copy(count = count + 1) }  // 1 + 1 = 2
           }
         }
@@ -95,13 +95,13 @@ class SequenceTest {
     runAnchorTest(RememberAnchorScope::seqAnchor) {
       given("start at 5") { initialState { SeqState(count = 5) } }
 
-      sequence {
+      sequence("step initialState is ignored") {
         step {
-          given {
+          given("ignored initial state") {
             initialState { SeqState(count = 0) }  // ignored — count stays 5
           }
-          on { increment() }
-          verify {
+          on("increment") { increment() }
+          verify("count from outer given plus one") {
             assertState { copy(count = count + 1) }  // 5 + 1 = 6
           }
         }
@@ -117,22 +117,22 @@ class SequenceTest {
     runAnchorTest(RememberAnchorScope::seqAnchor) {
       given("empty state") { initialState { SeqState() } }
 
-      sequence {
+      sequence("per-step effect scope override") {
         step("fetch step1") {
-          given {
+          given("effect scope for this step") {
             effectScope { SeqEffect(api = object : SeqApi { override suspend fun fetch() = "step1" }) }
           }
-          on { fetchAndSet() }
-          verify {
+          on("fetch and set") { fetchAndSet() }
+          verify("value from step effect") {
             assertState { copy(value = "step1") }
           }
         }
         step("fetch step2") {
-          given {
+          given("effect scope for this step") {
             effectScope { SeqEffect(api = object : SeqApi { override suspend fun fetch() = "step2" }) }
           }
-          on { fetchAndSet() }
-          verify {
+          on("fetch and set") { fetchAndSet() }
+          verify("value from step effect") {
             assertState { copy(value = "step2") }
           }
         }
@@ -149,7 +149,7 @@ class SequenceTest {
     runAnchorTest(RememberAnchorScope::seqAnchor) {
       given("start at 0") { initialState { SeqState(count = 0) } }
 
-      sequence {
+      sequence("two composable increments thread state") {
         step { incrementStep() }  // 0 → 1
         step { incrementStep() }  // 1 → 2
       }
@@ -164,7 +164,7 @@ class SequenceTest {
     runAnchorTest(RememberAnchorScope::seqAnchor) {
       given("start at 10") { initialState { SeqState(count = 10) } }
 
-      sequence {
+      sequence("composable step works from arbitrary count") {
         step { incrementStep() }  // 10 → 11
       }
     }
@@ -189,10 +189,10 @@ class SequenceTest {
     assertFailsWith<IllegalStateException> {
       runAnchorTest(RememberAnchorScope::seqAnchor) {
         given("default") {}
-        sequence {
+        sequence("on called twice throws") {
           on("first") { increment() }
           on("second without verify") { increment() }  // throws
-          verify { assertState { copy(count = count + 1) } }
+          verify("unreachable") { assertState { copy(count = count + 1) } }
         }
       }
     }

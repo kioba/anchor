@@ -14,18 +14,18 @@ import kotlin.test.Test
 // ── Composable step extensions ────────────────────────────────────────────────
 
 private fun AnchorTestScope<CounterEffect, CounterState, Nothing>.incrementStep() {
-  given { initialState { CounterState() } }   // no-op inside sequence { }
-  on { increment() }
-  verify {
+  given("initial counter state") { initialState { CounterState() } }   // no-op inside sequence { }
+  on("increment") { increment() }
+  verify("count incremented") {
     assertState { copy(count = count.inc()) }
     assertSignal { CounterSignal.Increment }
   }
 }
 
 private fun AnchorTestScope<CounterEffect, CounterState, Nothing>.decrementStep() {
-  given { initialState { CounterState() } }   // no-op inside sequence { }
-  on { decrement() }
-  verify {
+  given("initial counter state") { initialState { CounterState() } }   // no-op inside sequence { }
+  on("decrement") { decrement() }
+  verify("count decremented") {
     assertState { copy(count = count.dec()) }
     assertSignal { CounterSignal.Decrement }
   }
@@ -43,9 +43,9 @@ class CounterSequenceTest {
   @Test
   fun incrementThenDecrement_returnsToStart() =
     runAnchorTest(RememberAnchorScope::counterAnchor) {
-      given { initialState { CounterState(count = 5) } }
+      given("start at count 5") { initialState { CounterState(count = 5) } }
 
-      sequence {
+      sequence("increment then decrement returns to start") {
         step { incrementStep() }   // 5 → 6
         step { decrementStep() }   // 6 → 5
       }
@@ -58,26 +58,26 @@ class CounterSequenceTest {
   @Test
   fun threeIncrements_threadState() =
     runAnchorTest(RememberAnchorScope::counterAnchor) {
-      given { initialState { CounterState(count = 0) } }
+      given("start at count 0") { initialState { CounterState(count = 0) } }
 
-      sequence {
+      sequence("three sequential increments") {
         step("increment 1") {
-          on { increment() }
-          verify {
+          on("increment") { increment() }
+          verify("count incremented") {
             assertState { copy(count = count.inc()) }   // 0 → 1
             assertSignal { CounterSignal.Increment }
           }
         }
         step("increment 2") {
-          on { increment() }
-          verify {
+          on("increment") { increment() }
+          verify("count incremented") {
             assertState { copy(count = count.inc()) }   // 1 → 2
             assertSignal { CounterSignal.Increment }
           }
         }
         step("increment 3") {
-          on { increment() }
-          verify {
+          on("increment") { increment() }
+          verify("count incremented") {
             assertState { copy(count = count.inc()) }   // 2 → 3
             assertSignal { CounterSignal.Increment }
           }
@@ -92,9 +92,9 @@ class CounterSequenceTest {
   @Test
   fun composableStepsComposed() =
     runAnchorTest(RememberAnchorScope::counterAnchor) {
-      given { initialState { CounterState(count = 0) } }
+      given("start at count 0") { initialState { CounterState(count = 0) } }
 
-      sequence {
+      sequence("increment increment decrement") {
         step { incrementStep() }   // 0 → 1
         step { incrementStep() }   // 1 → 2
         step { decrementStep() }   // 2 → 1

@@ -5,8 +5,7 @@ import dev.kioba.anchor.ErrorScope
 import dev.kioba.anchor.ViewState
 
 @PublishedApi
-internal class GivenScopeImpl<R, S, Err> :
-  GivenScope<R, S, Err>
+internal class GivenScopeImpl<R, S, Err> : GivenScope<R, S, Err>
   where R : Effect, S : ViewState, Err : Any {
   @PublishedApi
   internal var initState: S? = null
@@ -23,15 +22,10 @@ internal class GivenScopeImpl<R, S, Err> :
   @PublishedApi
   internal var defect: (suspend ErrorScope<R, S>.(Throwable) -> Unit)? = null
 
-  @PublishedApi
-  internal var suppressInitialState: Boolean = false
-
   override fun initialState(
     f: () -> S,
   ) {
-    if (!suppressInitialState) {
-      initState = f()
-    }
+    initState = f()
   }
 
   override suspend fun effect(

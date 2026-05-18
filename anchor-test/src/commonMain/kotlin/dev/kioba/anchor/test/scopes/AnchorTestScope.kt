@@ -20,101 +20,87 @@ public class AnchorTestScope<R : Effect, S : ViewState, Err : Any>(
   @PublishedApi
   internal val givenScope: GivenScopeImpl<R, S, Err> = GivenScopeImpl()
 
+  // Non-null only while executing a step {} block; gives {} inside step routes here.
   @PublishedApi
-  internal val verifyScope: VerifyScopeImpl<R, S, Err> = VerifyScopeImpl()
+  internal var currentStepGiven: GivenScopeImpl<R, S, Err>? = null
 
+  // Always-present accumulator — on {} and verify {} always land here.
   @PublishedApi
-  internal lateinit var action: suspend Anchor<R, S, Err>.() -> Unit
+  internal val stepBuilder: SequenceStepBuilder<R, S, Err> = SequenceStepBuilder()
 
-  // ── Sequence mode ────────────────────────────────────────────────────────────
-
+  // True only while executing a sequence {} block — used solely to validate step() placement.
   @PublishedApi
-  internal var inSequenceMode: Boolean = false
-
-  @PublishedApi
-  internal var pendingStepGiven: GivenScopeImpl<R, S, Err> = newStepGiven()
-
-  @PublishedApi
-  internal var pendingAction: (suspend Anchor<R, S, Err>.() -> Unit)? = null
-
-  @PublishedApi
-  internal val sequenceSteps: MutableList<SequenceStep<R, S, Err>> = mutableListOf()
-
-  @PublishedApi
-  internal fun newStepGiven(): GivenScopeImpl<R, S, Err> =
-    GivenScopeImpl<R, S, Err>().also { it.suppressInitialState = true }
+  internal var insideSequence: Boolean = false
 
   // ── DSL ──────────────────────────────────────────────────────────────────────
 
   public inline fun given(
-    @Suppress("UNUSED_PARAMETER") description: String = "",
+    @Suppress("UNUSED_PARAMETER") description: String,
     block: GivenScope<R, S, Err>.() -> Unit,
   ): Unit =
-    if (inSequenceMode) pendingStepGiven.block() else givenScope.block()
+    (currentStepGiven ?: givenScope).block()
 
   public fun on(
-    @Suppress("UNUSED_PARAMETER") description: String = "",
+    @Suppress("UNUSED_PARAMETER") description: String,
     anchorOf: suspend Anchor<R, S, Err>.() -> Unit,
   ) {
-    if (inSequenceMode) {
-      check(pendingAction == null) {
-        "sequence: on() called twice without an intervening verify()"
-      }
-      pendingAction = anchorOf
-    } else {
-      action = anchorOf
-    }
+    check(stepBuilder.pendingAction == null) { "on() called twice without an intervening verify()" }
+    stepBuilder.pendingAction = anchorOf
   }
 
   public inline fun verify(
-    @Suppress("UNUSED_PARAMETER") description: String = "",
+    @Suppress("UNUSED_PARAMETER") description: String,
     block: VerifyScope<R, S, Err>.() -> Unit,
   ) {
-    if (inSequenceMode) {
-      val stepVerifyScope = VerifyScopeImpl<R, S, Err>()
-      stepVerifyScope.block()
-      val currentAction = checkNotNull(pendingAction) {
-        "sequence: verify() called without a preceding on()"
+    val stepVerify = VerifyScopeImpl<R, S, Err>()
+    stepVerify.block()
+    val action =
+      checkNotNull(stepBuilder.pendingAction) {
+        "verify() called without a preceding on()"
       }
-      sequenceSteps.add(
-        SequenceStep(
-          given = pendingStepGiven,
-          action = currentAction,
-          expectedActions = stepVerifyScope.expectedActions.toList(),
-          domainErrorAssertion = stepVerifyScope.domainErrorAssertion,
-          defectAssertion = stepVerifyScope.defectAssertion,
-        )
-      )
-      pendingStepGiven = newStepGiven()
-      pendingAction = null
-    } else {
-      verifyScope.block()
-    }
+    stepBuilder.steps.add(
+      SequenceStep(
+        given = currentStepGiven ?: GivenScopeImpl(),
+        action = action,
+        expectedActions = stepVerify.expectedActions.toList(),
+        domainErrorAssertion = stepVerify.domainErrorAssertion,
+        defectAssertion = stepVerify.defectAssertion,
+      ),
+    )
+    currentStepGiven = null
+    stepBuilder.pendingAction = null
   }
 
   public suspend inline fun sequence(
-    @Suppress("UNUSED_PARAMETER") description: String = "",
+    @Suppress("UNUSED_PARAMETER") description: String,
     crossinline block: suspend AnchorTestScope<R, S, Err>.() -> Unit,
   ) {
-    inSequenceMode = true
-    pendingStepGiven = newStepGiven()
-    pendingAction = null
+    insideSequence = true
     block()
-    inSequenceMode = false
+    insideSequence = false
   }
 
   public inline fun step(
     @Suppress("UNUSED_PARAMETER") description: String = "",
     block: AnchorTestScope<R, S, Err>.() -> Unit,
   ) {
-    check(inSequenceMode) {
-      "step() must be called inside sequence {}"
-    }
+    check(insideSequence) { "step() must be called inside sequence {}" }
+    currentStepGiven = GivenScopeImpl()
     block()
+    // verify() resets currentStepGiven when it finalises the step
   }
 }
 
-// ── Execution ────────────────────────────────────────────────────────────────
+// ── Internal helpers ─────────────────────────────────────────────────────────
+
+@PublishedApi
+internal class SequenceStepBuilder<R : Effect, S : ViewState, Err : Any> {
+  @PublishedApi
+  internal var pendingAction: (suspend Anchor<R, S, Err>.() -> Unit)? = null
+
+  @PublishedApi
+  internal val steps: MutableList<SequenceStep<R, S, Err>> = mutableListOf()
+}
 
 @PublishedApi
 internal class SequenceStep<R, S, Err>(
@@ -125,13 +111,12 @@ internal class SequenceStep<R, S, Err>(
   val defectAssertion: Throwable?,
 ) where R : Effect, S : ViewState, Err : Any
 
+// ── Execution ────────────────────────────────────────────────────────────────
+
+// A single test is a sequence of exactly one step — always use assertSequence.
 @PublishedApi
 internal suspend inline fun <reified R : Effect, reified S : ViewState, Err : Any> AnchorTestScope<R, S, Err>.assert() {
-  if (sequenceSteps.isNotEmpty()) {
-    assertSequence<R, S, Err>()
-  } else {
-    assertSingle<R, S, Err>()
-  }
+  assertSequence<R, S, Err>()
 }
 
 @PublishedApi
@@ -147,7 +132,7 @@ internal suspend inline fun <reified R : Effect, reified S : ViewState, Err : An
         defect: (suspend ErrorScope<R, S>.(Throwable) -> Unit)?,
         subscriptions: (suspend SubscriptionsScope<R, S, Err>.() -> Unit)?,
       ): Anchor<R, S, Err> =
-        AnchorTestRuntime<R, S, Err>(
+        AnchorTestRuntime(
           effectScope = givenScope.effectScope as? R ?: effectScope(),
           initState = givenScope.initState as? S ?: initialState(),
           onDomainError = givenScope.onDomainError as? (suspend ErrorScope<R, S>.(Err) -> Unit) ?: onDomainError,
@@ -159,43 +144,22 @@ internal suspend inline fun <reified R : Effect, reified S : ViewState, Err : An
 }
 
 @PublishedApi
-internal suspend inline fun <reified R : Effect, reified S : ViewState, Err : Any> AnchorTestScope<R, S, Err>.assertSingle() {
-  val anchor: AnchorTestRuntime<R, S, Err> = buildBaseRuntime<R, S, Err>()
-
-  val recordingOnDomainError: suspend ErrorScope<R, S>.(Err) -> Unit = { error: Err ->
-    anchor.capturedDomainError = error
-    anchor.onDomainError?.invoke(this, error)
-  }
-
-  val recordingDefect: suspend ErrorScope<R, S>.(Throwable) -> Unit = { throwable: Throwable ->
-    anchor.capturedDefect = throwable
-    anchor.defect?.invoke(this, throwable)
-  }
-
-  safeExecute(anchor, recordingOnDomainError, recordingDefect) {
-    anchor.action()
-  }
-
-  assertEvents<R, S, Err>(anchor.verifyActions, anchor.initState, anchor.effectScope)
-  assertHandlers(anchor)
-}
-
-@PublishedApi
 internal suspend inline fun <reified R : Effect, reified S : ViewState, Err : Any> AnchorTestScope<R, S, Err>.assertSequence() {
   val base: AnchorTestRuntime<R, S, Err> = buildBaseRuntime<R, S, Err>()
   var currentState: S = base.initState
 
-  for (step in sequenceSteps) {
+  for (step in stepBuilder.steps) {
     val stepEffectScope: R = step.given.effectScope ?: base.effectScope
     val stepOnDomainError = step.given.onDomainError ?: base.onDomainError
     val stepDefect = step.given.defect ?: base.defect
 
-    val stepRuntime = AnchorTestRuntime<R, S, Err>(
-      effectScope = stepEffectScope,
-      initState = currentState,
-      onDomainError = stepOnDomainError,
-      defect = stepDefect,
-    )
+    val stepRuntime =
+      AnchorTestRuntime<R, S, Err>(
+        effectScope = stepEffectScope,
+        initState = currentState,
+        onDomainError = stepOnDomainError,
+        defect = stepDefect,
+      )
 
     val recordingDomainError: suspend ErrorScope<R, S>.(Err) -> Unit = { error: Err ->
       stepRuntime.capturedDomainError = error
@@ -231,8 +195,8 @@ internal suspend inline fun <reified R : Effect, reified S : ViewState, Err : An
 @PublishedApi
 internal fun <R : Effect, S : ViewState, Err : Any> AnchorTestScope<R, S, Err>.assertHandlers(
   anchor: AnchorTestRuntime<R, S, Err>,
-  domainErrorAssertion: Err? = verifyScope.domainErrorAssertion,
-  defectAssertion: Throwable? = verifyScope.defectAssertion,
+  domainErrorAssertion: Err?,
+  defectAssertion: Throwable?,
 ) {
   if (domainErrorAssertion != null) {
     assertEquals(domainErrorAssertion, anchor.capturedDomainError, "Expected domain error does not match")
@@ -257,7 +221,7 @@ internal inline fun <reified R : Effect, reified S : ViewState, Err : Any> Ancho
   actualActions: MutableList<VerifyAction>,
   initialState: S,
   effectScope: R,
-  expectedActions: List<VerifyAction> = verifyScope.expectedActions,
+  expectedActions: List<VerifyAction>,
 ) {
   assertEquals(expectedActions.size, actualActions.size)
 

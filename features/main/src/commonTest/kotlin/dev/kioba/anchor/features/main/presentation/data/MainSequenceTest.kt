@@ -24,18 +24,18 @@ import kotlin.test.Test
 // ── Composable step extensions ────────────────────────────────────────────────
 
 private fun AnchorTestScope<MainEffect, MainViewState, Nothing>.selectHomeStep() {
-  on { selectHome() }
-  verify { assertState { updateHomeSelected() } }
+  on("select home") { selectHome() }
+  verify("home tab selected") { assertState { updateHomeSelected() } }
 }
 
 private fun AnchorTestScope<MainEffect, MainViewState, Nothing>.selectCounterStep() {
-  on { selectCounter() }
-  verify { assertState { updateCounterSelected() } }
+  on("select counter") { selectCounter() }
+  verify("counter tab selected") { assertState { updateCounterSelected() } }
 }
 
 private fun AnchorTestScope<MainEffect, MainViewState, Nothing>.selectConfigStep() {
-  on { selectQuack() }
-  verify { assertState { updateProfileSelected() } }
+  on("select config") { selectQuack() }
+  verify("config tab selected") { assertState { updateProfileSelected() } }
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -50,9 +50,9 @@ class MainSequenceTest {
   @Test
   fun tabNavigation_threadsSelectedTab() =
     runAnchorTest(RememberAnchorScope::mainAnchor) {
-      given { initialState { mainViewState() } }
+      given("initial main view state") { initialState { mainViewState() } }
 
-      sequence {
+      sequence("tab navigation threads selected tab") {
         step { selectCounterStep() }
         step { selectConfigStep() }
         step { selectHomeStep() }
@@ -67,18 +67,18 @@ class MainSequenceTest {
   @Test
   fun localError_thenDismiss() =
     runAnchorTest(RememberAnchorScope::mainAnchor) {
-      given { initialState { mainViewState() } }
+      given("initial main view state") { initialState { mainViewState() } }
 
-      sequence {
+      sequence("local error then dismiss") {
         step("trigger local error") {
-          on { triggerLocalError() }
-          verify {
+          on("trigger local error") { triggerLocalError() }
+          verify("error dialog set") {
             assertState { copy(errorDialog = "A locally caught error occurred.") }
           }
         }
         step("dismiss error dialog") {
-          on { dismissErrorDialog() }
-          verify {
+          on("dismiss error dialog") { dismissErrorDialog() }
+          verify("error dialog cleared") {
             assertState { copy(errorDialog = null) }
           }
         }
@@ -94,25 +94,25 @@ class MainSequenceTest {
   @Test
   fun sayHi_thenIterationCounter_thenClear() =
     runAnchorTest(RememberAnchorScope::mainAnchor) {
-      given { initialState { mainViewState() } }
+      given("initial main view state") { initialState { mainViewState() } }
 
-      sequence {
+      sequence("say hi then iteration counter then clear") {
         step("say hi") {
-          on { sayHi() }
-          verify {
+          on("say hi") { sayHi() }
+          verify("details updated") {
             assertState { copy(details = "Hello Android!") }
           }
         }
         step("iteration counter") {
-          on { iterationCounter(5) }
-          verify {
+          on("iteration counter 5") { iterationCounter(5) }
+          verify("iteration results") {
             assertState { copy(details = "refreshed") }
             assertState { copy(iterationCounter = "5") }
           }
         }
         step("clear") {
-          on { clear() }
-          verify {
+          on("clear") { clear() }
+          verify("cancelled and cleared") {
             assertEvent { MainEvent.Cancel }
             assertState { copy(details = "cleared", iterationCounter = null) }
           }
