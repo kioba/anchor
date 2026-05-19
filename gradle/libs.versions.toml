@@ -19,7 +19,7 @@ kotlinxSerializationCoreJvm = "1.11.0"
 kotlinxSerializationJson = "1.11.0"
 
 # Compose versions
-foundation = "1.11.0"
+foundation = "1.11.1"
 material3 = "1.5.0-alpha18"
 material3Android = "1.4.0"
 runtime = "1.11.1"
