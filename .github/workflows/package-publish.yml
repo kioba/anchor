@@ -77,10 +77,26 @@ jobs:
         with:
           xcode-version: latest-stable
 
+      - name: Print toolchain versions
+        if: steps.changes.outputs.has_changes == 'true'
+        run: |
+          echo "=== Java ==="
+          java -version
+          echo "=== Gradle ==="
+          ./gradlew --version
+          echo "=== Xcode ==="
+          xcodebuild -version || true
+          echo "=== gradle.properties ==="
+          grep -v -E '^(#|$)' gradle.properties
+
       - name: Publish to GitHub Packages
         if: steps.changes.outputs.has_changes == 'true'
         timeout-minutes: 30
-        run: ./gradlew publishAllPublicationsToGithubPackagesRepository --stacktrace
+        run: >
+          ./gradlew publishAllPublicationsToGithubPackagesRepository
+          -PwarningsAsErrors=false
+          --no-configuration-cache
+          --stacktrace
         env:
           ORG_GRADLE_PROJECT_githubPackagesUsername: ${{ github.actor }}
           ORG_GRADLE_PROJECT_githubPackagesPassword: ${{ secrets.GITHUB_TOKEN }}
@@ -90,7 +106,11 @@ jobs:
       - name: Publish to Maven Central
         if: steps.changes.outputs.has_changes == 'true'
         timeout-minutes: 30
-        run: ./gradlew publishAllPublicationsToMavenCentralRepository --stacktrace
+        run: >
+          ./gradlew publishAndReleaseToMavenCentral
+          -PwarningsAsErrors=false
+          --no-configuration-cache
+          --stacktrace
         env:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}

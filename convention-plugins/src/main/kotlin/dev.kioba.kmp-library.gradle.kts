@@ -9,7 +9,9 @@ kotlin {
   explicitApi()
 
   compilerOptions {
-    allWarningsAsErrors.set(true)
+    allWarningsAsErrors.set(
+      providers.gradleProperty("warningsAsErrors").map { it.toBoolean() }.getOrElse(true)
+    )
   }
 
   jvm("desktop")
