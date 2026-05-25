@@ -1,5 +1,7 @@
 package dev.kioba.anchor
 
-public actual fun getPlatform(): Platform {
-  TODO("Not yet implemented")
+public class AndroidPlatform : Platform {
+  override val name: String = "Android"
 }
+
+public actual fun getPlatform(): Platform = AndroidPlatform()
