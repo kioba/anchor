@@ -16,7 +16,7 @@ mavenPublishing {
         version = project.property("POM_VERSION").toString()
     )
 
-    publishToMavenCentral()
+    publishToMavenCentral(automaticRelease = true)
 
     if (project.findProperty("signingInMemoryKey")?.toString()?.isNotBlank() == true) {
         signAllPublications()

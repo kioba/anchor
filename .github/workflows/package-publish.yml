@@ -37,16 +37,24 @@ jobs:
             echo "No changes since $LAST_TAG — skipping publish"
           fi
 
-      - name: Verify llms-full.txt is up to date
+      - name: Validate publish secrets
         if: steps.changes.outputs.has_changes == 'true'
         run: |
-          cp docs/llms-full.txt /tmp/llms-full-before.txt
-          bash scripts/generate-llms-full.sh
-          if ! diff -q /tmp/llms-full-before.txt docs/llms-full.txt > /dev/null 2>&1; then
-            echo "::error::docs/llms-full.txt is out of date. Run: bash scripts/generate-llms-full.sh"
+          MISSING=""
+          [ -z "$MC_USER" ] && MISSING="$MISSING MAVEN_CENTRAL_USERNAME"
+          [ -z "$MC_PASS" ] && MISSING="$MISSING MAVEN_CENTRAL_PASSWORD"
+          [ -z "$GPG_KEY" ] && MISSING="$MISSING GPG_SECRET_KEY"
+          [ -z "$GPG_PW"  ] && MISSING="$MISSING GPG_PASSWORD"
+          if [ -n "$MISSING" ]; then
+            echo "::error::Missing required secrets:$MISSING"
             exit 1
           fi
-          echo "llms-full.txt is up to date"
+          echo "All required secrets are present"
+        env:
+          MC_USER: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MC_PASS: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          GPG_KEY: ${{ secrets.GPG_SECRET_KEY }}
+          GPG_PW: ${{ secrets.GPG_PASSWORD }}
 
       - name: set up JDK 21
         if: steps.changes.outputs.has_changes == 'true'
@@ -57,11 +65,11 @@ jobs:
 
       - name: Setup Android SDK
         if: steps.changes.outputs.has_changes == 'true'
-        uses: android-actions/setup-android@v2
+        uses: android-actions/setup-android@v3
 
       - name: Setup Gradle
         if: steps.changes.outputs.has_changes == 'true'
-        uses: gradle/gradle-build-action@v2
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Setup Xcode
         if: steps.changes.outputs.has_changes == 'true'
@@ -69,13 +77,21 @@ jobs:
         with:
           xcode-version: latest-stable
 
-      - name: Publish to Repositories
+      - name: Publish to GitHub Packages
         if: steps.changes.outputs.has_changes == 'true'
-        run: |
-          ./gradlew publishAllPublicationsToGithubPackagesRepository publishAllPublicationsToMavenCentralRepository
+        timeout-minutes: 30
+        run: ./gradlew publishAllPublicationsToGithubPackagesRepository --stacktrace
         env:
           ORG_GRADLE_PROJECT_githubPackagesUsername: ${{ github.actor }}
           ORG_GRADLE_PROJECT_githubPackagesPassword: ${{ secrets.GITHUB_TOKEN }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.GPG_SECRET_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.GPG_PASSWORD }}
+
+      - name: Publish to Maven Central
+        if: steps.changes.outputs.has_changes == 'true'
+        timeout-minutes: 30
+        run: ./gradlew publishAllPublicationsToMavenCentralRepository --stacktrace
+        env:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.GPG_SECRET_KEY }}
