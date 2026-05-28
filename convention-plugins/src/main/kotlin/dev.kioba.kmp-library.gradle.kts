@@ -19,6 +19,8 @@ kotlin {
     compileSdk = 36
     minSdk = 23
 
+    withHostTest {}
+
     compilations.configureEach {
       compileTaskProvider.configure {
         compilerOptions {
