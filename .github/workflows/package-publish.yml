@@ -13,7 +13,6 @@ jobs:
     runs-on: macos-latest
     permissions:
       contents: write
-      packages: write
       pull-requests: write
 
     steps:
@@ -89,18 +88,16 @@ jobs:
           echo "=== gradle.properties ==="
           grep -v -E '^(#|$)' gradle.properties
 
-      - name: Publish to GitHub Packages
+      - name: Assemble publishable artifacts
         if: steps.changes.outputs.has_changes == 'true'
         timeout-minutes: 30
         run: >
-          ./gradlew publishAllPublicationsToGithubPackagesRepository
-          --no-configuration-cache
+          ./gradlew
+          :anchor:assemble
+          :anchor-compose:assemble
+          :anchor-test:assemble
+          :anchor-internal:assemble
           --stacktrace
-        env:
-          ORG_GRADLE_PROJECT_githubPackagesUsername: ${{ github.actor }}
-          ORG_GRADLE_PROJECT_githubPackagesPassword: ${{ secrets.GITHUB_TOKEN }}
-          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.GPG_SECRET_KEY }}
-          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.GPG_PASSWORD }}
 
       - name: Publish to Maven Central
         if: steps.changes.outputs.has_changes == 'true'
