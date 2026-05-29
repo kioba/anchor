@@ -21,8 +21,9 @@ Tests are ordered from simple to complex across files. Within each file, happy-p
 | `ErrorHandlingTest.kt` | Error primitives | 18 | `raise`, `recover`, `orDie`, `ensure`, `Recover` extensions |
 | `ErrorHandlerBehaviorTest.kt` | Handler effects | 7 | Handlers that reduce/post/emit, pre-raise action preservation |
 | `ActionOrderingTest.kt` | Ordering | 5 | Mixed sequences, type mismatches, size mismatches |
+| `SequenceTest.kt` | `runAnchorSequenceTest` / `step {}` | 7 | State threading, shared effect, per-step `effect {}`, composable steps, structural errors |
 
-**Total: 66 tests**
+**Total: 73 tests**
 
 ## Coverage Map
 
@@ -68,6 +69,17 @@ Tests are ordered from simple to complex across files. Within each file, happy-p
 | `Recover.getErrorOrNull` | `ErrorHandlingTest` |
 | `Recover.fold` | `ErrorHandlingTest` |
 | `DefectAnchor.orDie(Recover)` | `ErrorHandlingTest` |
+
+### Sequence DSL
+
+| Function | Covered In |
+|----------|-----------|
+| `runAnchorSequenceTest` | `SequenceTest`, feature `*SequenceTest` files |
+| outer `given { }` (`initialState`, `effectScope`) | `SequenceTest`, feature `*SequenceTest` files |
+| `step { }` | `SequenceTest`, feature `*SequenceTest` files |
+| `StepGivenScope.effect { }` (per-step mutation of shared scope) | `SequenceTest` |
+| `AnchorStepScope` extensions (composable steps) | `SequenceTest`, `CounterSequenceTest`, `MainSequenceTest` |
+| `on()` twice without `verify()` → `IllegalStateException` | `SequenceTest` |
 
 ### Negative Tests (expected failures)
 - Size mismatch (too many/few assertions): `ReduceTest`, `ActionOrderingTest`
