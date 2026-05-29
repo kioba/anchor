@@ -67,7 +67,6 @@ kotlin {
         implementation(projects.anchorTest)
       }
     }
-
   }
 }
 

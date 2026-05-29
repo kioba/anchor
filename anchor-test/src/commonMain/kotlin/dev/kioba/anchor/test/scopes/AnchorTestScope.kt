@@ -21,10 +21,12 @@ public class AnchorTestScope<R : Effect, S : ViewState, Err : Any>(
   internal val givenScope: GivenScopeImpl<R, S, Err> = GivenScopeImpl()
 
   @PublishedApi
-  internal val verifyScope: VerifyScopeImpl<R, S, Err> = VerifyScopeImpl()
+  internal var pendingAction: (suspend Anchor<R, S, Err>.() -> Unit)? = null
 
   @PublishedApi
-  internal lateinit var action: suspend Anchor<R, S, Err>.() -> Unit
+  internal var pendingVerify: VerifyScopeImpl<R, S, Err>? = null
+
+  // ── DSL ──────────────────────────────────────────────────────────────────────
 
   public inline fun given(
     @Suppress("UNUSED_PARAMETER") description: String,
@@ -36,19 +38,67 @@ public class AnchorTestScope<R : Effect, S : ViewState, Err : Any>(
     @Suppress("UNUSED_PARAMETER") description: String,
     anchorOf: suspend Anchor<R, S, Err>.() -> Unit,
   ) {
-    action = anchorOf
+    check(pendingAction == null) { "on() called twice without an intervening verify()" }
+    pendingAction = anchorOf
   }
 
   public inline fun verify(
     @Suppress("UNUSED_PARAMETER") description: String,
     block: VerifyScope<R, S, Err>.() -> Unit,
   ) {
+    val verifyScope = VerifyScopeImpl<R, S, Err>()
     verifyScope.block()
+    checkNotNull(pendingAction) { "verify() called without a preceding on()" }
+    pendingVerify = verifyScope
   }
 }
 
+// ── Execution ─────────────────────────────────────────────────────────────────
+
 @PublishedApi
 internal suspend inline fun <reified R : Effect, reified S : ViewState, Err : Any> AnchorTestScope<R, S, Err>.assert() {
+  val base: AnchorTestRuntime<R, S, Err> = buildBaseRuntime<R, S, Err>()
+  val action = checkNotNull(pendingAction) { "runAnchorTest block must call on()" }
+  val verify = checkNotNull(pendingVerify) { "runAnchorTest block must call verify()" }
+
+  val runtime =
+    AnchorTestRuntime<R, S, Err>(
+      effectScope = base.effectScope,
+      initState = base.initState,
+      onDomainError = base.onDomainError,
+      defect = base.defect,
+    )
+
+  val recordingDomainError: suspend ErrorScope<R, S>.(Err) -> Unit = { error: Err ->
+    runtime.capturedDomainError = error
+    base.onDomainError?.invoke(this, error)
+  }
+
+  val recordingDefect: suspend ErrorScope<R, S>.(Throwable) -> Unit = { throwable: Throwable ->
+    runtime.capturedDefect = throwable
+    base.defect?.invoke(this, throwable)
+  }
+
+  safeExecute(runtime, recordingDomainError, recordingDefect) {
+    action.invoke(runtime)
+  }
+
+  assertEvents<R, S, Err>(
+    actualActions = runtime.verifyActions,
+    initialState = base.initState,
+    effectScope = base.effectScope,
+    expectedActions = verify.expectedActions.toList(),
+  )
+
+  assertHandlers(
+    anchor = runtime,
+    domainErrorAssertion = verify.domainErrorAssertion,
+    defectAssertion = verify.defectAssertion,
+  )
+}
+
+@PublishedApi
+internal suspend inline fun <reified R : Effect, reified S : ViewState, Err : Any> AnchorTestScope<R, S, Err>.buildBaseRuntime(): AnchorTestRuntime<R, S, Err> {
   val rememberAnchorScope =
     object : RememberAnchorScope {
       @Suppress("UNCHECKED_CAST")
@@ -60,52 +110,37 @@ internal suspend inline fun <reified R : Effect, reified S : ViewState, Err : An
         defect: (suspend ErrorScope<R, S>.(Throwable) -> Unit)?,
         subscriptions: (suspend SubscriptionsScope<R, S, Err>.() -> Unit)?,
       ): Anchor<R, S, Err> =
-        AnchorTestRuntime<R, S, Err>(
+        AnchorTestRuntime(
           effectScope = givenScope.effectScope as? R ?: effectScope(),
           initState = givenScope.initState as? S ?: initialState(),
           onDomainError = givenScope.onDomainError as? (suspend ErrorScope<R, S>.(Err) -> Unit) ?: onDomainError,
           defect = givenScope.defect as? (suspend ErrorScope<R, S>.(Throwable) -> Unit) ?: defect,
         )
     }
-
-  val anchor: AnchorTestRuntime<R, S, Err> = rememberAnchorScope.anchorFactory() as AnchorTestRuntime<R, S, Err>
-
-  val recordingOnDomainError: suspend ErrorScope<R, S>.(Err) -> Unit = { error: Err ->
-    anchor.capturedDomainError = error
-    anchor.onDomainError?.invoke(this, error)
-  }
-
-  val recordingDefect: suspend ErrorScope<R, S>.(Throwable) -> Unit = { throwable: Throwable ->
-    anchor.capturedDefect = throwable
-    anchor.defect?.invoke(this, throwable)
-  }
-
-  safeExecute(anchor, recordingOnDomainError, recordingDefect) {
-    anchor.action()
-  }
-
-  assertEvents<R, S, Err>(anchor.verifyActions, anchor.initState, anchor.effectScope)
-  assertHandlers(anchor)
+  @Suppress("UNCHECKED_CAST")
+  return rememberAnchorScope.anchorFactory() as AnchorTestRuntime<R, S, Err>
 }
 
+// ── Shared assertion helpers (used by both AnchorTestScope and AnchorSequenceTestScope) ──
+
 @PublishedApi
-internal fun <R : Effect, S : ViewState, Err : Any> AnchorTestScope<R, S, Err>.assertHandlers(
+internal fun <R : Effect, S : ViewState, Err : Any> assertHandlers(
   anchor: AnchorTestRuntime<R, S, Err>,
+  domainErrorAssertion: Err?,
+  defectAssertion: Throwable?,
 ) {
-  val expectedDomainError = verifyScope.domainErrorAssertion
-  if (expectedDomainError != null) {
-    assertEquals(expectedDomainError, anchor.capturedDomainError, "Expected domain error does not match")
+  if (domainErrorAssertion != null) {
+    assertEquals(domainErrorAssertion, anchor.capturedDomainError, "Expected domain error does not match")
   } else {
     assertNull(anchor.capturedDomainError, "Expected no domain error, but got: ${anchor.capturedDomainError}")
   }
 
-  val expectedDefect = verifyScope.defectAssertion
-  if (expectedDefect != null) {
+  if (defectAssertion != null) {
     val actual = assertNotNull(anchor.capturedDefect, "Expected defect handler to be called, but it was not")
-    if (expectedDefect is DomainDefectException && actual is DomainDefectException) {
-      assertEquals(expectedDefect.error, actual.error, "Expected defect error does not match")
+    if (defectAssertion is DomainDefectException && actual is DomainDefectException) {
+      assertEquals(defectAssertion.error, actual.error, "Expected defect error does not match")
     } else {
-      assertEquals(expectedDefect, actual, "Expected defect does not match")
+      assertEquals(defectAssertion, actual, "Expected defect does not match")
     }
   } else {
     assertNull(anchor.capturedDefect, "Expected no defect, but got: ${anchor.capturedDefect}")
@@ -113,14 +148,15 @@ internal fun <R : Effect, S : ViewState, Err : Any> AnchorTestScope<R, S, Err>.a
 }
 
 @PublishedApi
-internal inline fun <reified R : Effect, reified S : ViewState, Err : Any> AnchorTestScope<R, S, Err>.assertEvents(
+internal inline fun <reified R : Effect, reified S : ViewState, Err : Any> assertEvents(
   actualActions: MutableList<VerifyAction>,
   initialState: S,
   effectScope: R,
+  expectedActions: List<VerifyAction>,
 ) {
-  assertEquals(verifyScope.expectedActions.size, actualActions.size)
+  assertEquals(expectedActions.size, actualActions.size)
 
-  verifyScope.expectedActions
+  expectedActions
     .runningFold(initialState) { currentState, action ->
       when (action) {
         is EffectAction<*> -> {
