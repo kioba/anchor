@@ -232,115 +232,150 @@ fun `sayHi sets the details`() {
 
 ## Sequence Testing
 
-Single-action tests cover one `on/verify` pair in isolation. Use `sequence {}` when you need to verify that several actions compose correctly over time — for example, that a second action starts from the state the first action produced, not from the original initial state.
+Single-action tests cover one `on/verify` pair in isolation. Use `runAnchorSequenceTest` when you need to verify that several actions compose correctly over time — for example, that a second action starts from the state the first action produced, not from the original initial state.
 
-### sequence { }
+### runAnchorSequenceTest
 
-Wrap your steps in `sequence {}`. The outer `given` block sets the starting state; each step's final state automatically becomes the next step's starting state.
+`runAnchorSequenceTest` is a dedicated entry point, separate from `runAnchorTest`. The body is a list of `step {}` blocks, optionally preceded by an outer `given {}` that seeds the starting state and shared effect scope:
 
 ```kotlin
 @Test
-fun `increment twice threads state`() = runAnchorTest(RememberAnchorScope::counterAnchor) {
-    given { initialState { CounterState(count = 0) } }
+fun `increment twice threads state`() =
+    runAnchorSequenceTest(RememberAnchorScope::counterAnchor) {
+        given("start at 0") { initialState { CounterState(count = 0) } }
 
-    sequence {
         step("first increment") {
-            on { increment() }
-            verify { assertState { copy(count = count + 1) } }   // 0 → 1
+            on("increment") { increment() }
+            verify("count incremented") {
+                assertState { copy(count = count + 1) }   // 0 → 1
+            }
         }
         step("second increment") {
-            on { increment() }
-            verify { assertState { copy(count = count + 1) } }   // 1 → 2
+            on("increment") { increment() }
+            verify("count incremented") {
+                assertState { copy(count = count + 1) }   // 1 → 2
+            }
         }
     }
-}
 ```
+
+Every block (`given`, `step`, `on`, `verify`) takes a description string. Descriptions are not yet used by the runner — they document intent inline and are reserved for future test reporting.
 
 ### step { }
 
-`step {}` groups a single `on/verify` pair and gives it an optional description. It has no effect on execution — it is purely a visual delimiter that makes each step's boundary explicit at a glance.
+`step {}` runs a single `on/verify` pair as one unit. Each step's final state becomes the next step's starting state.
 
 !!! note
     `assertState`'s lambda receives the **current step's input state** as its receiver, not the outer initial state. Use relative expressions like `copy(count = count + 1)` rather than hardcoded absolute values; the assertion will always be evaluated against the correct intermediate state.
 
+A step's `given {}` block is restricted to `effect {}`, `onDomainError {}`, and `defect {}` — `initialState {}` and `effectScope {}` are intentionally not exposed on `StepGivenScope`, so calling them inside a step is a **compile error**, not a silent no-op. State and effect lifetime belong to the outer `given {}`.
+
 ### State threading
 
-The outer `given` block is the single source of truth for the sequence's starting state. Step-level `initialState { }` calls are silently suppressed — only `effectScope` overrides are applied per step:
+The outer `given {}` is the single source of truth for the sequence's starting state. Subsequent steps inherit the state produced by the prior step:
 
 ```kotlin
-given { initialState { CounterState(count = 5) } }
+given("start at 5") { initialState { CounterState(count = 5) } }
 
-sequence {
-    step {
-        given {
-            initialState { CounterState(count = 0) }  // ignored — outer given wins, count stays 5
-        }
-        on { increment() }
-        verify { assertState { copy(count = count + 1) } }  // 5 → 6
+step("increment once") {
+    on("increment") { increment() }
+    verify("count goes 5 → 6") {
+        assertState { copy(count = count + 1) }
     }
 }
 ```
 
-### Per-step effect scope
+### Shared effect scope
 
-Each step can supply its own `effectScope` override inside a `given {}` block. The override applies only to that step; subsequent steps use the base effect scope unless they override it too:
+`effectScope {}` on the outer `given {}` creates a **single** Effect instance that is shared across every step in the sequence. All steps see the same object:
 
 ```kotlin
-sequence {
-    step("fetch from source A") {
-        given { effectScope { ApiEffect(api = FakeApi(response = "A")) } }
-        on { fetchAndStore() }
-        verify { assertState { copy(value = "A") } }
+runAnchorSequenceTest(RememberAnchorScope::seqAnchor) {
+    given("shared effect scope") { effectScope { SeqEffect(fetchResult = "shared") } }
+
+    step("first fetch") {
+        on("fetch and set") { fetchAndSet() }
+        verify("value from shared effect") {
+            assertState { copy(value = "shared") }
+        }
     }
-    step("fetch from source B") {
-        given { effectScope { ApiEffect(api = FakeApi(response = "B")) } }
-        on { fetchAndStore() }
-        verify { assertState { copy(value = "B") } }
+    step("second fetch") {
+        on("fetch and set") { fetchAndSet() }
+        verify("same effect scope reused") {
+            assertState { copy(value = "shared") }
+        }
+    }
+}
+```
+
+### Per-step effect configuration
+
+A step can mutate the shared Effect instance via `effect {}` inside its `given {}` block. The object is not replaced — its mutable fields are reconfigured for that step's action:
+
+```kotlin
+runAnchorSequenceTest(RememberAnchorScope::seqAnchor) {
+    given("base effect") { effectScope { SeqEffect() } }
+
+    step("returns step1") {
+        given("configure step1 result") { effect { fetchResult = "step1" } }
+        on("fetch and set") { fetchAndSet() }
+        verify("value is step1") {
+            assertState { copy(value = "step1") }
+        }
+    }
+    step("returns step2") {
+        given("configure step2 result") { effect { fetchResult = "step2" } }
+        on("fetch and set") { fetchAndSet() }
+        verify("value is step2") {
+            assertState { copy(value = "step2") }
+        }
     }
 }
 ```
 
 ### Composable step extensions
 
-A repeated step pattern can be extracted into an extension function on `AnchorTestScope`. The same function works in two contexts:
-
-- **Standalone** (outside `sequence {}`): its `initialState { }` is live and drives the test.
-- **Inside `sequence {}`**: its `initialState { }` is suppressed; state threads from the prior step.
+Repeated step patterns extract cleanly as extension functions on `AnchorStepScope<R, S, Err>`. The extension can only be invoked inside a `step {}` block — it cannot be reused as a standalone `runAnchorTest`, because its receiver type does not match `AnchorTestScope`.
 
 ```kotlin
-private fun AnchorTestScope<CounterEffect, CounterState, Nothing>.incrementStep() {
-    given { initialState { CounterState() } }   // live standalone, suppressed in sequence
-    on { increment() }
-    verify {
+private fun AnchorStepScope<CounterEffect, CounterState, Nothing>.incrementStep() {
+    on("increment") { increment() }
+    verify("count incremented") {
         assertState { copy(count = count.inc()) }
         assertSignal { CounterSignal.Increment }
     }
 }
 
-private fun AnchorTestScope<CounterEffect, CounterState, Nothing>.decrementStep() {
-    given { initialState { CounterState() } }
-    on { decrement() }
-    verify {
+private fun AnchorStepScope<CounterEffect, CounterState, Nothing>.decrementStep() {
+    on("decrement") { decrement() }
+    verify("count decremented") {
         assertState { copy(count = count.dec()) }
         assertSignal { CounterSignal.Decrement }
     }
 }
 
 @Test
-fun `increment twice then decrement`() = runAnchorTest(RememberAnchorScope::counterAnchor) {
-    given { initialState { CounterState(count = 0) } }
+fun `increment twice then decrement`() =
+    runAnchorSequenceTest(RememberAnchorScope::counterAnchor) {
+        given("start at 0") { initialState { CounterState(count = 0) } }
 
-    sequence {
         step { incrementStep() }   // 0 → 1
         step { incrementStep() }   // 1 → 2
         step { decrementStep() }   // 2 → 1
     }
-}
+```
 
-// The same extension also runs standalone, using its own initialState:
-@Test
-fun `increment step standalone`() = runAnchorTest(RememberAnchorScope::counterAnchor) {
-    incrementStep()   // CounterState() → count 0 → 1
+Because state threads automatically, the same `incrementStep()` works at any starting count.
+
+### Programming errors
+
+Calling `on()` twice inside the same step without an intervening `verify()` is a structural mistake. The DSL throws `IllegalStateException` immediately so the failure surfaces at the call site rather than as a confusing downstream assertion:
+
+```kotlin
+step("on called twice throws") {
+    on("first") { increment() }
+    on("second without verify") { increment() }  // throws IllegalStateException
+    verify("unreachable") { assertState { copy(count = count + 1) } }
 }
 ```
 
@@ -348,37 +383,36 @@ fun `increment step standalone`() = runAnchorTest(RememberAnchorScope::counterAn
 
 ## Sequence examples
 
-### Multi-step state
+### Three increments
 
 ```kotlin
 @Test
-fun `three increments thread state`() = runAnchorTest(RememberAnchorScope::counterAnchor) {
-    given { initialState { CounterState(count = 0) } }
+fun `three increments thread state`() =
+    runAnchorSequenceTest(RememberAnchorScope::counterAnchor) {
+        given("start at 0") { initialState { CounterState(count = 0) } }
 
-    sequence {
         step("increment 1") {
-            on { increment() }
-            verify {
+            on("increment") { increment() }
+            verify("count incremented") {
                 assertState { copy(count = count.inc()) }   // 0 → 1
                 assertSignal { CounterSignal.Increment }
             }
         }
         step("increment 2") {
-            on { increment() }
-            verify {
+            on("increment") { increment() }
+            verify("count incremented") {
                 assertState { copy(count = count.inc()) }   // 1 → 2
                 assertSignal { CounterSignal.Increment }
             }
         }
         step("increment 3") {
-            on { increment() }
-            verify {
+            on("increment") { increment() }
+            verify("count incremented") {
                 assertState { copy(count = count.inc()) }   // 2 → 3
                 assertSignal { CounterSignal.Increment }
             }
         }
     }
-}
 ```
 
 ### Error then dismiss
@@ -387,48 +421,46 @@ State threads between steps, so the dismiss step's receiver already has `errorDi
 
 ```kotlin
 @Test
-fun `local error then dismiss`() = runAnchorTest(RememberAnchorScope::mainAnchor) {
-    given { initialState { mainViewState() } }
+fun `local error then dismiss`() =
+    runAnchorSequenceTest(RememberAnchorScope::mainAnchor) {
+        given("initial main view state") { initialState { mainViewState() } }
 
-    sequence {
         step("trigger local error") {
-            on { triggerLocalError() }
-            verify {
+            on("trigger local error") { triggerLocalError() }
+            verify("error dialog set") {
                 assertState { copy(errorDialog = "A locally caught error occurred.") }
             }
         }
         step("dismiss error dialog") {
-            on { dismissErrorDialog() }
-            verify {
+            on("dismiss error dialog") { dismissErrorDialog() }
+            verify("error dialog cleared") {
                 assertState { copy(errorDialog = null) }
             }
         }
     }
-}
 ```
 
 ### Navigation with composable steps
 
-Tab-selection steps are extracted as extensions and composed in sequence. Each step's `assertState` lambda uses the same reducer function from production code:
+Tab-selection steps extract as `AnchorStepScope` extensions and compose in sequence. Each step's `assertState` lambda reuses the same reducer function from production code:
 
 ```kotlin
-private fun AnchorTestScope<MainEffect, MainViewState, Nothing>.selectCounterStep() {
-    on { selectCounter() }
-    verify { assertState { updateCounterSelected() } }
+private fun AnchorStepScope<MainEffect, MainViewState, Nothing>.selectCounterStep() {
+    on("select counter") { selectCounter() }
+    verify("counter tab selected") { assertState { updateCounterSelected() } }
 }
 
-private fun AnchorTestScope<MainEffect, MainViewState, Nothing>.selectHomeStep() {
-    on { selectHome() }
-    verify { assertState { updateHomeSelected() } }
+private fun AnchorStepScope<MainEffect, MainViewState, Nothing>.selectHomeStep() {
+    on("select home") { selectHome() }
+    verify("home tab selected") { assertState { updateHomeSelected() } }
 }
 
 @Test
-fun `tab navigation threads selected tab`() = runAnchorTest(RememberAnchorScope::mainAnchor) {
-    given { initialState { mainViewState() } }
+fun `tab navigation threads selected tab`() =
+    runAnchorSequenceTest(RememberAnchorScope::mainAnchor) {
+        given("initial main view state") { initialState { mainViewState() } }
 
-    sequence {
         step { selectCounterStep() }
         step { selectHomeStep() }
     }
-}
 ```
