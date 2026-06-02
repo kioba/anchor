@@ -12,7 +12,7 @@ public interface GivenScope<R : Effect, S : ViewState, Err : Any> {
   )
 
   public suspend fun effect(
-    f: R.() -> Unit,
+    f: suspend R.() -> Unit,
   )
 
   public suspend fun effectScope(
