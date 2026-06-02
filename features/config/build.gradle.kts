@@ -13,6 +13,8 @@ kotlin {
     compileSdk = libs.versions.android.compileSdk.get().toInt()
     minSdk = libs.versions.android.minSdk.get().toInt()
 
+    withHostTest {}
+
     compilations.configureEach {
       compileTaskProvider.configure {
         compilerOptions {
@@ -59,6 +61,12 @@ kotlin {
       }
     }
 
+    commonTest {
+      dependencies {
+        implementation(libs.kotlin.test)
+        implementation(projects.anchorTest)
+      }
+    }
   }
 }
 

@@ -45,9 +45,9 @@ public class ContainerViewModel<R, S, Err>
     viewModelScope.launch(Dispatchers.Default) {
       safeExecute(anchor, anchor.onDomainError, anchor.defect) {
         anchor.consumeInitial()
-      }
-      with(anchor) {
-        subscribe()
+        with(anchor) {
+          subscribe()
+        }
       }
     }
   }

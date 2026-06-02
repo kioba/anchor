@@ -4,16 +4,16 @@ Anchor is a state management architecture for Kotlin Multiplatform with Jetpack 
 
 - **Repository**: https://github.com/kioba/anchor
 - **Docs**: https://kioba.github.io/anchor/
-- **Published version**: 0.1.0
+- **Published version**: 0.1.5
 - **Platforms**: Android, iOS (iosX64, iosArm64, iosSimulatorArm64), Desktop (JVM)
 
 ## Modules
 
 ```kotlin
 dependencies {
-    implementation("dev.kioba.anchor:anchor:0.1.3")        // Core state management
-    implementation("dev.kioba.anchor:anchor-compose:0.1.0") // Compose bindings
-    testImplementation("dev.kioba.anchor:anchor-test:0.1.0") // Testing DSL
+    implementation("dev.kioba.anchor:anchor:0.1.6")        // Core state management
+    implementation("dev.kioba.anchor:anchor-compose:0.1.6") // Compose bindings
+    testImplementation("dev.kioba.anchor:anchor-test:0.1.6") // Testing DSL
 }
 ```
 

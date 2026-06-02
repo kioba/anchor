@@ -5,8 +5,7 @@ import dev.kioba.anchor.ErrorScope
 import dev.kioba.anchor.ViewState
 
 @PublishedApi
-internal class GivenScopeImpl<R, S, Err> :
-  GivenScope<R, S, Err>
+internal class GivenScopeImpl<R, S, Err> : GivenScope<R, S, Err>, StepGivenScope<R, S, Err>
   where R : Effect, S : ViewState, Err : Any {
   @PublishedApi
   internal var initState: S? = null

@@ -90,3 +90,45 @@ fun MyPreview() {
     }
 }
 ```
+
+---
+
+## Error Handling API
+
+See the [Error Handling](errors.md) guide for a full walkthrough with examples. The key types are summarised below.
+
+### `Raise<Err>`
+
+Interface mixed into `Anchor<R, S, Err>`. Provides:
+
+- `raise(error: Err): Nothing` — short-circuits the current action; control passes to `onDomainError`.
+- `ensure(condition: Boolean, error: () -> Err)` — shorthand for `if (!condition) raise(error())`.
+- `Recover<Err, T>.getOrRaise(): T` — unwraps a `Recover.Ok` or re-raises its `Recover.Error`.
+
+### `Recover<Err, T>`
+
+Sealed return type for the `recover { }` block:
+
+- `Recover.Ok(value: T)` — the block completed without raising.
+- `Recover.Error(error: Err)` — the block called `raise()`.
+
+Helpers: `getOrNull()`, `getErrorOrNull()`, `getOrElse { }`, `fold(onError, onOk)`.
+
+### `recover { }` (standalone)
+
+```kotlin
+val result: Recover<MyError, String> = recover {
+    ensure(input.isNotBlank()) { MyError.Empty }
+    input.trim()
+}
+```
+
+Catches any `raise()` inside the block and returns a `Recover` instead of propagating to `onDomainError`.
+
+### `ErrorScope<R, S>`
+
+Typealias for `BaseAnchorScope<R, S>`. Used as the receiver in `onDomainError` and `defect` handlers. Provides `reduce`, `effect`, `post`, and `emit` — intentionally omits `raise` and `orDie` to prevent re-raising from handlers.
+
+### `DefectAnchor<Err>` / `orDie(error)`
+
+- `orDie(error: Err): Nothing` — escalates a domain error to the `defect` handler, bypassing `onDomainError`. Use for programmer errors and broken invariants, not user-facing validation.

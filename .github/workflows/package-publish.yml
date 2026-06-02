@@ -13,7 +13,6 @@ jobs:
     runs-on: macos-latest
     permissions:
       contents: write
-      packages: write
       pull-requests: write
 
     steps:
@@ -37,16 +36,24 @@ jobs:
             echo "No changes since $LAST_TAG — skipping publish"
           fi
 
-      - name: Verify llms-full.txt is up to date
+      - name: Validate publish secrets
         if: steps.changes.outputs.has_changes == 'true'
         run: |
-          cp docs/llms-full.txt /tmp/llms-full-before.txt
-          bash scripts/generate-llms-full.sh
-          if ! diff -q /tmp/llms-full-before.txt docs/llms-full.txt > /dev/null 2>&1; then
-            echo "::error::docs/llms-full.txt is out of date. Run: bash scripts/generate-llms-full.sh"
+          MISSING=""
+          [ -z "$MC_USER" ] && MISSING="$MISSING MAVEN_CENTRAL_USERNAME"
+          [ -z "$MC_PASS" ] && MISSING="$MISSING MAVEN_CENTRAL_PASSWORD"
+          [ -z "$GPG_KEY" ] && MISSING="$MISSING GPG_SECRET_KEY"
+          [ -z "$GPG_PW"  ] && MISSING="$MISSING GPG_PASSWORD"
+          if [ -n "$MISSING" ]; then
+            echo "::error::Missing required secrets:$MISSING"
             exit 1
           fi
-          echo "llms-full.txt is up to date"
+          echo "All required secrets are present"
+        env:
+          MC_USER: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MC_PASS: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          GPG_KEY: ${{ secrets.GPG_SECRET_KEY }}
+          GPG_PW: ${{ secrets.GPG_PASSWORD }}
 
       - name: set up JDK 21
         if: steps.changes.outputs.has_changes == 'true'
@@ -57,11 +64,11 @@ jobs:
 
       - name: Setup Android SDK
         if: steps.changes.outputs.has_changes == 'true'
-        uses: android-actions/setup-android@v2
+        uses: android-actions/setup-android@v3
 
       - name: Setup Gradle
         if: steps.changes.outputs.has_changes == 'true'
-        uses: gradle/gradle-build-action@v2
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Setup Xcode
         if: steps.changes.outputs.has_changes == 'true'
@@ -69,13 +76,37 @@ jobs:
         with:
           xcode-version: latest-stable
 
-      - name: Publish to Repositories
+      - name: Print toolchain versions
         if: steps.changes.outputs.has_changes == 'true'
         run: |
-          ./gradlew publishAllPublicationsToGithubPackagesRepository publishAllPublicationsToMavenCentralRepository
+          echo "=== Java ==="
+          java -version
+          echo "=== Gradle ==="
+          ./gradlew --version
+          echo "=== Xcode ==="
+          xcodebuild -version || true
+          echo "=== gradle.properties ==="
+          grep -v -E '^(#|$)' gradle.properties
+
+      - name: Assemble publishable artifacts
+        if: steps.changes.outputs.has_changes == 'true'
+        timeout-minutes: 30
+        run: >
+          ./gradlew
+          :anchor:assemble
+          :anchor-compose:assemble
+          :anchor-test:assemble
+          :anchor-internal:assemble
+          --stacktrace
+
+      - name: Publish to Maven Central
+        if: steps.changes.outputs.has_changes == 'true'
+        timeout-minutes: 30
+        run: >
+          ./gradlew publishAndReleaseToMavenCentral
+          --no-configuration-cache
+          --stacktrace
         env:
-          ORG_GRADLE_PROJECT_githubPackagesUsername: ${{ github.actor }}
-          ORG_GRADLE_PROJECT_githubPackagesPassword: ${{ secrets.GITHUB_TOKEN }}
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.GPG_SECRET_KEY }}
@@ -117,11 +148,11 @@ jobs:
           git checkout -b "$BRANCH"
           sed -i '' "s/^POM_VERSION=.*/POM_VERSION=$NEXT_VERSION/" gradle.properties
           GROUP_ID=$(grep '^POM_GROUP_ID=' gradle.properties | cut -d'=' -f2)
-          sed -i '' "s|${GROUP_ID}:anchor:[0-9]*\.[0-9]*\.[0-9]*|${GROUP_ID}:anchor:${VERSION}|g" README.md
+          sed -i '' -E "s|(${GROUP_ID}:anchor[a-z-]*):[0-9]+\.[0-9]+\.[0-9]+|\1:${VERSION}|g" README.md
           sed -i '' "s|version: \"[0-9]*\.[0-9]*\.[0-9]*\"|version: \"${VERSION}\"|" mkdocs.yml
           sed -i '' "s|Published version: \`[0-9]*\.[0-9]*\.[0-9]*\`|Published version: \`${VERSION}\`|g" CLAUDE.md
           bash scripts/generate-llms-full.sh
-          sed -i '' "s|${GROUP_ID}:anchor:[0-9]*\.[0-9]*\.[0-9]*|${GROUP_ID}:anchor:${VERSION}|g" AGENTS.md
+          sed -i '' -E "s|(${GROUP_ID}:anchor[a-z-]*):[0-9]+\.[0-9]+\.[0-9]+|\1:${VERSION}|g" AGENTS.md
           sed -i '' "s|Published version: [0-9]*\.[0-9]*\.[0-9]*|Published version: ${VERSION}|" AGENTS.md
           git add gradle.properties README.md mkdocs.yml CLAUDE.md AGENTS.md docs/llms-full.txt
           git commit -m "🔖 Bump version to $NEXT_VERSION"
