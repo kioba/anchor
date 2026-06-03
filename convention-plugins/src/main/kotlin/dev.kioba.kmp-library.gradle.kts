@@ -16,7 +16,7 @@ kotlin {
 
   android {
     namespace = "dev.kioba.${project.name.replace("-", ".")}"
-    compileSdk = 36
+    compileSdk = 37
     minSdk = 23
 
     withHostTest {}
