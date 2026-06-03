@@ -79,12 +79,12 @@ class SubscriptionDslTest {
           initialState = { TestState(value = 0) },
           effectScope = { EmptyEffect },
           subscriptions = {
-            listen<SubTestEvent.Crash> { events ->
+            connect<SubTestEvent.Crash> { events ->
               events.map<SubTestEvent.Crash, Unit> { event ->
                 throw IllegalStateException("subscription boom: ${event.value}")
               }
             }
-            listen<SubTestEvent.Survive> { events ->
+            connect<SubTestEvent.Survive> { events ->
               events.onEach { event -> survivedValues.add(event.value) }
             }
           },
@@ -99,7 +99,7 @@ class SubscriptionDslTest {
         }
         val supervisor = supervisorReady.await()
 
-        // Wait for both listen() flows to start collecting from _emitter.
+        // Wait for both connect() flows to start collecting from _emitter.
         withTimeout(2_000) {
           while (anchor._emitter.subscriptionCount.value < 2) yield()
         }

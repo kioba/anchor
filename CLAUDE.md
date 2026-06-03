@@ -228,7 +228,7 @@ Subscriptions set up reactive event handling chains:
 
 ```kotlin
 suspend fun MainSubScope.subscriptions() {
-  listen(::refresh)  // Connect event flow to handler
+  connect(::refresh)  // Connect event flow to handler
 }
 
 internal fun MainSubScope.refresh(flow: Flow<MainEvent>): Flow<Int> =

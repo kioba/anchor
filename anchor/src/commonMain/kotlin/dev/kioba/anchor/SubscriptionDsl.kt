@@ -53,19 +53,19 @@ public class SubscriptionsScope<R, S, Err>(
     }
 
   /**
-   * Listens for internal [Event]s of type [A].
+   * Connects a handler to internal [Event]s of type [A].
    *
-   * @param A The type of [Event] to listen for.
+   * @param A The type of [Event] to connect to.
    * @param block A transformation block that takes a [Flow] of [A] and returns a [Flow] to be collected.
    *
    * Example:
    * ```kotlin
-   * listen<MyEvent.Finished> { events ->
+   * connect<MyEvent.Finished> { events ->
    *   events.onEach { /* do something */ }
    * }
    * ```
    */
-  public suspend inline fun <reified A> listen(
+  public suspend inline fun <reified A> connect(
     crossinline block: (Flow<A>) -> Flow<*>,
   ) where A : Event {
     wrap {

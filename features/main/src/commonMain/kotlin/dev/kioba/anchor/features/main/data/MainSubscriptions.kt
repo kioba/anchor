@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.onEach
 
 internal suspend fun MainSubScope.subscriptions() {
-  listen(::refresh)
+  connect(::refresh)
 }
 
 internal fun MainEffect.helloListening(): Flow<Int> =
