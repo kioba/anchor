@@ -4,6 +4,7 @@ import dev.kioba.anchor.Anchor
 import dev.kioba.anchor.Effect
 import dev.kioba.anchor.RememberAnchorScope
 import dev.kioba.anchor.ViewState
+import kotlinx.coroutines.delay
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -107,6 +108,31 @@ class EffectTest {
 
       verify("state proves effect returned the custom value") {
         assertState { copy(result = "verify-me") }
+      }
+    }
+
+  /**
+   * Regression for #53: `given { effect { ... } }` must accept a suspending
+   * lambda so tests can seed effect-scope state via suspending setters
+   * (e.g. priming a fake repository). Calling `delay` inside the block
+   * proves the parameter is `suspend R.() -> Unit`.
+   */
+  @Test
+  fun givenEffectAcceptsSuspendingBlock() =
+    runAnchorTest(RememberAnchorScope::fxAnchor) {
+      given("suspending seed inside effect") {
+        effect {
+          delay(1)
+        }
+      }
+
+      on("reading data from default effect") {
+        val d = effect { data }
+        reduce { copy(result = d) }
+      }
+
+      verify("state reflects default scope") {
+        assertState { copy(result = "default") }
       }
     }
 

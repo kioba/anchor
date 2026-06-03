@@ -7,7 +7,7 @@ import dev.kioba.anchor.test.AnchorTestDsl
 
 @AnchorTestDsl
 public interface StepGivenScope<R : Effect, S : ViewState, Err : Any> {
-  public suspend fun effect(f: R.() -> Unit)
+  public suspend fun effect(f: suspend R.() -> Unit)
 
   public fun onDomainError(f: suspend ErrorScope<R, S>.(Err) -> Unit)
 

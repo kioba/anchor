@@ -14,7 +14,7 @@ internal class GivenScopeImpl<R, S, Err> : GivenScope<R, S, Err>, StepGivenScope
   internal var effectScope: R? = null
 
   @PublishedApi
-  internal val effects: MutableList<(R.() -> Unit)> = mutableListOf()
+  internal val effects: MutableList<(suspend R.() -> Unit)> = mutableListOf()
 
   @PublishedApi
   internal var onDomainError: (suspend ErrorScope<R, S>.(Err) -> Unit)? = null
@@ -29,7 +29,7 @@ internal class GivenScopeImpl<R, S, Err> : GivenScope<R, S, Err>, StepGivenScope
   }
 
   override suspend fun effect(
-    f: R.() -> Unit,
+    f: suspend R.() -> Unit,
   ) {
     effects.add(f)
   }
