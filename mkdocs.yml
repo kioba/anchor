@@ -42,7 +42,7 @@ plugins:
   - macros
 
 extra:
-  version: "0.1.6"
+  version: "0.1.7"
   group_id: "dev.kioba.anchor"
   social:
     - icon: fontawesome/brands/github-alt
