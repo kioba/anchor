@@ -20,7 +20,7 @@ kotlinxSerializationJson = "1.11.0"
 
 # Compose versions
 foundation = "1.11.2"
-material3 = "1.5.0-alpha20"
+material3 = "1.5.0-alpha21"
 material3Android = "1.4.0"
 runtime = "1.11.2"
 ui = "1.11.2"
