@@ -148,7 +148,6 @@ class StandaloneRecoverTest {
 
     assertIs<Recover.Error<TestError>>(result)
     assertEquals(TestError.NotFound, result.error)
-    Unit
   }
 
   // -- Raise extension function --
@@ -166,7 +165,6 @@ class StandaloneRecoverTest {
 
     assertIs<Recover.Error<TestError>>(result)
     assertIs<TestError.Invalid>(result.error)
-    Unit
   }
 
   // -- Unhandled raise propagates --
