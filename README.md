@@ -27,9 +27,9 @@ Add the dependencies to your `build.gradle.kts`:
 
 ```kotlin
 dependencies {
-    implementation("dev.kioba.anchor:anchor:0.1.7")
-    implementation("dev.kioba.anchor:anchor-compose:0.1.7")
-    testImplementation("dev.kioba.anchor:anchor-test:0.1.7")
+    implementation("dev.kioba.anchor:anchor:0.1.8")
+    implementation("dev.kioba.anchor:anchor-compose:0.1.8")
+    testImplementation("dev.kioba.anchor:anchor-test:0.1.8")
 }
 ```
 
