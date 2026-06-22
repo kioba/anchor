@@ -7,7 +7,7 @@ android-compileSdk = "37"
 # plugin versions
 agp = "9.2.1"
 compose-plugin = "1.10.3"
-maven-publish = "0.36.0"
+maven-publish = "0.37.0"
 
 # Library versions
 activityKtx = "1.13.0"
