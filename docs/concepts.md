@@ -89,7 +89,7 @@ HandleSignal<MySignal.ShowError> { signal ->
 
 ```kotlin
 subscriptions = {
-    listen<Created> { events ->
+    connect<Created> { events ->
         events.anchor { loadData() }
     }
 }

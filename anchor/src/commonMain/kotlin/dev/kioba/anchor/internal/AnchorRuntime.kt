@@ -16,6 +16,7 @@ import dev.kioba.anchor.SubscriptionsScope
 import dev.kioba.anchor.ViewState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
@@ -27,7 +28,6 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onSubscription
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -90,7 +90,7 @@ internal class AnchorRuntime<R, S, Err>(
     init?.invoke(this@AnchorRuntime)
   }
 
-  private suspend fun <T : Event> SharedFlow<T>.handlers(): Flow<Any?> =
+  private suspend fun <T : Event> SharedFlow<T>.handlers(): List<Flow<*>> =
     SubscriptionsScope<R, S, Err>(
       chain = this,
       anchor = this@AnchorRuntime,
@@ -105,12 +105,18 @@ internal class AnchorRuntime<R, S, Err>(
             throw e
           }
         }
-      }.merge()
+      }
 
-  suspend fun CoroutineScope.subscribe(): Job =
-    emitter
-      .handlers()
-      .launchIn(this)
+  suspend fun CoroutineScope.subscribe(): Job {
+    val handlers = emitter.handlers()
+    // SupervisorJob: a thrown subscription must not cancel siblings.
+    val supervisor = SupervisorJob(parent = this.coroutineContext[Job])
+    val supervised = CoroutineScope(this.coroutineContext + supervisor)
+    for (flow in handlers) {
+      flow.launchIn(supervised)
+    }
+    return supervisor
+  }
 
   // DSL
 
