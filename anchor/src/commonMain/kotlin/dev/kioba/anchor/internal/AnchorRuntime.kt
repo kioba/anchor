@@ -14,6 +14,7 @@ import dev.kioba.anchor.SignalScope
 import dev.kioba.anchor.SubscriptionScope
 import dev.kioba.anchor.SubscriptionsScope
 import dev.kioba.anchor.ViewState
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -111,7 +112,14 @@ internal class AnchorRuntime<R, S, Err>(
     val handlers = emitter.handlers()
     // SupervisorJob: a thrown subscription must not cancel siblings.
     val supervisor = SupervisorJob(parent = this.coroutineContext[Job])
-    val supervised = CoroutineScope(this.coroutineContext + supervisor)
+    // Without a handler, an exception a subscription rethrows past
+    // safeExecute (no defect handler configured) reaches each platform's
+    // default uncaught-exception path. The JVM/Android default just logs it;
+    // Kotlin/Native's default aborts the whole process. This handler makes
+    // "contained, not fatal" consistent across platforms — the isolation
+    // SupervisorJob provides already keeps it from touching sibling flows.
+    val containment = CoroutineExceptionHandler { _, _ -> }
+    val supervised = CoroutineScope(this.coroutineContext + supervisor + containment)
     for (flow in handlers) {
       flow.launchIn(supervised)
     }
