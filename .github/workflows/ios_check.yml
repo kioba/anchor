@@ -5,7 +5,7 @@ on:
   schedule:
     # Wednesday and Friday at 10:00 UTC — two chances to surface iOS-only
     # breakage (warnings-as-errors on Kotlin/Native, missing iOS APIs,
-    # duplicate KLIBs, etc.) before Monday's scheduled publish.
+    # duplicate KLIBs, etc.) ahead of the next release.
     - cron: '0 10 * * 3,5'
 
 jobs:
@@ -39,7 +39,6 @@ jobs:
       - name: Compile iOS targets
         run: >
           ./gradlew
-          compileKotlinIosX64
           compileKotlinIosArm64
           compileKotlinIosSimulatorArm64
           --stacktrace

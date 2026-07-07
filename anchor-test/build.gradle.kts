@@ -11,7 +11,6 @@ kotlin {
         implementation(libs.kotlin.coroutinesTest)
         implementation(libs.kotlin.test)
         api(projects.anchor)
-        api(projects.anchorInternal)
       }
     }
     commonTest {

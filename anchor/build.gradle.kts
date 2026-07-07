@@ -7,7 +7,6 @@ kotlin {
   sourceSets {
     commonMain {
       dependencies {
-        api(projects.anchorInternal)
         implementation(libs.kotlin.coroutinesCore)
         implementation(libs.lifecycle.viewmodel.core)
       }
