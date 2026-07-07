@@ -1,0 +1,41 @@
+name: 'cut release'
+
+on:
+  workflow_dispatch:
+
+jobs:
+  tag:
+    name: 'tag version and create GitHub release'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: checkout project
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read version from gradle.properties
+        id: version
+        run: |
+          VERSION=$(grep '^POM_VERSION=' gradle.properties | cut -d'=' -f2)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Version: $VERSION"
+
+      - name: Check tag does not already exist
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "::error::Tag $VERSION already exists — bump POM_VERSION in gradle.properties first"
+            exit 1
+          fi
+
+      - name: Create tag and GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          git tag "$VERSION"
+          git push origin "$VERSION"
+          gh release create "$VERSION" --generate-notes --title "v$VERSION"

@@ -8,4 +8,18 @@ updates:
   - package-ecosystem: "gradle" # See documentation for possible values
     directory: "/" # Location of package manifests
     schedule:
-      interval: "weekly"
+      interval: "cron"
+      # "mon%2" is fugit's modulo extension (used by Dependabot's cron parser)
+      # for every-other-Monday — there is no native "biweekly" interval.
+      cronjob: "0 10 * * mon%2"
+      timezone: "UTC"
+    groups:
+      # Combine routine minor/patch bumps into a single PR every run instead
+      # of one PR per dependency. Majors stay ungrouped since they can be
+      # breaking and deserve individual review.
+      gradle-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
