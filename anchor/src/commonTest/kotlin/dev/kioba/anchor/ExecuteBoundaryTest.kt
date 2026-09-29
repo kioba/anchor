@@ -86,27 +86,6 @@ class ExecuteBoundaryTest {
     }
 
   @Test
-  fun `CancellationException in execute is never swallowed`(): Unit =
-    runBlocking {
-      val capturedErrors = mutableListOf<TestError>()
-      val capturedDefects = mutableListOf<Throwable>()
-      val anchor =
-        createAnchor(
-          onDomainError = { capturedErrors.add(it) },
-          defect = { capturedDefects.add(it) },
-        )
-
-      assertFailsWith<CancellationException> {
-        safeExecute(anchor, anchor.onDomainError, anchor.defect) {
-          throw CancellationException("cancelled")
-        }
-      }
-
-      assertEquals(0, capturedErrors.size, "CancellationException must not reach onDomainError")
-      assertEquals(0, capturedDefects.size, "CancellationException must not reach defect handler")
-    }
-
-  @Test
   fun `cancelling the coroutine running safeExecute is never routed`(): Unit =
     runBlocking {
       val capturedErrors = mutableListOf<TestError>()

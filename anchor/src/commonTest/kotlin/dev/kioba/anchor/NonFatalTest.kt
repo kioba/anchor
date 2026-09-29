@@ -26,20 +26,6 @@ class NonFatalTest {
     )
 
   @Test
-  fun `CancellationException is fatal and rethrown even with defect handler`(): Unit = runBlocking {
-    val capturedDefects = mutableListOf<Throwable>()
-    val anchor = createAnchor(defect = { capturedDefects.add(it) })
-
-    assertFailsWith<CancellationException> {
-      catchDefects(anchor, anchor.defect) {
-        throw CancellationException("cancelled")
-      }
-    }
-
-    assertEquals(0, capturedDefects.size, "CancellationException must not reach defect handler")
-  }
-
-  @Test
   fun `the coroutine's own cancellation is rethrown even with defect handler`(): Unit = runBlocking {
     val capturedDefects = mutableListOf<Throwable>()
     val anchor = createAnchor(defect = { capturedDefects.add(it) })

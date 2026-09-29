@@ -4,6 +4,7 @@ import dev.kioba.anchor.internal.AnchorRuntime
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
@@ -21,6 +22,7 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 private sealed interface LoadEvent : Event {
@@ -306,26 +308,30 @@ class SubscriptionIsolationTest {
       }
     }
 
-  // Pins current behavior that plans/030 is expected to change. Update this
-  // test there; nothing else in this file depends on it.
   @Test
-  fun `a timeout inside an anchor action ends its listener without reaching defect`(): Unit =
+  fun `a timeout inside an anchor action is routed to defect and the listener survives`(): Unit =
     runBlocking {
+      val loads = MutableStateFlow<List<Boolean>>(emptyList())
       val defects = MutableStateFlow<List<Throwable>>(emptyList())
       val anchor =
         createAnchor(defect = { e -> defects.update { it + e } }) {
           connect<LoadEvent.Load> { events ->
-            events.anchor { withTimeout(1) { awaitCancellation() } }
+            events.anchor { event ->
+              if (event.fail) withTimeout(1) { awaitCancellation() }
+              loads.update { it + event.fail }
+            }
           }
         }
 
       anchor.withListeners(listeners = 1) { supervisor ->
         anchor.emit { LoadEvent.Load(fail = true) }
-        supervisor.awaitLiveListeners(0)
+        anchor.emit { LoadEvent.Load(fail = false) }
 
-        // TimeoutCancellationException is a CancellationException: fatal to
-        // safeExecute, so it ends the listener and is never reported.
-        assertEquals(emptyList(), defects.value)
+        // The listener is still active when the timeout fires, so the
+        // cancellation is a failure of this event, not the end of the chain.
+        assertEquals(listOf(false), loads.awaitSize(1))
+        assertIs<TimeoutCancellationException>(defects.value.single())
+        supervisor.awaitLiveListeners(1)
       }
     }
 
