@@ -38,9 +38,15 @@ public class SubscriptionsScope<R, S, Err>(
   /**
    * Extension function to execute an action on the [Anchor] for each value emitted by a [Flow].
    *
-   * If the action calls [Raise.raise] or throws, the error is routed to the `onDomainError`
-   * or `defect` handler for that value, and the chain keeps running. If the matching handler
-   * is not configured, the error ends the chain.
+   * If the action calls [Raise.raise] or throws, the error is routed for that value, and the
+   * chain keeps running:
+   * - a domain error goes to `onDomainError`, or, if that is not configured, to `defect` as a
+   *   [DomainDefectException], as `orDie` would;
+   * - any other exception goes to `defect`. That includes a cancellation that does not come
+   *   from cancelling the chain, such as a `withTimeout` expiry.
+   *
+   * If no matching handler is configured, or the handler itself throws, the error ends the
+   * chain. It is not routed a second time on the way out.
    *
    * Errors thrown before this operator, such as in an inner flow of `flatMapLatest`, are not
    * covered: see [connect] and [anchorErrors].
@@ -77,8 +83,11 @@ public class SubscriptionsScope<R, S, Err>(
    * retried.
    *
    * Cancelling the coroutine that collects the flow, including `flatMapLatest` switching to
-   * the next event, is never routed. If the matching handler is not configured, the error is
-   * rethrown, which ends the chain as it would without this operator.
+   * the next event, is never routed. A cancellation that does not come from cancelling it,
+   * such as a `withTimeout` expiry upstream, is an error like any other and goes to `defect`.
+   * If the matching handler is not configured, or the handler itself throws, the error is
+   * rethrown without being routed again, which ends the chain as it would without this
+   * operator. So is an error that an `.anchor {}` upstream has already routed.
    *
    * Example:
    * ```kotlin
@@ -112,8 +121,9 @@ public class SubscriptionsScope<R, S, Err>(
    * An error inside an `.anchor {}` action is routed for that value, and the handler keeps
    * running. An error that escapes the chain anywhere else, such as an operator before or
    * after `.anchor {}` or an inner flow of `flatMapLatest`, is routed to `onDomainError` or
-   * `defect` once and ends this handler for the rest of the anchor's life. A handler that
-   * has ended is not restarted. Other handlers keep running either way.
+   * `defect` once and ends this handler for the rest of the anchor's life. An exception
+   * thrown by `onDomainError` or `defect` is never routed again: it ends this handler too. A
+   * handler that has ended is not restarted. Other handlers keep running either way.
    *
    * To keep the handler alive when an inner flow fails, end the inner flow with
    * [anchorErrors].

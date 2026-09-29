@@ -474,7 +474,7 @@ fun RememberAnchorScope.configAnchor(): ConfigAnchor =
 
 Sealed interfaces give you exhaustive `when` expressions — the compiler tells you if you add a new error variant and forget to handle it. The `onDomainError` lambda receives `ErrorScope<R, S>` as its receiver, which provides `reduce`, `effect`, `post`, and `emit` — but intentionally **not** `raise` or `orDie`. Error handlers are terminal; they cannot re-raise.
 
-Both handlers are optional. Omitting `onDomainError` means an unhandled `raise()` crashes the coroutine. Omitting `defect` lets unexpected exceptions propagate normally.
+Both handlers are optional. Without `onDomainError`, a `raise()` escalates to `defect` as a `DomainDefectException`, as `orDie()` would. An error that no handler takes ends the action, or the subscription, it came from. A `raise()` with neither handler, or a cancellation such as a `withTimeout` expiry with no `defect`, ends it silently. Any other exception from an action or `init` also reaches the platform's uncaught-exception handler, which on Android crashes the app.
 
 ---
 
@@ -563,6 +563,7 @@ suspend fun MyAnchor.processItem(id: Int) {
     `raise()` is for expected, recoverable errors (validation failures, network errors a retry might fix).
     `orDie()` is for unexpected failures that indicate a bug.
     The `defect` handler runs for `orDie()` calls **and** for any uncaught `Throwable` from your action.
+    That includes a `withTimeout` that expires (`TimeoutCancellationException`) and any other `CancellationException` that does not come from cancelling the action itself. Use `withTimeoutOrNull` to handle a timeout in place, and `return` rather than throw `CancellationException` to end an action early.
 
 ---
 

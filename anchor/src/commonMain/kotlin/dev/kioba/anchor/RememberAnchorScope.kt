@@ -18,8 +18,13 @@ public interface RememberAnchorScope {
    * @param initialState A factory function for the initial [ViewState].
    * @param init An optional initialization block executed once when the Anchor is created.
    * @param subscriptions An optional block for setting up event subscriptions.
-   * @param onDomainError An optional callback invoked when a domain error is raised.
-   * @param defect An optional callback invoked when an unexpected error occurs.
+   * @param onDomainError An optional callback invoked when a domain error is raised. Without
+   *   it, a raised domain error goes to `defect` as a [DomainDefectException]; with neither
+   *   handler, the action stops silently.
+   * @param defect An optional callback invoked when an unexpected error occurs. It also
+   *   receives a cancellation that does not come from cancelling the anchor, such as a
+   *   `withTimeout` expiry, and, as a [DomainDefectException], a domain error raised while
+   *   `onDomainError` is absent.
    * @return A new [Anchor] instance.
    *
    * Example:
