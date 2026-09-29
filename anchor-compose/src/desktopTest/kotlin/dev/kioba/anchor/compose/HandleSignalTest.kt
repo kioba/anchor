@@ -2,11 +2,16 @@ package dev.kioba.anchor.compose
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.lifecycle.Lifecycle
+import dev.kioba.anchor.EmptyEffect
+import dev.kioba.anchor.RememberAnchorScope
 import dev.kioba.anchor.SignalProvider
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
@@ -26,6 +31,20 @@ private suspend fun TestAnchor.postThenComplete(
   post { signal }
   done.complete(Unit)
 }
+
+/** An anchor whose `init` posts [signals], then completes [posted]. */
+private fun RememberAnchorScope.initSignalAnchor(
+  signals: List<TestSignal>,
+  posted: CompletableDeferred<Unit>,
+): TestAnchor =
+  create(
+    initialState = ::TestState,
+    effectScope = { EmptyEffect },
+    init = {
+      signals.forEach { signal -> post { signal } }
+      posted.complete(Unit)
+    },
+  )
 
 /**
  * Counts the collectors attached to the anchor's signal stream, so a test can wait for a
@@ -192,8 +211,62 @@ class HandleSignalTest {
       postAndAwait(post, TestSignal.Toast(3))
       waitUntil(conditionDescription = "Toast(3) handled", timeoutMillis = 5_000) { 3 in received }
       drainUiThread()
-      // Toast(2) was posted while no collector was attached. The signal stream has no replay, so it
-      // is dropped, not delivered on restart (plan 024 / #266 changes this to [1, 2, 3]).
-      assertEquals(listOf(1, 3), received.toList())
+      // Toast(2) was posted while no collector was attached. It is held and delivered once the
+      // collector re-attaches, ahead of Toast(3).
+      assertEquals(listOf(1, 2, 3), received.toList())
+    }
+
+  @Test
+  fun `signals posted from init reach two typed handlers`() =
+    runComposeUiTest {
+      val posted = CompletableDeferred<Unit>()
+      val toasts = CopyOnWriteArrayList<Int>()
+      val others = CopyOnWriteArrayList<TestSignal.Other>()
+      setContent {
+        RememberAnchor(
+          scope = { initSignalAnchor(listOf(TestSignal.Other, TestSignal.Toast(1)), posted) },
+          customKey = "init-two-handlers",
+        ) {
+          HandleSignal<TestSignal.Toast> { toasts += it.n }
+          HandleSignal<TestSignal.Other> { others += it }
+        }
+      }
+
+      waitUntil(conditionDescription = "both init signals handled", timeoutMillis = 5_000) {
+        toasts.isNotEmpty() && others.isNotEmpty()
+      }
+      drainUiThread()
+      assertEquals(listOf(1), toasts.toList())
+      assertEquals(listOf(TestSignal.Other), others.toList())
+    }
+
+  @Test
+  fun `each typed handler attaching after init receives only its own held signal`() =
+    runComposeUiTest {
+      val posted = CompletableDeferred<Unit>()
+      val toasts = CopyOnWriteArrayList<Int>()
+      val others = CopyOnWriteArrayList<TestSignal.Other>()
+      var showHandlers by mutableStateOf(false)
+      setContent {
+        RememberAnchor(
+          scope = { initSignalAnchor(listOf(TestSignal.Other, TestSignal.Toast(1)), posted) },
+          customKey = "init-late-handlers",
+        ) {
+          if (showHandlers) {
+            // The Toast handler attaches first. It must leave the held Other for the Other handler.
+            HandleSignal<TestSignal.Toast> { toasts += it.n }
+            HandleSignal<TestSignal.Other> { others += it }
+          }
+        }
+      }
+      waitUntil(conditionDescription = "init posted", timeoutMillis = 5_000) { posted.isCompleted }
+
+      runOnUiThread { showHandlers = true }
+      waitUntil(conditionDescription = "both held signals handled", timeoutMillis = 5_000) {
+        toasts.isNotEmpty() && others.isNotEmpty()
+      }
+      drainUiThread()
+      assertEquals(listOf(1), toasts.toList())
+      assertEquals(listOf(TestSignal.Other), others.toList())
     }
 }
