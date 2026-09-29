@@ -1,5 +1,7 @@
 package dev.kioba.anchor
 
+import dev.kioba.anchor.internal.isHandledEscape
+import dev.kioba.anchor.internal.recordHandledEscape
 import dev.kioba.anchor.internal.safeExecute
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -51,8 +53,14 @@ public class SubscriptionsScope<R, S, Err>(
     action: suspend Anchor<R, S, Err>.(I) -> Unit,
   ): Flow<I> =
     onEach { value ->
-      safeExecute(anchor, onDomainError, defect) {
-        anchor.action(value)
+      try {
+        safeExecute(anchor, onDomainError, defect) {
+          anchor.action(value)
+        }
+      } catch (e: Throwable) {
+        // It had its turn at the handlers; the chain must not route it again.
+        recordHandledEscape(e)
+        throw e
       }
     }
 
@@ -86,8 +94,15 @@ public class SubscriptionsScope<R, S, Err>(
    */
   public fun <T> Flow<T>.anchorErrors(): Flow<T> =
     catch { error ->
-      safeExecute(anchor, onDomainError, defect) {
-        throw error
+      // An escape from an `.anchor {}` upstream was routed where it escaped.
+      if (isHandledEscape(error)) throw error
+      try {
+        safeExecute(anchor, onDomainError, defect) {
+          throw error
+        }
+      } catch (e: Throwable) {
+        recordHandledEscape(e)
+        throw e
       }
     }
 

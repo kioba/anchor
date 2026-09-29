@@ -31,7 +31,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.onSubscription
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -141,6 +141,8 @@ internal class AnchorRuntime<R, S, Err>(
       .flows
       .map { flow ->
         flow.catch { e ->
+          // Already routed where it escaped (see HandledEscape).
+          if (isHandledEscape(e)) throw e
           safeExecute(this@AnchorRuntime, onDomainError, defect) {
             throw e
           }
@@ -177,7 +179,7 @@ internal class AnchorRuntime<R, S, Err>(
     val supervised = CoroutineScope(this.coroutineContext + supervisor + containment + dispatcher)
     try {
       for (flow in handlers) {
-        flow.launchIn(supervised)
+        supervised.launch(HandledEscape()) { flow.collect() }
       }
     } finally {
       dispatcher.starting = false

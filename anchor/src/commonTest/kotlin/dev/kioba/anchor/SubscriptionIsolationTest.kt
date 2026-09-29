@@ -38,11 +38,13 @@ private class LoadFailure(message: String) : RuntimeException(message)
  * while the listener keeps running.
  *
  * An error inside an `.anchor {}` action is routed to `onDomainError` or
- * `defect` for that event only. An error anywhere else in the chain (an
+ * `defect` for that event only. That includes a cancellation that does not
+ * come from the scope, such as a `withTimeout` expiry, and a domain error
+ * with only `defect` configured. An error anywhere else in the chain (an
  * operator before or after `.anchor {}`, or a `flatMapLatest` inner flow) is
- * routed once and ends the listener for good. So are unhandled errors,
- * cancellation exceptions that do not come from the scope, and an error
- * handler that throws. Sibling listeners keep running in every case.
+ * routed once and ends the listener for good. An error with no matching
+ * handler, and an error handler that throws, end the listener without being
+ * routed again. Sibling listeners keep running in every case.
  *
  * `anchorErrors()` at the end of an inner flow keeps the listener alive; see
  * `AnchorErrorsTest`.
@@ -341,10 +343,8 @@ class SubscriptionIsolationTest {
       }
     }
 
-  // Pins current behavior that plans/030 is expected to change (the handler
-  // runs twice). Update this test there; nothing else depends on it.
   @Test
-  fun `a defect handler that throws ends the listener`(): Unit =
+  fun `a defect handler that throws is invoked once and ends the listener`(): Unit =
     runBlocking {
       val defects = MutableStateFlow<List<String?>>(emptyList())
       val anchor =
@@ -361,8 +361,9 @@ class SubscriptionIsolationTest {
         anchor.emit { LoadEvent.Load(fail = true) }
         supervisor.awaitLiveListeners(0)
 
-        // The chain-level catch hands the handler's own failure back to it.
-        assertEquals(listOf<String?>("action failed", "defect handler failed"), defects.value)
+        // The handler's own failure is not routed back to it: it is an
+        // unhandled failure, so it ends the listener.
+        assertEquals(listOf<String?>("action failed"), defects.value)
       }
     }
 

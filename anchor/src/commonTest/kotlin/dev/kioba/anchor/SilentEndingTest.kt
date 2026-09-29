@@ -20,6 +20,7 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
@@ -41,6 +42,8 @@ private sealed interface SilentEvent : Event {
 }
 
 private class SilentFailure(message: String) : RuntimeException(message)
+
+private class WrappedFailure(message: String, cause: Throwable) : RuntimeException(message, cause)
 
 /**
  * Errors that used to end work without reaching any handler: a cancellation
@@ -484,6 +487,32 @@ class SilentEndingTest {
         supervisor.awaitLiveListeners(0)
 
         assertEquals(listOf<String?>("action failed"), defects.value)
+      }
+    }
+
+  @Test
+  fun `an exception that wraps an escaped one is routed as a new failure`(): Unit =
+    runBlocking {
+      val defects = MutableStateFlow<List<String?>>(emptyList())
+      val anchor =
+        createAnchor(
+          defect = { e ->
+            defects.update { it + e.message }
+            if (e is SilentFailure) throw IllegalStateException("defect handler failed")
+          },
+        ) {
+          connect<SilentEvent.Load> { events ->
+            events
+              .anchor { throw SilentFailure("action failed") }
+              .catch { e -> throw WrappedFailure("wrapped", e) }
+          }
+        }
+
+      anchor.withListeners(listeners = 1) { supervisor ->
+        anchor.emit { SilentEvent.Load(fail = true) }
+        supervisor.awaitLiveListeners(0)
+
+        assertEquals(listOf<String?>("action failed", "wrapped"), defects.value)
       }
     }
 
