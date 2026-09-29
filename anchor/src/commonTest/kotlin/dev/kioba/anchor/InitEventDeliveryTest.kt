@@ -7,16 +7,24 @@ import dev.kioba.anchor.internal.AnchorRuntime
 import dev.kioba.anchor.viewmodel.ContainerViewModel
 import dev.kioba.anchor.viewmodel.ContainerViewModelFactory
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Runnable
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.coroutines.CoroutineContext
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.fail
@@ -25,6 +33,29 @@ private sealed interface InitEvent : Event {
   data object Setup : InitEvent
 
   data object Ping : InitEvent
+}
+
+/**
+ * Runs nothing dispatched to it until [drain] starts, standing in for a busy
+ * dispatcher that a handler moves its collection to.
+ */
+private class HeldDispatcher : CoroutineDispatcher() {
+  private val held = Channel<Runnable>(Channel.UNLIMITED)
+
+  override fun dispatch(
+    context: CoroutineContext,
+    block: Runnable,
+  ) {
+    held.trySend(block)
+  }
+
+  suspend fun drain() {
+    for (block in held) block.run()
+  }
+
+  fun close() {
+    held.close()
+  }
 }
 
 class InitEventDeliveryTest {
@@ -273,6 +304,93 @@ class InitEventDeliveryTest {
         awaitOrFail("init waited for the Created handler, which waits for init") {
           anchor.viewState.first { it.value == 1 }
         }
+      }
+    }
+
+  @Test
+  fun `a handler that never collects its events does not block init`(): Unit =
+    runBlocking {
+      val repository = MutableStateFlow(7)
+      val observed = MutableStateFlow<List<Int>>(emptyList())
+      val anchor =
+        createAnchor(
+          init = { emit { InitEvent.Setup } },
+          subscriptions = {
+            // Ignores its events and never completes, like
+            // connect<E> { repository.observe().anchor(...) }.
+            connect<InitEvent.Setup> { _ -> repository.anchor { value -> observed.update { it + value } } }
+            connect<InitEvent.Setup> { events -> events.anchor { reduce { copy(value = 1) } } }
+          },
+        )
+
+      anchor.inViewModel {
+        awaitOrFail("init never ran, or its Setup event never reached the handler collecting its events") {
+          anchor.viewState.first { it.value == 1 }
+        }
+        assertEquals(listOf(7), observed.value)
+      }
+    }
+
+  @Test
+  fun `a handler that buffers its events receives init events`(): Unit =
+    runBlocking {
+      val received = MutableStateFlow<List<Event>>(emptyList())
+      val anchor =
+        createAnchor(
+          init = { emit { InitEvent.Setup } },
+          subscriptions = {
+            // buffer() collects its upstream in a coroutine of its own.
+            connect<Event> { events -> events.buffer().onEach { event -> received.update { it + event } } }
+          },
+        )
+
+      anchor.inViewModel {
+        val events =
+          awaitOrFail("the buffered handler did not receive both Created and Setup") {
+            received.first { it.size >= 2 }
+          }
+        assertEquals(listOf(Created, InitEvent.Setup), events)
+      }
+    }
+
+  @Test
+  fun `a handler that subscribes on another dispatcher misses events emitted before it attaches`(): Unit =
+    runBlocking {
+      val held = HeldDispatcher()
+      val received = MutableStateFlow<List<Event>>(emptyList())
+      val anchor =
+        createAnchor(
+          init = {
+            emit { InitEvent.Setup }
+            reduce { copy(value = 1) }
+          },
+          subscriptions = {
+            connect<Event> { events -> events.flowOn(held).onEach { event -> received.update { it + event } } }
+          },
+        )
+
+      try {
+        anchor.inViewModel {
+          awaitOrFail("init waited for a handler whose dispatcher had not run yet") {
+            anchor.viewState.first { it.value == 1 }
+          }
+
+          // flowOn collects upstream on its dispatcher, so the handler
+          // subscribes only once that dispatcher runs, after init's Setup.
+          launch(Dispatchers.Default) { held.drain() }
+          awaitOrFail("the flowOn handler never subscribed") {
+            anchor._emitter.subscriptionCount.first { it >= 1 }
+          }
+          anchor.emit { InitEvent.Ping }
+
+          val events =
+            awaitOrFail("the flowOn handler did not receive Created and Ping") {
+              received.first { it.size >= 2 }
+            }
+          assertEquals(listOf(Created, InitEvent.Ping), events)
+        }
+      } finally {
+        held.close()
       }
     }
 }
