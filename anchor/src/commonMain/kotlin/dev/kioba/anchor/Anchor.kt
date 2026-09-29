@@ -248,10 +248,14 @@ public interface SubscriptionAnchor {
    * handler receives events in emission order. An event emitted while no handler is attached is
    * dropped.
    *
-   * Subscriptions attach before `init` runs: `init` starts once every `connect` handler is
-   * collecting its event flow or has ended. Events emitted from `init` therefore reach every live
-   * handler, each after the [Created] event it receives on attach. A handler that never collects
-   * its event flow and never ends keeps `init` from running.
+   * `connect` handlers start before `init` runs, and each runs until it suspends. A handler that
+   * collects its event flow in its own coroutines, through operators such as `filter`, `map`,
+   * `flatMapLatest`, `buffer` or `combine`, is attached by then, so it receives the events `init`
+   * emits, after the [Created] event it receives on attach. A handler attaches later, and misses
+   * the events emitted before then, when its subscription waits on something else: `flowOn`
+   * another dispatcher, a scope from outside such as `shareIn`, or asynchronous work before it
+   * collects. `init` never waits for a handler to attach, so a handler that never collects its
+   * event flow, such as one observing a repository instead, does not hold it up.
    *
    * `emit` returns once the event is queued for every attached handler; it does not wait for any
    * handler to process it. It suspends only when 64 events are already pending behind the slowest

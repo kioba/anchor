@@ -14,15 +14,15 @@ import dev.kioba.anchor.SignalScope
 import dev.kioba.anchor.SubscriptionScope
 import dev.kioba.anchor.SubscriptionsScope
 import dev.kioba.anchor.ViewState
-import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.Runnable
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,11 +35,11 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onSubscription
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.plus
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import kotlin.coroutines.AbstractCoroutineContextElement
+import kotlin.concurrent.Volatile
+import kotlin.coroutines.ContinuationInterceptor
 import kotlin.coroutines.CoroutineContext
 
 /**
@@ -51,15 +51,28 @@ import kotlin.coroutines.CoroutineContext
 private const val EVENT_BUFFER_CAPACITY: Int = 64
 
 /**
- * Tags a `connect()` handler's coroutine so the event bus can tell when that
- * handler first subscribes. Coroutines that operators such as `flatMapLatest`
- * start to collect upstream inherit it, so it is found wherever the handler
- * subscribes.
+ * The dispatcher `connect()` handlers run on. While [starting], it runs every
+ * coroutine in place instead of dispatching it, including the ones operators
+ * such as `flatMapLatest`, `buffer` or `combine` start to collect upstream, so
+ * a handler launched then runs until everything it started is suspended.
+ * Afterwards it dispatches to [delegate] like any other dispatcher. A handler
+ * coroutine resumed from another thread during that short window runs in
+ * place on that thread.
  */
-private class HandlerAttachment(
-  val attached: CompletableDeferred<Unit>,
-) : AbstractCoroutineContextElement(HandlerAttachment) {
-  companion object Key : CoroutineContext.Key<HandlerAttachment>
+private class HandlerDispatcher(
+  private val delegate: CoroutineDispatcher,
+) : CoroutineDispatcher() {
+  @Volatile
+  var starting: Boolean = true
+
+  override fun isDispatchNeeded(context: CoroutineContext): Boolean =
+    !starting && delegate.isDispatchNeeded(context)
+
+  override fun dispatch(
+    context: CoroutineContext,
+    block: Runnable,
+  ): Unit =
+    delegate.dispatch(context, block)
 }
 
 @PublishedApi
@@ -111,12 +124,7 @@ internal class AnchorRuntime<R, S, Err>(
   private val emitter: SharedFlow<Event> =
     _emitter
       .asSharedFlow()
-      .onSubscription {
-        // Marked before Created is handled, so whatever Created triggers
-        // never holds up subscribe().
-        currentCoroutineContext()[HandlerAttachment]?.attached?.complete(Unit)
-        emit(Created)
-      }
+      .onSubscription { emit(Created) }
 
   internal suspend fun consumeInitial() {
     init?.invoke(this@AnchorRuntime)
@@ -140,12 +148,16 @@ internal class AnchorRuntime<R, S, Err>(
       }
 
   /**
-   * Launches every `connect()` handler and returns once each one is actively
-   * collecting the event bus, or has ended without doing so. An event emitted
-   * after this call returns is delivered to every live handler.
+   * Launches every `connect()` handler, running each in place until it
+   * suspends, and returns without waiting for any handler to subscribe.
    *
-   * A handler that never collects its event flow and never ends keeps this
-   * call suspended.
+   * A handler that collects its event flow in its own coroutines has
+   * subscribed by the time this returns, so it receives every event emitted
+   * afterwards. One whose subscription waits on anything else (`flowOn`
+   * another dispatcher, a scope from outside, asynchronous work before it
+   * collects) subscribes later and misses what is emitted before then. One
+   * that never collects its event flow never subscribes. Neither holds up
+   * the caller.
    */
   suspend fun CoroutineScope.subscribe(): Job {
     val handlers = emitter.handlers()
@@ -158,17 +170,18 @@ internal class AnchorRuntime<R, S, Err>(
     // "contained, not fatal" consistent across platforms — the isolation
     // SupervisorJob provides already keeps it from touching sibling flows.
     val containment = CoroutineExceptionHandler { _, _ -> }
-    val supervised = CoroutineScope(this.coroutineContext + supervisor + containment)
-    handlers
-      .map { flow ->
-        val attached = CompletableDeferred<Unit>()
-        flow
-          .launchIn(supervised + HandlerAttachment(attached))
-          // A handler that ends before subscribing can never receive an
-          // event, so it must not hold up the caller.
-          .invokeOnCompletion { attached.complete(Unit) }
-        attached
-      }.awaitAll()
+    val dispatcher =
+      HandlerDispatcher(
+        delegate = this.coroutineContext[ContinuationInterceptor] as? CoroutineDispatcher ?: Dispatchers.Default,
+      )
+    val supervised = CoroutineScope(this.coroutineContext + supervisor + containment + dispatcher)
+    try {
+      for (flow in handlers) {
+        flow.launchIn(supervised)
+      }
+    } finally {
+      dispatcher.starting = false
+    }
     return supervisor
   }
 
