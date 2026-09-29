@@ -2,8 +2,12 @@ package dev.kioba.anchor
 
 import dev.kioba.anchor.internal.AnchorRuntime
 import dev.kioba.anchor.internal.safeExecute
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.test.Test
@@ -100,6 +104,66 @@ class ExecuteBoundaryTest {
 
       assertEquals(0, capturedErrors.size, "CancellationException must not reach onDomainError")
       assertEquals(0, capturedDefects.size, "CancellationException must not reach defect handler")
+    }
+
+  @Test
+  fun `cancelling the coroutine running safeExecute is never routed`(): Unit =
+    runBlocking {
+      val capturedErrors = mutableListOf<TestError>()
+      val capturedDefects = mutableListOf<Throwable>()
+      val anchor =
+        createAnchor(
+          onDomainError = { capturedErrors.add(it) },
+          defect = { capturedDefects.add(it) },
+        )
+      val started = CompletableDeferred<Unit>()
+
+      val job =
+        launch {
+          safeExecute(anchor, anchor.onDomainError, anchor.defect) {
+            started.complete(Unit)
+            awaitCancellation()
+          }
+        }
+      started.await()
+      job.cancelAndJoin()
+
+      assertEquals(Triple(true, 0, 0), Triple(job.isCancelled, capturedErrors.size, capturedDefects.size))
+    }
+
+  @Test
+  fun `a CancellationException thrown while the coroutine is active reaches defect`(): Unit =
+    runBlocking {
+      val capturedDefects = mutableListOf<Throwable>()
+      val anchor = createAnchor(defect = { capturedDefects.add(it) })
+
+      val escaped =
+        runCatching {
+          safeExecute(anchor, anchor.onDomainError, anchor.defect) {
+            throw CancellationException("foreign")
+          }
+        }.exceptionOrNull()
+
+      assertEquals(Pair(listOf<String?>("foreign"), null), Pair(capturedDefects.map { it.message }, escaped))
+    }
+
+  @Test
+  fun `an unhandled RaisedException with only defect reaches it as DomainDefectException`(): Unit =
+    runBlocking {
+      val capturedDefects = mutableListOf<Throwable>()
+      val anchor = createAnchor(defect = { capturedDefects.add(it) })
+
+      val escaped =
+        runCatching {
+          safeExecute(anchor, anchor.onDomainError, anchor.defect) {
+            anchor.raise(TestError.NotFound)
+          }
+        }.exceptionOrNull()
+
+      assertEquals(
+        Pair(listOf<Any?>(TestError.NotFound), null),
+        Pair(capturedDefects.map { (it as? DomainDefectException)?.error }, escaped),
+      )
     }
 
   @Test

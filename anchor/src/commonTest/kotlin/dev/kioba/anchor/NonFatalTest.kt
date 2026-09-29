@@ -3,6 +3,10 @@ package dev.kioba.anchor
 import dev.kioba.anchor.internal.AnchorRuntime
 import dev.kioba.anchor.internal.catchDefects
 import dev.kioba.anchor.internal.safeExecute
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.test.Test
@@ -33,6 +37,30 @@ class NonFatalTest {
     }
 
     assertEquals(0, capturedDefects.size, "CancellationException must not reach defect handler")
+  }
+
+  @Test
+  fun `the coroutine's own cancellation is rethrown even with defect handler`(): Unit = runBlocking {
+    val capturedDefects = mutableListOf<Throwable>()
+    val anchor = createAnchor(defect = { capturedDefects.add(it) })
+    val started = CompletableDeferred<Unit>()
+    val rethrown = CompletableDeferred<Throwable>()
+
+    val job = launch {
+      try {
+        catchDefects(anchor, anchor.defect) {
+          started.complete(Unit)
+          awaitCancellation()
+        }
+      } catch (e: CancellationException) {
+        rethrown.complete(e)
+        throw e
+      }
+    }
+    started.await()
+    job.cancelAndJoin()
+
+    assertEquals(Pair(true, 0), Pair(rethrown.isCompleted, capturedDefects.size))
   }
 
   @Test
