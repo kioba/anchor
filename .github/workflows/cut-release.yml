@@ -5,10 +5,11 @@ on:
 
 jobs:
   tag:
-    name: 'tag version and create GitHub release'
+    name: 'tag version and dispatch publish'
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: write
 
     steps:
       - name: checkout project
@@ -31,11 +32,18 @@ jobs:
             exit 1
           fi
 
-      - name: Create tag and GitHub release
+      - name: Check CHANGELOG has a section for this version
+        run: bash scripts/release-notes.sh "${{ steps.version.outputs.version }}" > /dev/null
+
+      - name: Create tag and dispatch publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           git tag "$VERSION"
           git push origin "$VERSION"
-          gh release create "$VERSION" --generate-notes --title "v$VERSION"
+          # Pushing a tag with GITHUB_TOKEN does not start push-triggered
+          # workflows; workflow_dispatch always does. package-publish.yml
+          # creates the GitHub release after Maven Central succeeds.
+          gh workflow run package-publish.yml --ref "$VERSION"
+          echo "Dispatched 'publish package' for $VERSION"
