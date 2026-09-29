@@ -244,6 +244,28 @@ public interface SubscriptionAnchor {
   /**
    * Emits an internal event.
    *
+   * The event is delivered to every `connect` handler attached at the time of the call, and each
+   * handler receives events in emission order. An event emitted while no handler is attached is
+   * dropped.
+   *
+   * `connect` handlers start before `init` runs, and each runs until it suspends. A handler that
+   * collects its event flow in its own coroutines, through operators such as `filter`, `map`,
+   * `flatMapLatest`, `buffer` or `combine`, is attached by then, so it receives the events `init`
+   * emits, after the [Created] event it receives on attach. A handler attaches later, and misses
+   * the events emitted before then, when its subscription waits on something else: `flowOn`
+   * another dispatcher, a scope from outside such as `shareIn`, or asynchronous work before it
+   * collects. `init` never waits for a handler to attach, so a handler that never collects its
+   * event flow, such as one observing a repository instead, does not hold it up.
+   *
+   * `emit` returns once the event is queued for every attached handler; it does not wait for any
+   * handler to process it. It suspends only when 64 events are already pending behind the slowest
+   * handler, and resumes once that handler catches up.
+   *
+   * An action run by a `connect` handler, or an error handler invoked from it, can call `emit`.
+   * That handler takes no new events until the invocation returns, so an invocation that emits
+   * more than 64 events to a bus it is itself subscribed to (fewer if other events are already
+   * pending) fills the queue and suspends forever.
+   *
    * @param block A block that returns the [Event] to emit.
    *
    * Example:
