@@ -287,24 +287,30 @@ class SubscriptionIsolationTest {
       }
     }
 
-  // Pins current behavior that plans/030 is expected to change. Update this
-  // test there; nothing else in this file depends on it.
   @Test
-  fun `an unhandled domain error inside an anchor action ends its listener without reaching defect`(): Unit =
+  fun `a domain error with only defect configured is routed and the listener survives`(): Unit =
     runBlocking {
+      val loads = MutableStateFlow<List<Boolean>>(emptyList())
       val defects = MutableStateFlow<List<Throwable>>(emptyList())
       val anchor =
         createAnchor(defect = { e -> defects.update { it + e } }) {
-          connect<LoadEvent.Load> { events -> events.anchor { raise(TestError.NotFound) } }
+          connect<LoadEvent.Load> { events ->
+            events.anchor { event ->
+              if (event.fail) raise(TestError.NotFound)
+              loads.update { it + event.fail }
+            }
+          }
         }
 
       anchor.withListeners(listeners = 1) { supervisor ->
         anchor.emit { LoadEvent.Load(fail = true) }
-        supervisor.awaitLiveListeners(0)
+        anchor.emit { LoadEvent.Load(fail = false) }
 
-        // RaisedException is a CancellationException, which safeExecute
-        // treats as fatal, so with no onDomainError it bypasses defect.
-        assertEquals(emptyList(), defects.value)
+        // With no onDomainError, the error escalates to defect as orDie
+        // would, and is handled for this event only.
+        assertEquals(listOf(false), loads.awaitSize(1))
+        assertEquals(TestError.NotFound, assertIs<DomainDefectException>(defects.value.single()).error)
+        supervisor.awaitLiveListeners(1)
       }
     }
 

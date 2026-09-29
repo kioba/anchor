@@ -1,6 +1,7 @@
 package dev.kioba.anchor.internal
 
 import dev.kioba.anchor.Anchor
+import dev.kioba.anchor.DomainDefectException
 import dev.kioba.anchor.Effect
 import dev.kioba.anchor.ErrorScope
 import dev.kioba.anchor.RaisedException
@@ -58,8 +59,18 @@ public suspend inline fun <R, S, Err> safeExecute(
   block: () -> Unit,
 ) where R : Effect, S : ViewState, Err : Any {
   catchDefects(anchor, defect) {
-    catchDomainError(anchor, onDomainError) {
+    try {
       block()
+    } catch (e: RaisedException) {
+      @Suppress("UNCHECKED_CAST")
+      val error = e.error as Err
+      when {
+        onDomainError != null -> onDomainError.invoke(anchor, error)
+        // Escalate as orDie(error) would. Thrown inside catchDefects' block,
+        // so a defect handler that throws is not invoked a second time.
+        defect != null -> throw DomainDefectException(error)
+        else -> throw e
+      }
     }
   }
 }
