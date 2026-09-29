@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import dev.kioba.anchor.Anchor
 import dev.kioba.anchor.AnchorScope
 import dev.kioba.anchor.Effect
+import dev.kioba.anchor.Signal
 import dev.kioba.anchor.SignalProvider
 import dev.kioba.anchor.ViewState
 import dev.kioba.anchor.internal.AnchorRuntime
@@ -40,6 +41,16 @@ public class ContainerViewModel<R, S, Err>
 
   public val signals: Flow<SignalProvider>
     get() = anchor.signals
+
+  /**
+   * Signals accepted by [accepts]. Signals posted while no accepting collector was
+   * attached are held and delivered once to the first accepting collector.
+   * Used by `HandleSignal`; prefer that in Compose code.
+   */
+  public fun signalsMatching(
+    accepts: (Signal) -> Boolean,
+  ): Flow<SignalProvider> =
+    anchor.signalsMatching(accepts)
 
   override fun execute(
     block: suspend Anchor<R, S, *>.() -> Unit,

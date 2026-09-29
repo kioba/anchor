@@ -36,6 +36,7 @@ class InitSignalDeliveryTest {
         override val viewModelStore: ViewModelStore = store
       }
     val provider = ViewModelProvider.create(owner, ContainerViewModelFactory { ContainerViewModel(runtime) })
+
     @Suppress("UNCHECKED_CAST")
     val viewModel = provider[ContainerViewModel::class] as ContainerViewModel<EmptyEffect, TestState, TestError>
     try {

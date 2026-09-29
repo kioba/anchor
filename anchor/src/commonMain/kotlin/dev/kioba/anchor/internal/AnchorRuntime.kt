@@ -92,10 +92,7 @@ internal class AnchorRuntime<R, S, Err>(
   @Suppress("ktlint:standard:backing-property-naming", "PropertyName")
   internal val _viewState: MutableStateFlow<S> = MutableStateFlow(initialState())
 
-  @PublishedApi
-  @Suppress("ktlint:standard:backing-property-naming", "PropertyName")
-  internal val _signals: MutableSharedFlow<SignalProvider> =
-    MutableSharedFlow(extraBufferCapacity = 64)
+  internal val signalBus: SignalBus = SignalBus()
 
   @PublishedApi
   @Suppress("ktlint:standard:backing-property-naming", "PropertyName")
@@ -119,7 +116,12 @@ internal class AnchorRuntime<R, S, Err>(
 
   override val viewState: StateFlow<S> = _viewState.asStateFlow()
 
-  override val signals: SharedFlow<SignalProvider> = _signals.asSharedFlow()
+  override val signals: SharedFlow<SignalProvider> = signalBus.signals
+
+  internal fun signalsMatching(
+    accepts: (Signal) -> Boolean,
+  ): Flow<SignalProvider> =
+    signalBus.signalsMatching(accepts)
 
   private val emitter: SharedFlow<Event> =
     _emitter
@@ -282,7 +284,7 @@ internal class AnchorRuntime<R, S, Err>(
     block: SignalScope.() -> Signal,
   ) {
     val signal = SignalScope.block()
-    _signals.emit(SignalProvider { signal })
+    signalBus.post(SignalProvider { signal })
   }
 
   override suspend fun emit(
