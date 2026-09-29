@@ -41,6 +41,9 @@ private class LoadFailure(message: String) : RuntimeException(message)
  * routed once and ends the listener for good. So are unhandled errors,
  * cancellation exceptions that do not come from the scope, and an error
  * handler that throws. Sibling listeners keep running in every case.
+ *
+ * `anchorErrors()` at the end of an inner flow keeps the listener alive; see
+ * `AnchorErrorsTest`.
  */
 class SubscriptionIsolationTest {
 
@@ -282,6 +285,8 @@ class SubscriptionIsolationTest {
       }
     }
 
+  // Pins current behavior that plans/030 is expected to change. Update this
+  // test there; nothing else in this file depends on it.
   @Test
   fun `an unhandled domain error inside an anchor action ends its listener without reaching defect`(): Unit =
     runBlocking {
@@ -301,6 +306,8 @@ class SubscriptionIsolationTest {
       }
     }
 
+  // Pins current behavior that plans/030 is expected to change. Update this
+  // test there; nothing else in this file depends on it.
   @Test
   fun `a timeout inside an anchor action ends its listener without reaching defect`(): Unit =
     runBlocking {
@@ -322,6 +329,8 @@ class SubscriptionIsolationTest {
       }
     }
 
+  // Pins current behavior that plans/030 is expected to change (the handler
+  // runs twice). Update this test there; nothing else depends on it.
   @Test
   fun `a defect handler that throws ends the listener`(): Unit =
     runBlocking {
