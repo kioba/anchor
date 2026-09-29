@@ -56,6 +56,8 @@ espresso-core = { module = "androidx.test.espresso:espresso-core", version.ref =
 junit = { module = "junit:junit", version.ref = "junit" }
 kotlin-coroutinesTest = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
+compose-multiplatform-uiTest = { module = "org.jetbrains.compose.ui:ui-test", version.ref = "compose-plugin" }
+kotlin-coroutinesSwing = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-swing", version.ref = "kotlinxCoroutines" }
 
 # Kotlin libraries
 kotlin-coroutinesAndroid = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinxCoroutinesAndroid" }
