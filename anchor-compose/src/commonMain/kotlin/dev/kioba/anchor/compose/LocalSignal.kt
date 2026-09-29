@@ -15,11 +15,22 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 
 /**
- * CompositionLocal providing the stream of signals from the current Anchor.
+ * The signals of the current Anchor, filtered per collector so each [HandleSignal] claims only the held signals of
+ * its own type.
  */
 @PublishedApi
-internal val LocalSignals: ProvidableCompositionLocal<Flow<SignalProvider>> =
-  staticCompositionLocalOf { emptyFlow() }
+internal fun interface SignalSource {
+  fun signalsMatching(
+    accepts: (Signal) -> Boolean,
+  ): Flow<SignalProvider>
+}
+
+/**
+ * CompositionLocal providing the [SignalSource] of the current Anchor.
+ */
+@PublishedApi
+internal val LocalSignals: ProvidableCompositionLocal<SignalSource> =
+  staticCompositionLocalOf { SignalSource { emptyFlow() } }
 
 /**
  * Handles one-time [Signal]s emitted by an Anchor.
@@ -38,10 +49,15 @@ internal val LocalSignals: ProvidableCompositionLocal<Flow<SignalProvider>> =
  *   composition.
  * - The latest [block] is used for every signal. Passing a new lambda does not restart collection.
  *
- * Known limitation: a signal reaches only the handlers that are collecting when it is posted. A signal posted
- * while no handler is collecting is dropped, not buffered: for example from `init` before the first composition
- * starts collecting, while the lifecycle is below STARTED, or during a configuration change. Model outcomes
- * that must not be missed in state.
+ * Delivery guarantees: a posted signal is delivered to every collector that is attached and accepts it at the time
+ * of posting; a [HandleSignal] accepts the signals of type [T]. If no attached collector accepts it, the signal is
+ * held, up to 64 signals, dropping the oldest, and is delivered once to the first accepting collector that attaches
+ * afterwards. Delivered signals are never replayed. A signal already handed to a collector that is cancelled before
+ * processing it is lost.
+ *
+ * So a signal posted from `init` before the first composition collects, while the lifecycle is below STARTED, or
+ * during a configuration change reaches the first [HandleSignal] for its type once that one collects. Held signals
+ * live in memory only: process death loses them, so model outcomes that must survive it in state.
  *
  * @param T The type of [Signal] to handle.
  * @param block The suspend function to execute when a signal of type [T] is received.
@@ -58,14 +74,15 @@ internal val LocalSignals: ProvidableCompositionLocal<Flow<SignalProvider>> =
 public inline fun <reified T : Signal> HandleSignal(
   noinline block: @DisallowComposableCalls suspend (T) -> Unit,
 ) {
-  val signals = LocalSignals.current
+  val source = LocalSignals.current
   val update = rememberUpdatedState(block)
   val lifecycleOwner = LocalLifecycleOwner.current
   // Collect the stream directly. Reducing it to a latest-value State would conflate bursts, and keying the
   // effect on that value would cancel a running handler whenever the next signal arrives.
-  LaunchedEffect(signals, lifecycleOwner) {
+  LaunchedEffect(source, lifecycleOwner) {
     lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-      signals.collect { provider ->
+      // Filtered at the source, so this handler claims only held signals of type T and leaves the rest held.
+      source.signalsMatching { it is T }.collect { provider ->
         val signal = provider.provide()
         if (signal is T) {
           update.value(signal)

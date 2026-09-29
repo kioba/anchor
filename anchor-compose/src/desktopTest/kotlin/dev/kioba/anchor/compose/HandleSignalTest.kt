@@ -12,13 +12,9 @@ import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.lifecycle.Lifecycle
 import dev.kioba.anchor.EmptyEffect
 import dev.kioba.anchor.RememberAnchorScope
-import dev.kioba.anchor.SignalProvider
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.onSubscription
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.Test
@@ -56,32 +52,32 @@ private class SignalSubscribers {
   val count: Int
     get() = attached.get()
 
-  // onSubscription runs once the upstream subscription is registered, so a signal posted after
-  // count goes up reaches the collector. The decrement runs after the upstream slot is freed.
-  fun wrap(signals: Flow<SignalProvider>): Flow<SignalProvider> =
-    flow {
-      var subscribed = false
-      try {
-        emitAll(
-          (signals as SharedFlow<SignalProvider>).onSubscription {
-            subscribed = true
-            attached.incrementAndGet()
-          },
-        )
-      } finally {
-        if (subscribed) attached.decrementAndGet()
+  // The count goes up as the collector starts attaching. A signal posted before the upstream has
+  // finished attaching is held and handed over when it does, so posting then is safe. The
+  // decrement runs after the upstream has detached, so a signal posted at count 0 is held.
+  fun wrap(
+    source: SignalSource,
+  ): SignalSource =
+    SignalSource { accepts ->
+      flow {
+        attached.incrementAndGet()
+        try {
+          emitAll(source.signalsMatching(accepts))
+        } finally {
+          attached.decrementAndGet()
+        }
       }
     }
 }
 
-/** Provides [content] with the enclosing RememberAnchor's signal stream, counted by [subscribers]. */
+/** Provides [content] with the enclosing RememberAnchor's signal source, counted by [subscribers]. */
 @Composable
 private fun CountSubscribers(
   subscribers: SignalSubscribers,
   content: @Composable () -> Unit,
 ) {
-  val signals = LocalSignals.current
-  val counted = remember(signals) { subscribers.wrap(signals) }
+  val source = LocalSignals.current
+  val counted = remember(source) { subscribers.wrap(source) }
   CompositionLocalProvider(LocalSignals provides counted, content = content)
 }
 
