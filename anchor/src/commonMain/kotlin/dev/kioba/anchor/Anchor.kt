@@ -84,6 +84,14 @@ public abstract class AnchorSink<R, S, Err> : Anchor<R, S, Err>()
 
   /**
    * The stream of signals as a [SharedFlow].
+   *
+   * A posted signal is delivered to every collector that is attached and accepts it at the time of posting. If no
+   * attached collector accepts it, the signal is held, up to 64 signals, dropping the oldest, and is delivered once
+   * to the first accepting collector that attaches afterwards. Delivered signals are never replayed. A signal
+   * already handed to a collector that is cancelled before processing it is lost.
+   *
+   * A collector of this stream accepts every signal, so the first one to attach receives everything held,
+   * whatever its type.
    */
   public abstract val signals: SharedFlow<SignalProvider>
 }
@@ -291,6 +299,15 @@ public object SignalScope
 public interface SignalAnchor {
   /**
    * Posts a signal that can be handled by the UI.
+   *
+   * A posted signal is delivered to every collector that is attached and accepts it at the time of posting. If no
+   * attached collector accepts it, the signal is held, up to 64 signals, dropping the oldest, and is delivered once
+   * to the first accepting collector that attaches afterwards. Delivered signals are never replayed. A signal
+   * already handed to a collector that is cancelled before processing it is lost.
+   *
+   * So a signal posted from `init`, before the UI collects, is not lost. Held signals live in memory only: anything
+   * that must survive process death belongs in state. Suspends only while an accepting collector's buffer of 64
+   * signals is full.
    *
    * @param block A block that returns the [Signal] to post.
    *
