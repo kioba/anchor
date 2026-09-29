@@ -22,39 +22,37 @@ class SwiftSignalProvider: SignalProvider {
 }
 
 final class ViewModel<E, S>: ObservableObject where E: Effect, S: ViewState {
+  private let container: AnchorContainer<E, S>
   let anchorInstance: shared.Anchor<E, S, KotlinNothing>
   var anchor: AnchorAction<shared.Anchor<E, S, KotlinNothing>>
   @Published var state: S
   @Published var signal: SwiftSignalProvider
 
-  private var stateCollector: NativeCancellable?
-  private var signalCollector: NativeCancellable?
-
   init(factory: @escaping (any RememberAnchorScope) -> shared.Anchor<E, S, KotlinNothing>) {
-    let localAnchor = RememberAnchorKt.rememberAnchor(
+    let container = AnchorContainerKt.createAnchor(
       scope: { scope in factory(scope) as! shared.Anchor<any Effect, any ViewState, AnyObject> },
       customKey: nil
-    ) as! shared.Anchor<E, S, KotlinNothing>
+    ) as! AnchorContainer<E, S>
+    let localAnchor = container.anchor as! shared.Anchor<E, S, KotlinNothing>
 
+    self.container = container
     self.anchorInstance = localAnchor
     self.anchor = { action in Task { try await action(localAnchor) } }
-    self.state = localAnchor.state as! S
+    self.state = container.state
     self.signal = SwiftSignalProvider(signal: UnitSignal())
 
-    let sink = localAnchor as! shared.AnchorSink<E, S, KotlinNothing>
-
-    self.stateCollector = sink.nativeViewState().collect { [weak self] value in
-      self?.state = value as! S
+    // Both collectors stop in container.clear(); capture self weakly so deinit can run.
+    _ = container.collectState { [weak self] value in
+      self?.state = value
     }
 
-    self.signalCollector = sink.nativeSignals().collect { [weak self] value in
+    _ = container.collectSignals { [weak self] value in
       self?.signal = SwiftSignalProvider(signal: value.provide())
     }
   }
 
   deinit {
-    stateCollector?.cancel()
-    signalCollector?.cancel()
+    container.clear()
   }
 }
 
