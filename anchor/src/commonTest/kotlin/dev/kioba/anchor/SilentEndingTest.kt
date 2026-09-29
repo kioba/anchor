@@ -229,6 +229,38 @@ class SilentEndingTest {
     }
 
   @Test
+  fun `a timeout inside an inner flow ending in anchorErrors reaches defect and the listener survives`(): Unit =
+    runBlocking {
+      val loads = MutableStateFlow<List<Boolean>>(emptyList())
+      val defects = MutableStateFlow<List<Throwable>>(emptyList())
+      val anchor =
+        createAnchor(defect = { e -> defects.update { it + e } }) {
+          connect<SilentEvent.Load> { events ->
+            events
+              .flatMapLatest { event ->
+                flow {
+                  if (event.fail) withTimeout(1) { awaitCancellation() }
+                  emit(event.fail)
+                }.anchorErrors()
+              }.anchor { fail -> loads.update { it + fail } }
+          }
+        }
+
+      anchor.withListeners(listeners = 1) { supervisor ->
+        anchor.emit { SilentEvent.Load(fail = true) }
+        // Wait for the timeout before the next event, which would cancel it.
+        withTimeoutOrNull(1_000) { defects.first { it.isNotEmpty() } }
+        anchor.emit { SilentEvent.Load(fail = false) }
+        withTimeoutOrNull(1_000) { loads.first { it.isNotEmpty() } }
+
+        assertEquals(
+          Triple(listOf(false), listOf<String?>("TimeoutCancellationException"), 1),
+          Triple(loads.value, defects.value.map { it::class.simpleName }, supervisor.children.count()),
+        )
+      }
+    }
+
+  @Test
   fun `a timeout inside an executed action reaches defect`(): Unit =
     runBlocking {
       val defects = MutableStateFlow<List<Throwable>>(emptyList())
