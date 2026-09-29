@@ -342,3 +342,25 @@ Stop and report back if:
 - Plan 001 is stale on two harness points (spec §6 Q1): the deprecated `runComposeUiTest` and the missing Main dispatcher. It also says `anchor-compose` has 4 files, but `AnchorConsumer.kt` has since landed. Plan 001 test 4 ("recomposition counting is out of scope") is how this bug stayed hidden. If 001 lands later, it should adopt this `desktopTest` set-up or move these tests into its `commonTest` harness.
 - If a future `collectState` overload takes a `SnapshotMutationPolicy`, thread it into `derivedStateOf(policy) { ... }`.
 - Tracker: this resolves the still-open half of #143 (closed 2026-01-23). See spec §7 for the #145 umbrella table.
+
+## Execution results (2026-09-29)
+
+- **Branch / PR**: `fix/025-collectstate-granular-recomposition` @ `b6542f5`, PR [#276](https://github.com/kioba/anchor/pull/276). It is stacked on `test/001-anchor-compose-harness` (#274, itself on #271).
+- **Commits**:
+  - `1e30213` 🧪 Add collectState recomposition and selector regression tests
+  - `b6542f5` 🐛 Back collectState with derivedStateOf. This applies the Step 3 code verbatim, drops the `getValue` import, and adds the Step 4 KDoc.
+- **Drift check**: `collectState` was unchanged on the base. #271 touched only `RememberAnchor.kt` (`PreviewAnchor`, `LocalAnchors`). 029 B5 has not landed.
+- **Test evidence**:
+  - Before the fix (`1e30213`), `CollectStateTest` failed 2 of 3: `the collectState caller recomposed for label-only changes expected:<1> but was:<4>` and `collectState returned a stale value after the selector changed expected:<10> but was:<0>`. The positive control passed.
+  - After the fix, all 3 pass, and 5 of 5 `--rerun` runs passed.
+  - `:anchor-compose:desktopTest` passes 13/13.
+  - `:anchor-compose:compileKotlinIosSimulatorArm64` exits 0.
+  - Full `./gradlew build`, iOS included, exits 0 (4m59s).
+- **Deviations**:
+  - Step 1 was skipped because #271 already added the desktopTest dependencies and aliases.
+  - The tests reuse plan 001's `TestFixtures` (`TestState`/`testAnchor`) and `CompositionCounter`/`drainUiThread` instead of `ProbeState`/`ProbeAnchor`.
+  - Plan 001's `RememberAnchorTest` test 4 (consumer-only count) moved into `CollectStateTest`, split in two:
+    - label-only updates, which now count the caller and the consumer;
+    - the positive control on a count change, where both counts are 2.
+  - The branch name carries the `025-` prefix.
+  - `plans/README.md` was not updated, because the operator maintains the index.

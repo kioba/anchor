@@ -209,3 +209,53 @@ Stop and report back if:
 - If the maintainer later wants the >64 self-emission case to fail fast (spec option (e)), it needs a context-element marker on handler collectors. Keep it debug-only; a throw would abort on Native.
 - Reviewer: check that per-handler order is still FIFO (test 3), and that no production code now launches coroutines without a `CoroutineExceptionHandler`.
 - Plan 004 will reorder `subscribe()` before `init`. Once both land, events emitted from `init` are delivered and buffered. Re-read the KDoc wording about "no handler attached".
+
+## Investigation results (Phase A, 2026-09-29)
+
+Executed in worktree branch `fix/023-event-emit-deadlock` off `origin/master` = `0bc430c`.
+
+- **Drift check**: `git diff --stat 0bc430c..HEAD -- <in-scope files>` is empty, because `origin/master` is still `0bc430c`. The live `_emitter` declaration (`AnchorRuntime.kt:62-64`), `emitter`/`onSubscription` (`:85-88`), `emit` (`:229-233`), `.anchor {}` (`SubscriptionDsl.kt:46-53`) and the `emit` KDoc all match "Current state". Plan 004 has not landed. Plan 028 has not landed either: there is no `docs/guarantees.md`, `docs/best-practices.md` or `DocumentedBehaviorTest`, so the 028 items in Step 4 do not apply.
+- **Minor count drift**: `:anchor:desktopTest` has **90** tests at `0bc430c`, not 95. With the 5 new tests it is 95. The spec's "95/95" prototype run most likely included its probe tests. This is not a STOP condition.
+- **Step 1** (unmodified code, `./gradlew :anchor:desktopTest --tests 'dev.kioba.anchor.EventBusReentrancyTest'`): 5 tests, 2 failed.
+  - Test 1 (`an action run by a connect handler can emit without blocking later emits`) FAILED with `TimeoutCancellationException` after 2.02 s, at the unrelated `emit { Other }`.
+  - Test 2 (`onDomainError can emit for an error raised in a handler action`) FAILED with `TimeoutCancellationException` after 2.01 s, at `emit { Other }`.
+  - Guards 3–5 (FIFO order for 100 events; fan-out to 2 handlers × 10 events; `Created` once and first per handler) PASSED.
+  - Test commit: `5fb8761 🧪 Reproduce event bus deadlock on reentrant emit`.
+- **Step 2** (prototypes, not committed; production diff reverted afterwards, `git diff --stat -- anchor/src/commonMain` empty):
+
+  | Option | Regression tests 1–2 | Guards 3–5 | `:anchor:desktopTest --rerun` | 64 self-emits in one handler invocation | 65 self-emits | `:anchor:iosSimulatorArm64Test` |
+  |---|---|---|---|---|---|---|
+  | none (`0bc430c`) | FAIL (timeout) | pass | only the new class was run: 3/5 (tests 1–2 fail) | — | — | not run |
+  | (a) `extraBufferCapacity = 64` | pass | pass | 95/95 | ok | **wedges** (65th `emit` suspends; a later outside `emit` times out) | 95/95, including 4 throwaway probes; no signal 6 |
+  | (b) `extraBufferCapacity = Int.MAX_VALUE` | pass | pass | 95/95 | ok | ok | not run |
+
+  - The limit is shared. In a probe variant where the test body buffered one extra event before the handler ran, the handler wedged after **63** self-emits. The 64 slots count *every* event pending behind the slowest handler, not only that invocation's own emits. The KDoc should say "pending", not "emitted by this handler".
+  - A draining sibling handler does not change the (a) limit. The busy handler is itself the slowest collector.
+- **No existing test broke** under (a) or (b), and no STOP condition was hit.
+- **Maintainer GO** (relayed 2026-09-29): Q1 is (a), bounded with 64 slots. Q2 is a fixed internal constant, not configurable. Q3 is no debug detector; the limit is documented only. Q4 is to ship in 0.1.9. Proceeding to Phase B.
+
+## Execution results (2026-09-29)
+
+- **Branch / PR**: `fix/023-event-emit-deadlock` → https://github.com/kioba/anchor/pull/272 (base `master`, from `origin/master` = `0bc430c`).
+- **Commits**:
+  - `5fb8761 🧪 Reproduce event bus deadlock on reentrant emit`: `EventBusReentrancyTest`, with 2 regression tests and 3 guards.
+  - `36b1348 🐛 Buffer the event bus so handler actions can emit`: `private const val EVENT_BUFFER_CAPACITY: Int = 64` above the class; `_emitter = MutableSharedFlow(extraBufferCapacity = EVENT_BUFFER_CAPACITY)`; the `SubscriptionAnchor.emit` KDoc covers delivery to attached handlers in order, dropping with no handler attached (e.g. from `init`), return-on-queue with suspension only at 64 pending, and the >64 self-emission limit ("fewer if other events are already pending"). `_signals` is untouched.
+- **Option implemented**: (a), per the maintainer GO: fixed at 64, not configurable, no debug detector, 0.1.9.
+- **Test evidence**:
+  - Before the fix: the regression class had 5 tests with 2 failing (tests 1–2 hit `TimeoutCancellationException` at the later `emit { Other }`).
+  - After the fix, `EventBusReentrancyTest` passes 5/5.
+  - `:anchor:desktopTest --rerun`: 95/95.
+  - `:anchor:iosSimulatorArm64Test --rerun`: 91/91, no signal 6.
+  - `:features:main:allTests --rerun`: 12/12.
+  - `./gradlew build`: exit 0. The first attempt hit `No space left on device` on the machine, in the 8 iOS `linkReleaseFramework*` tasks only. I freed my worktree's debug frameworks and ran those 8 with `--max-workers=1`, and they passed. A final `./gradlew build` then passed.
+- **Deviations**:
+  - Branch name is `fix/023-event-emit-deadlock`, as the operator instructed, instead of `fix/event-bus-reentrant-emit`.
+  - `:features:main:desktopTest` doesn't exist (no desktop target), so I ran `:features:main:allTests`.
+  - The desktop baseline is 90 tests, not 95.
+  - Plan 028 hasn't landed, so no docs or pinning-test changes were made.
+  - `plans/README.md` was not updated, per operator rules; the maintainer should update the 023 row.
+- **Follow-ups**:
+  - 028's pinning test 6 and `guarantees.md#events` flip once this lands, and are noted in the PR.
+  - After plan 004 lands, re-read the KDoc sentence about `init` events being dropped.
+  - Consider opening a dedicated issue, since the spec recommends one.
+  - PR CI will fail at "Setup Android SDK" until #268 merges.

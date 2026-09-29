@@ -220,3 +220,23 @@ Stop and report back if:
   deliver on restart — that is an improvement, but confirm it's wanted).
 - `iosMain`'s `NativeSharedFlow.collect` has no equivalent loss (direct
   collection), so no iOS change is needed.
+
+## Execution results (2026-09-29)
+
+- **Branch**: `fix/002-handlesignal-lossless-delivery` @ `3fd47b8` (base `test/001-anchor-compose-harness` @ `4aff2b0`). Pushed by the coordinator as PR #275, stacked on #274.
+- **Worktree**: scratch worktree, removed after the push
+- **Drift check**: `LocalSignal.kt` was unchanged since `492f7bc`, and the "Current state" excerpt matched. `anchor-compose/src/commonTest/` doesn't exist. The harness lives in `desktopTest`.
+- **Change**: `HandleSignal` now collects `LocalSignals.current` inside `LaunchedEffect(signals, lifecycleOwner) { lifecycleOwner.repeatOnLifecycle(STARTED) { signals.collect { ... } } }`, as in Step 2. It no longer calls `collectAsStateWithLifecycle`. `LocalLifecycleOwner` and `repeatOnLifecycle` resolve in `commonMain` through the existing `libs.lifecycle.runtime` dependency, so `build.gradle.kts` is unchanged. The KDoc documents ordering, one-at-a-time handling with back-pressure (a 64-slot buffer, after which `post` suspends), the STARTED window (a handler still running at ON_STOP is cancelled and not re-run), the latest-`block` rule, and the known limitation.
+- **Deviations**:
+  1. `HandleSignalTest` is in `desktopTest`, not `commonTest`, next to plan 001's harness.
+  2. The slow-handler test holds handler 1 on a `CompletableDeferred` gate, not `delay(100)`. The effect dispatcher runs on virtual time, and the gate makes "the next signal arrives while the handler is still running" deterministic. It also keeps the test separate from conflation.
+  3. The tests wait for the collector to attach or detach through a test-only `onSubscription` counter wrapped around `LocalSignals`, so no signal is posted before a collector exists.
+  4. A 4th test, `collection stops below STARTED and resumes on restart`, pins the lifecycle window and asserts `[1, 3]`.
+  5. `plans/README.md` was not updated, per coordinator instructions.
+- **Maintenance-note correction**: the note above ("signals emitted while stopped sit in the 64-buffer and deliver on restart") is **wrong**. Below STARTED the collector unsubscribes (`subscriptionCount` 0). With `replay = 0` and no subscriber, `SharedFlow` drops the signal: `extraBufferCapacity` only applies while a subscriber exists. Plan 001's probe saw `[1, 3]` on the old code, and the new test asserts `[1, 3]` with the fix. The KDoc says such signals are "dropped, not buffered". Holding them until a collector attaches is plan 024's job (#266). When 024 lands, it should flip that assertion to `[1, 2, 3]` and drop the KDoc's known-limitation paragraph.
+- **Test evidence**:
+  - Before the fix (3/3 runs): `burst of signals are all handled` fails with `expected:<[1, 2, 3]> but was:<[3]>`, and `slow handler is not cancelled by next signal` fails with `expected:<[1, 2]> but was:<[2]>`. The type-filter and lifecycle tests pass.
+  - After the fix: `./gradlew :anchor-compose:desktopTest` passes 15/15 (HandleSignal 4, RememberAnchor 5, NestedAnchor 6). It also passed 20 consecutive `--rerun` runs.
+  - Sensitivity check (scratch, reverted): with `repeatOnLifecycle` replaced by plain collection, the lifecycle test fails (`Condition (collector detached) still not satisfied after 5000 ms`).
+  - `./gradlew build`: BUILD SUCCESSFUL (646 tasks). `xcrun` was working by the gate, so this covers the iOS links, `iosSimulatorArm64Test`, Android host tests and lint.
+- **PR body**: used verbatim for PR #275

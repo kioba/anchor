@@ -543,3 +543,70 @@ Phase B (post-GO):
 - Plan 014 (virtual-time cancellable tests) should list `CancellableKeyIsolationTest` as intentionally real-time.
 - Plan 024 also edits `AnchorRuntime.kt`, but only the signals region. The second to land rebases trivially.
 - Tracker: this resolves the residual substance of #129/#130. See spec 025 §7 for the #145 umbrella table.
+
+## Investigation results
+
+Run on 2026-09-29 in the implementer worktree (branch `fix/026-cancellable-key-isolation`, off `origin/master` = `0bc430c`). The maintainer had already given GO for **C2**, so Phase B followed in the same run.
+
+**Drift check**: `origin/master` is still `0bc430c`, so the drift diff is empty. `cancellable()` matches the plan's snapshot exactly. Plan 014 has not landed, so the existing cancellable tests are unchanged.
+
+**A1: reproduce on unmodified code.** `CancellableKeyIsolationTest` ran 7 tests: **4 failed, 3 passed**, exactly as predicted.
+
+| Test | Result | Message |
+|------|--------|---------|
+| cancelled queued caller does not let a third call overlap the predecessor | FAIL | `two blocks for key k ran at the same time expected:<1> but was:<2>` |
+| slow cancellation cleanup on one key does not delay an unrelated key | FAIL | `unrelated key blocked for 354ms` |
+| blocking effect on one key does not stall an unrelated key | FAIL | `unrelated key blocked for 353ms` |
+| job cancelled from outside during mutex contention leaves no entry | FAIL | `stale entries left in jobs map: [k1]` |
+| at most one block per key runs concurrently | PASS | |
+| unique keys do not accumulate | PASS | |
+| cancelling a caller queued behind a slow predecessor is prompt | PASS | |
+
+**A2: C2 applied, using the plan's B2 code verbatim.**
+- `CancellableKeyIsolationTest`: 7/7 pass.
+- `./gradlew :anchor:desktopTest --rerun`: **97/97** (90 existing + 7 new), with the existing tests unmodified.
+- `./gradlew :anchor:iosSimulatorArm64Test --rerun`: **86/86**. This matches JVM (the 7 new tests are desktop-only), with no signal-6 abort.
+
+**A3: stress.** 20 separate `--rerun` invocations of the class were **20/20 green**, with no flakes.
+
+**A4: C1 comparison** (only the purge line `jobs.entries.removeAll { it.value.isCompleted }`, on unmodified code). The **same 4 fail**, with the same messages (354/353 ms, `[k1]`, overlap 2).
+- C1 fixes **none** of the regressions in this suite. The plan expected it to fix the stale-entry test, and it does not.
+- The purge runs only on the *next* lock acquisition. In the stale-entry test, `k1` is stranded while `second` already holds the lock, and no later `cancellable` call follows, so nothing purges it.
+- C1 would clear the entry on a later call (G3, "observed at the next call"). It leaves G1 and G2 untouched.
+
+**Recommendation**: C2. It fixes all 4 on JVM and passes on Native, with no change to existing tests. C1 is strictly weaker.
+
+**Deviations from the spec's code**: none in the `cancellable` body. Beyond the spec's code:
+- a short KDoc on `KeyedJob`;
+- a one-line update to the `jobs` KDoc;
+- a class comment in the test file that documents the plan 014 real-time exception.
+
+**Observation (pre-existing, out of scope)**: "only non-suspending work under the lock" relies on `launch` dispatching.
+- Actions run on `Dispatchers.Default` (`ContainedScope`, `ContainerViewModel`), where `launch` always dispatches.
+- A caller running `cancellable` directly on an immediate or unconfined dispatcher could start the new block inline inside the critical section. This behaves the same as before the change.
+
+## Execution results (2026-09-29)
+
+**Status: DONE, PR opened.** Branch `fix/026-cancellable-key-isolation` (off `origin/master` = `0bc430c`) goes to PR **#278** (base `master`) as option **C2**. The maintainer gave GO on 2026-09-29.
+
+Commits:
+1. `6f552db` 🧪 Add cancellable key-isolation regression tests. On its own, this commit shows the same 4 failures as A1.
+2. `95de119` 🐛 Chain cancellable jobs per key instead of joining under the jobs mutex. This is the B2 code verbatim, plus the B3 KDoc.
+
+Done criteria:
+- [x] `CancellableKeyIsolationTest` failed 4 before B2 and passed 7/7 after it. The 20× stress run was 20/20.
+- [x] Existing `:anchor` tests pass unmodified: desktopTest 97/97, iosSimulatorArm64Test 86/86, testAndroidHostTest 86/86.
+- [x] KDoc updated in `AnchorRuntime.kt` (Thread-safe / Memory-safe paragraphs, `@param block`, `jobs`, and a new `KeyedJob`) and in `Anchor.kt`, which now carries the per-key guarantee, the cooperative-cancellation note, and `runInterruptible` marked "(JVM/Android)" because it is JVM-only in kotlinx.coroutines.
+- [x] `./gradlew :anchor:compileKotlinIosSimulatorArm64` exit 0. `./gradlew build` BUILD SUCCESSFUL (3m 25s). `anchor-test` passed 73/73 on desktop, iOS and Android host, and the features/umbrella modules are green.
+- [ ] `plans/README.md` status row: not touched, because the dispatcher maintains the index.
+
+Deviations:
+- Git workflow: the branch is named `fix/026-cancellable-key-isolation` (per the operator) instead of `fix/cancellable-key-isolation`, and it was pushed with a PR because the operator instructed it.
+- Maintainer answers:
+  - Q2: the tests stay in `desktopTest` as documented real-time exceptions to plan 014, stated in the test class comment.
+  - Q3: the per-key guarantee is in the `cancellable` KDoc; `docs/` is untouched.
+
+Notes:
+- PR CI will fail at "Setup Android SDK" until #268 merges; the local full build is the gate.
+- The PR is independent of #272, #273 and #277. The only likely rebase touch point is the `kotlinx.coroutines.*` import block, where #273/#277 add `Runnable` next to the new `NonCancellable`.
+- Plan 014 should list `CancellableKeyIsolationTest` as intentionally real-time.

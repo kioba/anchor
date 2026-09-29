@@ -462,3 +462,60 @@ Stop and report back if:
 - Reviewer: check that `--generate-notes` still computes the previous-release base correctly once the
   release is created by `package-publish.yml` rather than `cut-release.yml` (it uses the previous *release*,
   and v0.1.8 exists).
+
+## Investigation results
+
+Run 2026-09-29 by the plan-021 implementer, in a worktree on `origin/ci/setup-android-v4` (`541c80e`, PR #268 head).
+
+- **A1 (drift)**: `git diff --stat 0bc430c..HEAD -- .github/workflows/ AGENTS.md scripts/ CHANGELOG.md` shows only
+  `ios_check.yml`, `package-publish.yml` and `pr_check.yml`, one line each: `android-actions/setup-android@v3` → `@v4`.
+  That is the expected #268 drift. The live files match every "Current state" excerpt: cut-release lines 1-17 and 34-41,
+  package-publish lines 1-6, 13-15, 94 and 108, `AGENTS.md:7` = `0.1.5`, and pr_check `version_check` lines 19-40.
+  `CHANGELOG.md` and `scripts/release-notes.sh` are absent.
+- **A1 (#268)**: `gh pr view 268` → `"state":"OPEN","mergedAt":null` (head `541c80e`). This is formally the "not merged"
+  STOP. The operator explicitly overrode it by stacking this work on the #268 branch (`--base ci/setup-android-v4`).
+  The PR retargets to master once #268 merges.
+- **A2 (defect)**: `gh run list --workflow cut-release.yml` → empty (never run). The last five `publish package` runs are all
+  `event=schedule` on `master`, the most recent being 2026-07-06. No push-event (tag) publish run has ever happened. The
+  `cut-release.yml` checkout still has no `token:` input. The analysis stands.
+- **A3 (sed miss)**: simulating package-publish lines 107-108 with BSD sed (VERSION=9.9.9) on a copy of `AGENTS.md` changes
+  only lines 14-16 (the three `dev.kioba.anchor:anchor…:9.9.9` coordinates). Line 7 is untouched, so the defect is confirmed.
+- **Secrets**: `GPG_PASSWORD`, `GPG_SECRET_KEY`, `MAVEN_CENTRAL_PASSWORD`, `MAVEN_CENTRAL_USERNAME`. No PAT or App token
+  has appeared, so the Q3 STOP is not triggered.
+- **Tooling**: `actionlint` is not installed. `shellcheck` 0.11.0, Docker and Ruby are available, so B6 uses the Docker form.
+- **Maintainer questions / decisions** (GO given 2026-09-29, relayed by the operator):
+  - Q1, tag-guarded `workflow_dispatch` on `publish package`: **yes**.
+  - Q2, create the GitHub release after publishing, with notes from `scripts/release-notes.sh`: **yes**.
+  - Q3, PAT or App token alternative: **no** (use `GITHUB_TOKEN` plus the explicit dispatch).
+  - Q4, #268 first: stacked on the #268 branch rather than waiting for the merge.
+- **Outcome**: nothing contradicts the spec, and no other STOP condition fired. Phase B proceeds under the maintainer GO.
+
+## Execution results (2026-09-29)
+
+- **Branch / PR**: `ci/021-release-pipeline` → https://github.com/kioba/anchor/pull/270 (base `ci/setup-android-v4`,
+  stacked on #268; GitHub retargets it to `master` when #268 merges).
+- **Commits**:
+  - `383298f` 🔧 Keep AGENTS.md published version in sync (B1, B2)
+  - `02bb1df` 🔧 Add release-notes.sh to extract a CHANGELOG section (B3)
+  - `1f21147` 💚 Dispatch publish from cut release and create the release after publishing (B4, B5)
+- **Test evidence**:
+  - **B1**: the local gate printed `FAIL: AGENTS=0.1.5 mkdocs=0.1.8` before the fix and `PASS` after. The real
+    `version_check` run block, run in `ubuntu:24.04` (`bash -eo pipefail`), failed on the AGENTS.md 0.1.5 mismatch
+    before the fix and passed after (0.1.8).
+  - **B2**: A3 re-run with the new line 108, taken verbatim from the workflow. Line 7 and lines 14-16 now change.
+  - **B3**: `FAIL-extract` before the script existed. After, `PASS-extract`, `PASS-missing` and `PASS-prefix` pass
+    with BSD awk and with mawk (ubuntu). With no CHANGELOG.md the script exits 1 with "…CHANGELOG.md not found".
+    `shellcheck` is clean.
+  - **B4**: the diff has only the three planned hunks plus the line-108 change. A guard simulation with fake
+    `GITHUB_REF*` gave: branch ref exit 1, tag ≠ POM exit 1, no CHANGELOG section exit 1, with a section exit 0.
+  - **B5**: there is no `gh release create` in cut-release. `release-notes.sh` is at line 36, before `git tag` at line 43.
+  - **B6**: `rhysd/actionlint:latest` via Docker (1.7.12, with shellcheck 0.11.0) reported "Found 0 errors in 3 files".
+    The Ruby YAML parse is OK.
+  - **B7**: `./gradlew build` → BUILD SUCCESSFUL (6m 24s), exit 0.
+  - `generate-llms-full.sh` is a no-op, since AGENTS.md is not an input. `v0.1.8` exists as the `--generate-notes` base.
+- **Deviations**:
+  - The branch is named `ci/021-release-pipeline` (operator), not `ci/release-pipeline-dispatch`.
+  - The A1 "#268 not merged" STOP was overridden by the operator, so the work is stacked on #268.
+  - actionlint ran via Docker, the plan's fallback.
+  - `plans/README.md` was not updated: the operator maintains the index.
+- **Hand-off**: the B8 checklist is in the PR body. Nothing was dispatched, tagged or released.

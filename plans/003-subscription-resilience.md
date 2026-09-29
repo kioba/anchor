@@ -261,3 +261,206 @@ Stop and report back if:
 - Reviewer: scrutinize that an unhandled listener failure still surfaces
   loudly (supervisorScope reports to the uncaught handler) — silently eating
   it would hide real bugs.
+
+## Investigation results (2026-09-29)
+
+Base: `origin/fix/004-init-event-delivery` (`0048d11`, PR #273, stacked on
+#272). Worktree `scratchpad/impl-003`, branch `fix/003-subscription-restart`,
+local commit `e8f6126` (🧪 characterization tests only). **Not pushed, no PR.**
+
+**Drift.** "Current state" no longer matches `subscribe()`. #239 launches each
+handler on its own under a `SupervisorJob`, so there is no `merge()`.
+`687d4e5` added the no-op containment `CoroutineExceptionHandler`. #273 added
+`HandlerDispatcher`, which starts handlers in place. #272 added
+`EVENT_BUFFER_CAPACITY`. `handlers()` still wraps every chain in
+`catch { safeExecute { throw e } }`. Only that `catch` handles errors at the
+chain level.
+
+### Which error sites end a listener today
+
+Pinned by `anchor/src/commonTest/.../SubscriptionIsolationTest.kt`: 11 tests,
+all passing on desktop 118/118, Android host 114/114 and iOS simulator
+114/114. Ten `--rerun`s on desktop were green.
+
+| Error site | Handler configured | Today |
+|---|---|---|
+| `.anchor {}` action throws | `defect` | Routed per event. The listener survives. |
+| `.anchor {}` action `raise`s | `onDomainError` | Routed per event. The listener survives. |
+| Operator outside `.anchor {}` (e.g. `map` before it) | `defect` | Routed once, then the listener **ends**. The next event is never seen, and `Created` is not redelivered. |
+| `flatMapLatest` inner flow throws | `defect` | Routed once, then the listener **ends**. This is the #182 gap. |
+| `.anchor {}` action throws | none | That listener ends silently (contained). The sibling survives. |
+| `.anchor {}` action `raise`s | only `defect` | Ends **silently**. `defect` is never called: `RaisedException` is a `CancellationException`, which `safeExecute` treats as fatal. |
+| `withTimeout` expires inside `.anchor {}` | `defect` | Ends **silently**. `defect` is never called: `TimeoutCancellationException` is fatal to `safeExecute`. |
+| The `defect` handler itself throws | `defect` | `defect` runs twice, first for the error, then for its own exception via the chain `catch`. Then the listener ends. |
+| Subscribing scope cancelled | `defect` | Every listener stops. No handler is called. |
+| User `catch` inside the inner flow | n/a | The listener survives. This is the existing workaround. |
+
+Covered elsewhere:
+- Upstream throw with no handler: only that listener ends (`SubscriptionDslTest`).
+- `onStart { throw }`: routed once, and the listener ends before it
+  subscribes (`InitEventDeliveryTest`).
+- An error in the `subscriptions {}` body throws out of `subscribe()` before
+  any handler launches. `ContainerViewModel` routes it (`ExecuteBoundaryTest`).
+
+Plan Step 1 mapping:
+- Test 1 (sibling survives) and test 5 (cancellation) pass.
+- Test 2 (restart) fails as written. Its inverse is pinned.
+- Test 4 (`Created` twice) fails as written. Its inverse is pinned.
+- Test 3 (unhandled failure kills only its listener) now **passes**. The plan
+  expected it to fail, but #239 fixed it, which is the drift the triage note
+  anticipated.
+
+### Restart-design probes
+
+These probes are throwaway and not committed:
+`scratchpad/RestartProbeTest.kt.txt`, `scratchpad/probe-b-retrywhen.patch`
+and `scratchpad/probe-a-next-event.patch`. All ran on desktop in 1 s windows.
+(b) is the plan's design: `retryWhen`, with 100 ms after the first retry.
+(a) is a prototype that restarts on the next bus event and seeds the
+restarted chain with that event instead of `Created`.
+
+| Probe | Today | (b) | (a) |
+|---|---|---|---|
+| E1: refresh on `Created`, always offline, idle | 1 fetch, 1 defect | **11 fetches, 11 defects per second, unbounded** | 1, 1 |
+| E2: `onStart { throw }`; idle / +5 other events / +5 matching events (defect count) | 1 / 1 / 1 | 11 / 11 / 12 | 1 / 2 / 3 (bursts collapse: events are lost in the resubscribe gap) |
+| E3: plan test 2 (fail, ok, ok) | [] | [ok, ok] | [ok, ok] |
+| E4: events seen by a restarted `connect<Event>` | Created, Load | Created, Load, **Created**, Other | Created, Load, Other |
+| E5: error handler emits; a sibling answers with a matching event | 1 fetch | 1 | **7 475** |
+| E7: same loop, error inside `.anchor {}` | **34 706** | n/a | n/a |
+| Desktop suite | green | 4 failures: 3 pinning tests, plus #273's `a handler that ends before subscribing does not hold up init` (sees `defect` twice) | 3 failures: the 3 pinning tests |
+
+Readings:
+- **(b) fails the no-hot-loop bar.** A permanently failing listener hits
+  `defect` and its effect about 10 times a second, forever. Every restart
+  also redelivers `Created`, so a `Created`-triggered refresh turns into a
+  10 Hz auto-retry.
+- **(a) is bounded by input:** it does nothing while idle. E5 loops, but E7
+  shows that today's per-event routing inside `.anchor {}` already allows the
+  same app-level feedback loop. That loop comes from "survive" semantics in
+  general, not from restart.
+- **(a) is not unambiguous.** Three things are still open:
+  1. Matching the event needs `A`, which only `connect<A>` knows. `connect`
+     is `public inline` and calls the `@PublishedApi` `wrap`, so already
+     compiled callers need `wrap` to keep its signature, meaning a new
+     overload. A runtime-only variant restarts on *any* event.
+  2. The waiting subscription ends before the restarted one starts, so events
+     in between are dropped. A channel handoff would close that gap, but it
+     stalls the bus for handlers that ignore their events.
+  3. It has to be decided whether a restart delivers the triggering event,
+     `Created`, or nothing. A `connect<Created>` listener would never restart.
+
+**Decision: STOP after Phase A.** The plan's design does not bound restarts,
+and the bounded alternative has open semantic choices.
+
+### Options for the maintainer
+
+- **(a) Restart on the next matching event**, seeded with that event, with no
+  `Created`.
+  - For: no idle loop. `Created` stays once per lifetime. After an outage,
+    the user's next Refresh works on the first press.
+  - Against: needs `connect`-level plumbing (a new `@PublishedApi`
+    overload). It drops events during the resubscribe, or needs a channel
+    handoff with its own stall hazard. `connect<Created>` listeners, and ones
+    that ignore their events, wait for an event that may never come. It is a
+    behavior change for every existing chain.
+- **(b) Immediate restart with backoff** (the plan's design).
+  - For: the simplest to build. Listeners that ignore their events (such as
+    `repository.observe()`) recover without needing an event.
+  - Against: it floods unless restarts are capped or backed off
+    exponentially with a reset on success. It redelivers `Created`. It breaks
+    #273's test. A cap only brings back today's dead listener, later.
+- **(c) No restart; document it.**
+  - For: zero behavior change, and it matches Kotlin Flow, where a failed
+    flow completes. The inner-flow `catch` workaround is pinned by a test.
+  - Against: the pitfall stays. From inside a chain, a user cannot route a
+    caught error to `onDomainError` or `defect` without their own plumbing.
+- **(d) Opt-in routing for inner flows.** Add a `SubscriptionsScope` operator
+  (name to be decided, e.g. `Flow<T>.catchAnchor()`) implemented as
+  `catch { e -> safeExecute(anchor, onDomainError, defect) { throw e } }`,
+  used inside `flatMapLatest { … }`. Probe E6 on today's code: two failing
+  Loads gave two `defect` calls, nothing ran while idle, and the next good
+  Load was processed.
+  - For: additive, with no change to default behavior. Bounded by
+    construction, at one error per inner run. Same semantics as `.anchor {}`
+    routing.
+  - Against: a new public API that users must opt into. Errors outside inner
+    flows still end the listener; that stays documented.
+
+**Recommendation:** (d) together with (c)'s docs. The documented contract
+stays "an error outside `.anchor {}` ends the listener"; the routing operator
+covers inner flows, and the docs show the pattern. If automatic recovery is
+wanted, prefer (a) with a minimum spacing between restarts over (b), and
+design it as its own plan.
+
+**Separate follow-ups found here** (out of this plan's scope):
+1. A `withTimeout` inside an `.anchor {}` action, or any non-scope
+   `CancellationException`, ends the listener silently and never reaches
+   `defect`.
+2. `raise` with only `defect` configured ends the listener silently.
+3. A throwing `defect` handler is invoked again with its own exception.
+
+## Execution results (2026-09-29)
+
+**Maintainer decision.** Option (d), the opt-in operator, plus option (c),
+the docs. There is no automatic restart; (a) and (b) are rejected.
+
+**PR**: https://github.com/kioba/anchor/pull/280. Branch
+`fix/003-subscription-restart` @ `50c38b3`, base
+`fix/004-init-event-delivery`. It is stacked on #273, which is stacked on
+#272. The worktree has been removed.
+
+**Commits**:
+- `e8f6126` 🧪 Characterization tests: `SubscriptionIsolationTest`, 11 tests.
+- `c07ff71` ✨ `anchorErrors()` plus `AnchorErrorsTest` (6 tests), and KDoc on
+  `connect` and `.anchor {}`.
+- `9ab5f36` 🧪 Marks three characterization tests as "plans/030 is expected
+  to change":
+  - a `raise` with only `defect`;
+  - a `withTimeout` inside `.anchor {}`;
+  - a throwing `defect` handler that runs twice.
+- `50c38b3` 📝 `docs/concepts.md` gains "Errors in subscriptions", and
+  `docs/llms-full.txt` is regenerated.
+
+**The operator.**
+- `public fun <T> Flow<T>.anchorErrors(): Flow<T>` is a member of
+  `SubscriptionsScope`, implemented as
+  `catch { e -> safeExecute(anchor, onDomainError, defect) { throw e } }`.
+- It routes the same way `.anchor {}` does, then completes only that flow.
+  Each failing inner run is routed once and never retried.
+- The collector's own cancellation, including `flatMapLatest` switching, is
+  never routed.
+- With no matching handler, the error is rethrown and ends the chain, as
+  before.
+- `AnchorRuntime.kt` is untouched.
+- Name: it mirrors `.anchor {}` (values to the anchor, failures to the
+  anchor), and avoids `recover` (already Anchor's API), `retry*` (the
+  rejected semantics) and shadowing `catch`.
+
+**Tests.** Against a no-op stub, the 3 routing tests failed: each timed out
+because the listener had ended. The 3 guard tests passed: flatMapLatest
+cancellation not routed, scope cancellation not routed, and an unhandled
+error ending only its listener. With the operator, all 6 pass.
+
+**Gate.** Full `./gradlew build`: BUILD SUCCESSFUL in 4m 37s.
+- `:anchor`: desktop 124, Android host 120, iOS simulator 120.
+- `:anchor-test`: 73, 73 and 73.
+- `features:config`: 6 and 6. `features:main`: 6 and 6.
+- `features:counter`: 4 (iOS).
+- `umbrella`: 1 (Android host) and 2 (iOS).
+- All green. `generate-llms-full.sh` leaves the tree clean.
+
+**Deviations.**
+1. Step 2, the `retryWhen` restart, is not implemented; the maintainer chose
+   option (d).
+2. The test file is `AnchorErrorsTest.kt` alongside
+   `SubscriptionIsolationTest.kt`. The operator's tests are separate from the
+   characterization tests.
+3. `plans/README.md` is not updated; the coordinator maintains the index.
+
+**Follow-ups.**
+- Plan 030 covers the silent endings and the handler that runs twice. If it
+  starts routing foreign `CancellationException`s, re-check the `anchorErrors`
+  KDoc. Its "never routed" claim covers only the collector's own
+  cancellation, so it stays true.
+- The docs site has no `SubscriptionsScope` entry in `docs/api.md`; plan 028
+  may add `connect` and `anchorErrors` there.

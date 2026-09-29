@@ -523,3 +523,87 @@ Stop and report back if:
 - The parked branch `origin/fix-signal-handling-801299363541751028` implements a
   per-collector-dedup variant of replay (spec §3.1 (c)) that re-delivers after
   rotation — recommend deleting it (maintainer action; not part of this plan).
+
+## Investigation results
+
+Run 2026-09-29 by the plan executor. The base is an integration branch: `origin/fix/002-handlesignal-lossless-delivery`
+(#271 → #274 → #275), with `origin/fix/004-init-event-delivery` (#272 → #273) merged in as merge commit `37c393a`,
+which had no conflicts. The base was green before any change: `:anchor:desktopTest` ran 107 tests and
+`:anchor-compose:desktopTest` ran 15, with no failures.
+
+- **Drift check** (`0bc430c..HEAD`): `AnchorRuntime.kt`, `Anchor.kt`, `ContainerViewModel.kt` and the compose sources
+  changed as expected (002: `LocalSignal.kt` and `RememberAnchor.kt`; 022: `LocalAnchors`; 023/004: `_emitter`
+  buffering, `subscribe()` before `init`, `HandlerDispatcher`). A grep of the runtime diff for
+  `_signals|post|signals|nativeSignals` finds nothing, and `iosMain` is unchanged. No STOP.
+- **Reproducer**: I placed the issue's `InitSignalDeliveryTest` verbatim, plus the plan's `ContainerViewModel` +16 ms
+  case and a defect-handler case (the `ErrorScope` KDoc pattern), and ran them on the base. All 3 FAIL:
+  `Signal posted from init was dropped: no subscriber, replay = 0`, `expected:<Loaded> but was:<null>` and
+  `expected:<Failed(message=init failed)> but was:<null>`. This matches the spec §1.2.
+- **Prerequisites (A2)**:
+  1. Plan 002 is in the base: `LocalSignal.kt` has `repeatOnLifecycle` and no `collectAsStateWithLifecycle`.
+  2. Plan 001's harness exists, in `anchor-compose/src/desktopTest`, not `commonTest`.
+  3. Plan 007's `@InternalAnchorApi` does not exist (the grep is empty), so `signalsMatching` stays plain public
+     (GO Q7).
+- **Decision packet (A3)**: already answered by the maintainer's GO (2026-09-29):
+  - Q1: option (b′), with multi-`HandleSignal` fan-out as a contract.
+  - Q2: signals posted while backgrounded are delivered on return.
+  - Q3: held until an accepting collector attaches, at most 64 with oldest dropped first, and no TTL.
+  - Q4: raw collectors count as acceptors.
+  - Q5: capacity fixed at 64.
+  - Q6: ships in 0.1.9.
+  - Q7: public `ContainerViewModel.signalsMatching` is acceptable.
+- **Design review finding (before B2)**: in the planned `SignalBus`, `post` calls `emit` while holding the lock. A
+  collector's SharedFlow slot is registered before its `onSubscription` asks for that lock. So if more than 64 posts
+  are queued on the lock ahead of a new collector, they fill that collector's backlog. The next `emit` then suspends
+  while it holds the lock, and the collector it is waiting on is itself waiting for the lock: a deadlock. B2 adds a
+  deterministic test for this before changing the design.
+
+## Execution results (2026-09-29)
+
+**Status: DONE. PR [#277](https://github.com/kioba/anchor/pull/277)** from `fix/024-init-signal-delivery`, based on
+`fix/002-handlesignal-lossless-delivery`. The PR branch also merges `fix/004-init-event-delivery` (merge commit
+`37c393a`), and it must merge after #271, #274, #275, #272 and #273. The GO chose option (b′), with Q2 (deliver on
+return), Q3 (64, drop-oldest, no TTL), Q4 (raw collectors are acceptors), Q5 (fixed 64), Q6 (0.1.9) and Q7 (public
+`signalsMatching`) all answered as the spec recommends.
+
+Commits after the merge:
+
+1. `b649b5d` 🧪 adds the regression tests, and I saw them fail first:
+   - `InitSignalDeliveryTest`, 3 cases (the issue's reproducer verbatim, the plan's `ContainerViewModel` +16 ms case,
+     and the `ErrorScope` defect pattern). All 3 failed.
+   - `HandleSignalTest`: two typed handlers receiving `init` signals, plus a deterministic variant with late handlers.
+     The lifecycle test flips to `[1, 2, 3]`. All 3 failed.
+2. `27f81fe` 🐛 adds `SignalBus`, `SignalBusTest` (8 cases), the `AnchorRuntime` wiring (`_signals` is removed) and
+   the public `ContainerViewModel.signalsMatching`.
+3. `2f7dc8f` 🐛 adds `SignalSource` and `LocalSignals`, makes `HandleSignal` collect `signalsMatching { it is T }`,
+   replaces the known-limitation KDoc with the contract, and wires `RememberAnchor`.
+4. `cd2a799` 📝 puts the contract in the KDoc (`post`, `AnchorSink.signals`, `nativeSignals`) and adds "Delivery
+   guarantees" sections to `concepts.md` and `compose.md`. `llms-full.txt` is regenerated.
+
+Verification:
+
+- `:anchor:desktopTest`: 118 tests, 0 failures.
+- `:anchor-compose:desktopTest`: 17 tests, 0 failures.
+- `SignalBusTest`: 8/8 on each of 3 `--rerun`s.
+- `:anchor:iosSimulatorArm64Test`: 114 tests, 0 failures, no signal 6.
+- `./gradlew build`: BUILD SUCCESSFUL.
+
+Deviations:
+
+1. **`post` emits after releasing the lock, not under it.** The plan's B2 code deadlocks. A collector's slot is
+   registered before its `onSubscription` asks for the lock, so if more than 64 posts are queued on the lock ahead of
+   it, the next `emit` suspends while holding the lock and waits on that collector. The new SignalBusTest case
+   `a collector attaching behind queued posts does not deadlock` fails deterministically on the plan's code and
+   passes with the change. The live-or-hold decision stays under the lock.
+2. A `registered` flag guards typed acceptor removal, so a collection cancelled before it registered cannot remove
+   another collector's equal lambda.
+3. The stress case uses `SignalBus(capacity = 200)`, because at 64 the drop-oldest bound legitimately discards posts
+   that land before the collector attaches.
+4. The Compose tests are in `anchor-compose/src/desktopTest`, where plan 001's harness lives.
+
+Follow-ups:
+
+- Plan 006: its divergence KDoc should say that `AnchorTestRuntime` does not model the held-until-accepted delivery.
+- Plan 017: mark it superseded.
+- Maintainer action: delete the parked branch `origin/fix-signal-handling-801299363541751028`.
+- `plans/README.md` is not updated, per the operator's instructions.

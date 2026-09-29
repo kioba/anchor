@@ -220,3 +220,45 @@ Stop and report back if:
 - Step descriptions in the sequence DSL are documented as "reserved for future
   test reporting" (`docs/testing.md:262`) — a separate direction item builds
   on the recording this module already does.
+
+## Execution results (2026-09-29)
+
+Steps 3–4 executed on `origin/master` `0bc430c`. Branch `docs/006-anchor-test-divergence-kdoc` → PR https://github.com/kioba/anchor/pull/281 (base `master`). Steps 1–2 had already landed in #238. The `docs/testing.md` and `llms-full.txt` half of step 3 moved to plan 028 and was not touched.
+
+**What changed.** KDoc only; there is no API or behavior change.
+
+- The KDoc covers `AnchorTestRuntime` (the class plus `post`, `emit`, `cancellable` and `effect`), `runAnchorTest`, `runAnchorSequenceTest`, `VerifyScope.assertEffect` and `GivenScope.effect`.
+- 7 characterization tests pin each documented behavior. They are in `anchor-test/src/commonTest`.
+- The test-suite `README.md` counts and "Known Limitations" section were updated.
+
+**Documented divergences, with evidence.** Line numbers are for `0bc430c`.
+
+- `cancellable(key)` runs its block inline and never cancels a same-key block that is still running (`AnchorTestRuntime.kt:51-56`). Test: `CancellableTest.sameKeyDoesNotCancelInFlightBlock`. With two overlapping same-key blocks, both record, as `[2, 1]`.
+- `effect(context)` ignores `context` (`AnchorTestRuntime.kt:58-62`; production uses `withContext`, `AnchorRuntime.kt:149-155`). Test: `EffectTest.effectIgnoresRequestedContext`. Mutation check: the test fails if the test runtime uses `withContext`.
+- `post` and `emit` only record (`AnchorTestRuntime.kt:39-49`). The signal wording stays neutral, so it holds both before and after #277 (held signals).
+- The factory's `init` and `subscriptions` never run (`AnchorTestScope.kt:105-118`, `AnchorSequenceTestScope.kt:155-168`). Test: `EventTest.initAndSubscriptionsAreNotRun`.
+- `assertEffect` consumes no recorded action (`AnchorTestScope.kt:157,162-166`). When the other assertions match every recorded action, it fails with `expected:<2> but was:<1>`. Otherwise it can pass while a trailing recorded action goes unchecked. Tests: `EffectTest.assertEffectFailsWhenOtherAssertionsMatchEveryAction` and `assertEffectLeavesATrailingActionUnchecked`.
+- **New finding:** `given { effect { } }` is never invoked by `runAnchorTest` or by the outer `given` of `runAnchorSequenceTest`. Only `step.given.effects` is consumed (`AnchorSequenceTestScope.kt:109`). As a result, the #53 fix in #238 has no effect in `runAnchorTest`: its regression test only proves the code compiles. Tests: `GivenScopeTest.givenEffectBlockIsNotRunByRunAnchorTest` and `outerGivenEffectBlockIsNotRunByRunAnchorSequenceTest`.
+
+**Corrections to the plan.**
+
+- **`AnchorRuntime` wording.** `AnchorRuntime` is `internal`, so the KDoc points consumers at `anchorContainerViewModelFactory` → `ContainerViewModel` (`execute`, `viewState`, `signals`) or at `RememberAnchor`. A throwaway test from `anchor-test` confirmed that the route cancels the superseded same-key call (`[ab]`). It only compiled after I added `androidx.lifecycle:lifecycle-viewmodel` to the test deps, because `anchor` declares it `implementation`. The KDoc says so.
+- **Dependents command.** The plan's `:features:*:desktopTest` tasks do not exist, because the feature modules have no desktop target. `./gradlew build` runs their `iosSimulatorArm64Test` and, for config and main, `testAndroidHostTest`.
+
+**Tests.**
+
+- `./gradlew :anchor-test:desktopTest`: 80/80.
+- `./gradlew build`: BUILD SUCCESSFUL, iOS included.
+  - `anchor-test`: 80/80 on desktop, Android host and iOS simulator.
+  - `features:counter`: 4/4.
+  - `features:config`: 6/6.
+  - `features:main`: 6/6.
+- PR CI fails at "Setup Android SDK" until #268 merges.
+
+**Follow-ups for the maintainer.**
+
+1. `given { effect { } }` is a silent no-op. Either invoke the blocks before the action or remove `GivenScope.effect`.
+2. `assertEffect`: record effect calls, or deprecate. This is spec 028 Q3.
+3. Consumer integration tests through `ContainerViewModel` need `lifecycle-viewmodel` on the test classpath, plus two casts. This is input for plan 028's recipes.
+
+`plans/README.md` was not updated, as the dispatch instructed.

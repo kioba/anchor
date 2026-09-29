@@ -237,3 +237,25 @@ Stop and report back if:
   the message must steer users firmly. Consider removal before 1.0.
 - If SKIE is ever adopted, `NativeFlows.kt` and parts of `AnchorContainer`
   consumption become redundant — revisit then.
+
+## Execution results (2026-09-29)
+
+- **Status**: DONE. PR opened: https://github.com/kioba/anchor/pull/279 (branch `fix/005-ios-anchor-lifecycle`), stacked on `fix/024-init-signal-delivery` (#277 and its chain).
+- **Drift**: `RememberAnchor.kt` had +4 lines since `492f7bc` (024's `nativeSignals()` KDoc). The `ViewModelStore`/`ViewModelProvider.create` APIs matched the excerpt. The only in-repo callers were `iosMain` and `iosApp`. No STOP condition was hit.
+- **Changes**:
+  - New `iosMain/AnchorContainer.kt` with `createAnchor(scope, customKey)` and `AnchorContainer<E, S>`. The container exposes `anchor`, `state`, `collectState`, `collectSignals` and `clear()`.
+  - Collectors launch in the ViewModel scope on `Dispatchers.Main`, with a containment `CoroutineExceptionHandler`, so `clear()` stops them.
+  - `collectSignals` collects `AnchorSink.signals`, 024's held-signal path.
+  - `rememberAnchor` is `@Deprecated` and delegates to `createAnchor(...).anchor`, with `ReplaceWith("createAnchor(scope, customKey)")`.
+  - The Swift sample holds the container and calls `clear()` in `deinit`.
+- **Tests**:
+  - New `iosTest/AnchorContainerTest.kt`, 8 tests. They run on the main thread and pump the main run loop so `Dispatchers.Main` work runs. They cover retention across GC, independence, cancellation of init and subscriptions (source `subscriptionCount` drops to 0), collectors stopping (`viewState` `subscriptionCount` drops to 0), an init-posted signal delivered once, collect-after-clear as a no-op, and GC reachability of cleared vs. uncleared containers.
+  - Mutation checks: a no-op `clear()` fails 5 of 8; collectors in an independent scope fail 2 of 8.
+  - Flakiness: 30/30 green runs of the test binary.
+  - `./gradlew :anchor:iosSimulatorArm64Test`: 122 tests, 0 failures. `./gradlew build`: green.
+- **Deviations**:
+  - The container API is larger than Step 1's `anchor` + `clear()`. `NativeFlows` collectors own independent scopes, so without container-scoped collectors `clear()` could not stop collection, as the Step 1 KDoc claimed it would.
+  - There are 8 tests instead of 2.
+  - Branch name `fix/005-ios-anchor-lifecycle`, per the operator.
+  - `plans/README.md` is not updated, because the operator maintains the index.
+- **Pre-existing issue found**: `iosApp` doesn't compile on this base. Since #183, `ConfigAnchor` returns `Anchor<…, ConfigError>`, but `ViewModel(factory:)` needs `KotlinNothing` (`ConfigView.swift:5`). The sample builds (`xcodebuild`, simulator, no signing) with a temporary cast in `ConfigView`, which was not committed. That fix is left to plan 019 or a follow-up.

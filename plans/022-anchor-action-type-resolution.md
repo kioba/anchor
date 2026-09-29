@@ -403,3 +403,108 @@ Phase B (post-GO):
   - Plan 024 edits the same provider block. The second to land rebases.
   - Plan 027's CHANGELOG hosts the migration note.
 - Tracker: this resolves #132's still-open substance. Closure of the umbrella #145 is covered in spec 025 §7.
+
+## Investigation results
+
+Run 2026-09-29 on `origin/master` = `0bc430c`, in worktree branch
+`fix/022-anchor-action-type-resolution`. The operator pre-authorized Phase B
+(maintainer GO: **B1**; Q2: `error(...)` in `RememberAnchor` trees plus a
+no-op `PreviewAnchor` entry for its `S`; Q3: nearest wins; Q4 out of scope).
+Phase A was still run first and did not contradict the spec.
+
+**Drift check.** `git diff --stat 0bc430c..HEAD -- anchor-compose/ docs/compose.md`
+printed nothing: `origin/master` is still `0bc430c`. Plans 009, 024, 025 and
+029 have not landed, so there are no `remember` wrappers, `desktopTest`
+dependencies, `LocalSignals` changes or ABI dumps to merge around. There is no
+`CHANGELOG.md` (plan 027 has not landed).
+
+**A1 — reproduced.** I applied plan 025 Step 1 verbatim and added
+`NestedAnchorTest.kt` from the Test plan. Running
+`./gradlew :anchor-compose:desktopTest --tests 'dev.kioba.anchor.compose.NestedAnchorTest'`
+on unmodified code gave:
+- `outer reduce…`: FAILED, with `defect` = `java.lang.ClassCastException: class dev.kioba.anchor.compose.InnerState cannot be cast to class dev.kioba.anchor.compose.OuterState`.
+- `outer signal…`: FAILED, "signal not delivered to the outer anchor expected:<1> but was:<0>".
+- `inner action still reaches…`: PASSED.
+- Added for B1 and run in the same pass. `anchor outside any RememberAnchor fails naming the missing ViewState` FAILED ("Expected an exception of class java.lang.IllegalStateException to be thrown, but was completed successfully", which is today's silent no-op). `anchor under PreviewAnchor is a no-op` PASSED (today's no-op default).
+- Finding for plan 009: a referential-stability probe (`anchor returns the same callback across recompositions`) already PASSES on `0bc430c`. The Compose compiler's strong-skipping lambda memoization remembers the returned lambda against its captures `(scope, block)`, so plan 009's premise ("FAILS today") is stale on the current toolchain.
+
+**A2 — inventory.**
+- `git grep -n -E "(^|[^.])\banchor\(" -- '*.kt'` printed nothing, because macOS `git grep -E` does not support `\b`. The portable equivalent, `git grep -n -E "(^|[^.a-zA-Z0-9_])anchor\(" -- '*.kt'`, lists the 4 declarations, KDoc mentions, and exactly the 12 sample call sites from "Current state". All are function references with arities 0 and 1 (`ConfigAnchor::updateText` is the only 1-arity one), and `NavigationBarUi.kt:37` uses the named argument `anchor(block = MainAnchor::selectHome)`, so the parameter name `block` must stay.
+- `git grep -n "anchor<"`: only `androidApp/src/androidMain/res/values/strings.xml:2` (`<string name="app_name">anchor</string>`, unrelated). **No explicit type arguments.**
+- `grep -n "anchor(" README.md docs/*.md`: `README.md:76,77`, `docs/compose.md:31,91,96,99,199,200`, `docs/index.md:62`, `docs/examples.md:74,77,80` are all function references. `docs/api.md:58-64` lists the signatures as `anchor(suspend A.() -> Unit)` etc. It is still accurate as a description of the call form, so I left it alone (out of scope).
+- **No lambda-literal usages anywhere. Source breaks in repo: none.**
+
+**A3 — B1 prototype (all four arities).** Implemented in place as spec §3.
+All four overloads became `inline` with `reified S` and a `noinline block`,
+plus `remember(scope, block)`. I also added `@PublishedApi internal val LocalAnchors`,
+and `RememberAnchor` now provides `parent + (S::class to anchorScope)` while
+still providing `LocalAnchor`.
+- `NestedAnchorTest`: all green (3 nested tests plus the Q2 tests plus the stability probe).
+- Arity 2 and 3 with typealias references (`InnerAnchor::join2` taking `(String, Int)`, and `anchor(block = InnerAnchor::join3)` taking `(String, Int, Boolean)`) inferred `R`/`S`/`Err`/`I`/`O`/`T` and executed on the right anchor. I checked this with a scratch desktop test that was not committed. No inference failures.
+- `./gradlew :anchor-compose:compileKotlinIosSimulatorArm64`: exit 0.
+- `./gradlew build --no-build-cache`: exit 0 (637 tasks, including iOS simulator tests, framework links and Android lint). All 12 sample call sites compile unchanged (`git diff 0bc430c -- features/ androidApp/` is empty).
+
+**A4 — previews.** With `error(...)` on a miss and no registration,
+`MainPreview` (`MainUi.kt:61-67`) would throw at composition. `MainUi` →
+`HomePage` → `anchor(MainAnchor::clear)` finds no `MainViewState` entry in
+`LocalAnchors`, because `PreviewAnchor` provides none. The desktop test
+confirms that outside a provider `anchor()` throws `IllegalStateException`
+naming the state. With the Q2 alternative, `PreviewAnchor` registers a no-op
+`AnchorScope` under its `S::class`, the lookup succeeds, and invoking the
+callback does nothing: `anchor under PreviewAnchor is a no-op` passes. **Only
+the registration keeps previews rendering.**
+- Implementation note: `PreviewAnchor` was `public fun <S : ViewState>`, which is non-inline, so its `S` is not available at runtime. The only way to register "its `S`" is to make it `inline` with `reified S` and `crossinline content`, like `RememberAnchor`. The alternative is `state::class`, which keeps `PreviewAnchor`'s ABI but keys a sealed or open ViewState under the runtime subclass (e.g. `PreviewAnchor<MainState>(MainState.Loading)` would register `Loading`), so the preview would throw. I chose reified. Call sites stay source-compatible (the sample's `PreviewAnchor(state) { MainUi() }` compiles unchanged), but `PreviewAnchor`'s JVM method now needs inlining too, so it joins the binary break. Generic wrappers of `PreviewAnchor` with a non-reified `S` no longer compile.
+- `PreviewAnchor` also accumulates the parent map, so nesting `PreviewAnchor(MainViewState) { PreviewAnchor(CounterState) { … } }` previews a page that calls both anchors' actions. This is documented in the `PreviewAnchor` KDoc and in `docs/compose.md`.
+
+**A5 — binary shims.** They are feasible but not recommended.
+- The old `<A>` overloads and the new inline ones compile to the same JVM descriptor (e.g. `AnchorActionKt.anchor(Function2, Composer, int): Function0`). A hidden shim, `@Deprecated(level = HIDDEN)`, keeping the old `<A>` body would clash ("Platform declaration clash") unless the new overloads take a `@JvmName`. I verified this. The hidden 0-arity `<A>` shim alone fails `:anchor-compose:compileKotlinDesktop` with "Platform declaration clash … anchor(Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;I)Lkotlin/jvm/functions/Function0;". Adding `@kotlin.jvm.JvmName("anchorByState")` to the new overload in `commonMain` compiles for desktop, Android and iosSimulatorArm64. `javap` then shows `anchorByState(Function2, Composer, int)` next to the shim's `anchor(Function2, Composer, int)`, and the desktop tests still pass. `PreviewAnchor` would need the same treatment.
+- Without shims, old binaries still link, because the descriptor is unchanged. At runtime they reach the reified body, which throws `UnsupportedOperationException` (reified operation marker) instead of dispatching. That is a hard failure, not a silent misroute.
+- **Recommendation: no shims.** The library is 0.1.x. A shim would keep the buggy nearest-provider dispatch alive for stale binaries and pin a JVM-only `@JvmName` on the new public API forever. Consumers recompile against a new version anyway. Document the break in the release notes instead.
+
+**GO/NO-GO:** GO for B1. All A1–A4 verifications pass, no sample call site
+needs changes, and the maintainer GO was already given.
+
+**Q2 recommendation (adopted):** `error(...)` when no enclosing
+`RememberAnchor`/`PreviewAnchor` provides `S`. The message is
+`anchor(): no enclosing RememberAnchor provides <State>`. `PreviewAnchor`
+registers a no-op entry for its `S`.
+
+**Proposed CHANGELOG migration note** (for plan 027's `CHANGELOG.md`):
+
+> **anchor-compose — BREAKING: `anchor()` now dispatches by ViewState type.**
+> `anchor(X::action)` runs on the nearest enclosing `RememberAnchor` whose
+> ViewState matches the action's receiver `Anchor<R, S, Err>`, instead of on
+> the nearest `RememberAnchor` regardless of type. Outer-anchor actions called
+> inside a nested `RememberAnchor` used to throw `ClassCastException` or
+> silently post signals to the inner anchor. They now run on the outer anchor.
+> - *Binary*: the four `anchor()` overloads and `PreviewAnchor` are now
+>   `inline` with a reified `S`. Recompile code that calls them. Stale
+>   binaries fail with `UnsupportedOperationException`.
+> - *Source*: function references (`anchor(CounterAnchor::increment)`) are
+>   unchanged. Explicit type arguments (`anchor<CounterAnchor>(…)`), lambdas
+>   without an inferable `Anchor<R, S, Err>` receiver, and generic wrappers
+>   with a non-reified `S` no longer compile.
+> - *Behavior*: calling `anchor()` with no enclosing `RememberAnchor` for its
+>   ViewState now throws `IllegalStateException` instead of doing nothing.
+>   Inside `PreviewAnchor(state)`, actions on that state's anchor are still
+>   no-ops. Nest a `PreviewAnchor` per ViewState to preview content that calls
+>   an outer anchor's actions.
+
+## Execution results (2026-09-29)
+
+- **Branch / PR**: `fix/022-anchor-action-type-resolution` → https://github.com/kioba/anchor/pull/271 (base `master`, from `origin/master` `0bc430c`). The PR's CI is expected to fail at "Setup Android SDK" until #268 lands.
+- **Commits**:
+  - `ad115ec` 🧪 Add nested-anchor dispatch regression tests (includes the plan 025 Step 1 dependencies)
+  - `01eb6a6` 💥 Resolve anchor() actions by ViewState type
+  - `2651e8f` 📝 Document nested-anchor action resolution
+- **Implemented**: B1 (all four arities with `remember(scope, block)`), `LocalAnchors`, `RememberAnchor` provisioning (`LocalAnchor` kept), Q2 error on a miss, and the `PreviewAnchor` no-op registration. KDoc states the resolution rule. The `docs/compose.md` "Nested anchors" note and preview sentence are updated, and `docs/llms-full.txt` is regenerated.
+- **Test evidence**:
+  - `NestedAnchorTest` on `ad115ec` alone: `outer reduce…` FAIL (CCE in `defect`), `outer signal…` FAIL (outerHandled 0), and Q2 error test FAIL (no exception). `inner…`, preview no-op and stability tests PASS.
+  - After the implementation, `./gradlew :anchor-compose:desktopTest` is 6/6 green. `./gradlew :anchor-compose:compileKotlinIosSimulatorArm64` exits 0, and `./gradlew build --no-build-cache` exits 0 (637 tasks).
+- **Deviations**:
+  - `PreviewAnchor` became `inline` with a `reified S` so that it can register "its `S`" (see A4). It is part of the binary break.
+  - Two tests were added beyond "3 + Q2": both Q2 halves and a referential-stability test.
+  - The gate ran with `--no-build-cache` because the disk was full: the first build failed with ENOSPC in an iOS link.
+  - No `CHANGELOG.md` exists, so the migration note is in the PR body. There are no ABI dumps to update.
+- **Plan 009**: absorbed. Callbacks are referentially stable (asserted by the test). The same test also passes on `0bc430c` because of Compose strong-skipping lambda memoization, so 009's premise was stale. Mark 009 superseded by 022 once #271 merges.
+- `plans/README.md` was not edited, because the dispatching reviewer maintains the index.

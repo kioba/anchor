@@ -34,35 +34,37 @@ test-infra gaps that hide bugs · **P3** internal cleanup, organization.
 
 | # | Plan | Title | Priority | Effort | Depends on | Source | Status |
 |---|------|-------|----------|--------|------------|--------|--------|
-| 1 | 021 | Release pipeline: `cut release` never triggers the Maven Central publish (tag pushed with `GITHUB_TOKEN`) | P1 | M | PR #268 merged | #237 | TODO — Investigate-then-Act |
-| 2 | 022 | `anchor()` resolves the nearest anchor and casts unchecked: ClassCastException / misrouted signals under nested anchors | P1 | M | — | #145 (#132) | TODO — decision gate, binary-breaking |
-| 3 | 023 | `emit {}` from a `connect()` handler's action permanently wedges the event bus | P1 | S | — | found under #140 (no issue) | TODO |
-| 4 | 001 | anchor-compose test harness | P1 | M | — | improve | TODO — **stale API**, see triage note in file |
-| 5 | 002 | HandleSignal lossless delivery (consumer conflation + handler cancellation) | P1 | M | 001 | improve | TODO — premise re-confirmed 2026-09-29 |
-| 6 | 024 | Signals posted from `init` / before a collector are dropped (producer side) | P1 | M | 002 (Compose step only) | #266 | TODO — GO gate: is multi-`HandleSignal` fan-out a contract? |
-| 7 | 025 | `collectState` recomposes on every change and goes stale when the selector changes | P1 | S | — (001 complements) | #145 (#143), #140 | TODO |
-| 8 | 004 | Init event delivery (subscribe before init) **+ init domain error skips `subscribe()`** | P1 | S | 003 or #239 (merged); 023 first | improve + triage | TODO — scope grew, see triage note |
-| 9 | 003 | Subscription resilience (restart-on-handled-error gap) | P1 | M | — | improve (#182) | TODO — re-scope: #239 merged, escaping exceptions now silently contained |
-| 10 | 005 | iOS anchor lifecycle (retention + disposal) | P1 | M | — | improve | TODO |
-| 11 | 026 | `cancellable` joins under the global mutex: cross-key stalls, stale entries, same-key overlap | P2 | M | — (complements 014) | #145 | TODO — Investigate-then-Act |
-| 12 | 027 | Make 0.1.9 upgradable: `listen` deprecation alias, CHANGELOG + migration notes, doc deltas | P2 | M | — (release also needs 021) | #237 | TODO |
-| 13 | 028 | Documentation overhaul: fix 13 wrong statements, write missing guides | P2 | L | Phase B1 on 024 + 002 | #140 | TODO — absorbs 012 |
-| 14 | 020 | Design note: marker interfaces (#133) | P2 | S | — | improve | TODO (spike) |
-| 15 | 007 | @InternalAnchorApi opt-in gate | P2 | S | — | improve | TODO |
-| 16 | 006 | anchor-test fidelity (#53 + divergence docs) | P2 | M | — | improve | TODO — steps 1-2 landed (PR #238); steps 3-4 only, testing.md half moved to 028 |
-| 17 | 011 | Gradle wrapper checksum pin | P2 | S | — | improve | TODO — pin whatever `distributionUrl` names (9.8.0 once #267 lands) |
-| 18 | 010 | Remove vestigial GitHub Packages repo | P2 | S | — | improve | TODO |
-| 19 | 008 | Remove dead counter test file | P2 | S | — | improve | TODO |
-| 20 | 009 | Memoize anchor() callbacks | P2 | S | 001; decide 022 first | improve | TODO — absorbed by 022 if option B1 is chosen |
-| 21 | 012 | Docs accuracy (receivers claim, suspend) | P2 | S | — | improve | SUPERSEDED by 028 |
-| 22 | 017 | Design note: signal delivery semantics + parked Jan branch verdict | P2 | M | — | improve | SUPERSEDED by 024 (verdict: delete the parked branch) |
-| 23 | 029 | ABI-neutral file reorganization + documented package map | P3 | S | — (land after 025) | #142 | TODO — Investigate-then-Act |
-| 24 | 013 | Dokka API reference | P3 | M | — | improve | TODO — drop `anchor-internal` from its module list |
-| 25 | 014 | Virtual-time cancellable tests | P3 | M | — | improve | TODO |
-| 26 | 015 | Feature build convention plugin | P3 | M | — | improve | TODO |
-| 27 | 016 | Module layout decisions (anchor-internal, anchorS) | P3 | M | 007 | improve | PARTIAL — anchor-internal folded (GO 2026-07-07); anchorS rename TODO (`anchorS` leaks into klib `unique_name`) |
-| 28 | 018 | Spike: ViewState save/restore across process death | P3 | M | — | improve | TODO (spike) |
-| 29 | 019 | Design: iOS/Swift DX parity layer vs SKIE | P3 | M | 005 (conceptually) | improve | TODO (spike) |
+| 1 | 021 | Release pipeline: `cut release` never triggers the Maven Central publish (tag pushed with `GITHUB_TOKEN`) | P1 | M | PR #268 merged | #237 | IN REVIEW — PR #270 (stacked on #268); GO 2026-09-29: dispatch design |
+| 2 | 022 | `anchor()` resolves the nearest anchor and casts unchecked: ClassCastException / misrouted signals under nested anchors | P1 | M | — | #145 (#132) | IN REVIEW — PR #271; GO 2026-09-29: option B1 (binary-breaking; PreviewAnchor now inline too) |
+| 3 | 023 | `emit {}` from a `connect()` handler's action permanently wedges the event bus | P1 | S | — | found under #140 (no issue) | IN REVIEW — PR #272; GO 2026-09-29: bounded 64, fixed |
+| 4 | 001 | anchor-compose test harness | P1 | M | — | improve | IN REVIEW — PR #274 (stacked on #271) |
+| 5 | 002 | HandleSignal lossless delivery (consumer conflation + handler cancellation) | P1 | M | 001 | improve | IN REVIEW — PR #275 (stacked on #274); below-STARTED signals still dropped until 024 |
+| 6 | 024 | Signals posted from `init` / before a collector are dropped (producer side) | P1 | M | 002 (Compose step only) | #266 | IN REVIEW — PR #277 (Fixes #266; on #275 + merged #273); GO 2026-09-29: option (b′) |
+| 7 | 025 | `collectState` recomposes on every change and goes stale when the selector changes | P1 | S | — (001 complements) | #145 (#143), #140 | IN REVIEW — PR #276 (stacked on #274) |
+| 8 | 004 | Init event delivery (subscribe before init) **+ init domain error skips `subscribe()`** | P1 | S | 003 or #239 (merged); 023 first | improve + triage | IN REVIEW — PR #273 (stacked on #272); no-hang redesign: handlers start in place on a private dispatcher; init domain error no longer skips subscribe() |
+| 9 | 003 | Subscription resilience (restart-on-handled-error gap) | P1 | M | — | improve (#182) | IN REVIEW — PR #280 (stacked on #273); `anchorErrors()` opt-in operator + docs, no auto-restart (maintainer GO 2026-09-29) |
+| 10 | 030 | Silent subscription failures: foreign cancellations / unhandled `raise` never reach `defect`, throwing `defect` runs twice, `init` cancellation kills all listeners | P1 | M | 003's branch (#280) | found by 003 (no issue) | IN PROGRESS — GO 2026-09-29: accept all spec recs (Q1–Q6); stacked on #280 |
+| 11 | 005 | iOS anchor lifecycle (retention + disposal) | P1 | M | — | improve | IN REVIEW — PR #279 (stacked on #277); AnchorContainer + clear(); rememberAnchor deprecated |
+| 12 | 026 | `cancellable` joins under the global mutex: cross-key stalls, stale entries, same-key overlap | P2 | M | — (complements 014) | #145 | IN REVIEW — PR #278 (off master); GO 2026-09-29: C2 per-key chain |
+| 13 | 027 | Make 0.1.9 upgradable: `listen` deprecation alias, CHANGELOG + migration notes, doc deltas | P2 | M | — (release also needs 021) | #237 | TODO — GO 2026-09-29: add `listen` alias; remove AnchorConsumer before 0.1.9 |
+| 14 | 028 | Documentation overhaul: fix 13 wrong statements, write missing guides | P2 | L | Phase B1 on 024 + 002 | #140 | TODO — absorbs 012; GO 2026-09-29: spec defaults (Q1–Q7); + marker KDoc per 020 |
+| 15 | 020 | Design note: marker interfaces (#133) | P2 | S | — | improve | DONE — design note `plans/design/marker-interfaces.md`; maintainer decision 2026-09-29: keep all 4 markers as bounds + KDoc (KDoc folded into 028; ViewState KDoc: one dedicated state class per anchor) |
+| 16 | 007 | @InternalAnchorApi opt-in gate | P2 | S | — | improve | TODO |
+| 17 | 006 | anchor-test fidelity (#53 + divergence docs) | P2 | M | — | improve | IN REVIEW — PR #281 (steps 3–4: divergence KDoc + 7 pinning tests); found GivenScope.effect/assertEffect defects → plan 032 |
+| 18 | 031 | iOS sample `iosApp` doesn't compile (`ConfigView.swift`, since #207) + xcodebuild CI guard | P2 | S | #279 (same Swift files), #268 (same workflow) | found by 005 (no issue) | IN PROGRESS — GO 2026-09-29: fix + xcodebuild step in ios_check |
+| 19 | 011 | Gradle wrapper checksum pin | P2 | S | — | improve | TODO — pin whatever `distributionUrl` names (9.8.0 once #267 lands) |
+| 20 | 010 | Remove vestigial GitHub Packages repo | P2 | S | — | improve | TODO |
+| 21 | 008 | Remove dead counter test file | P2 | S | — | improve | TODO |
+| 22 | 009 | Memoize anchor() callbacks | P2 | S | 001; decide 022 first | improve | SUPERSEDED by 022 (B1 wraps callbacks in `remember`; premise also stale — Compose compiler already memoized) |
+| 23 | 012 | Docs accuracy (receivers claim, suspend) | P2 | S | — | improve | SUPERSEDED by 028 |
+| 24 | 017 | Design note: signal delivery semantics + parked Jan branch verdict | P2 | M | — | improve | SUPERSEDED by 024 (verdict: delete the parked branch) |
+| 25 | 029 | ABI-neutral file reorganization + documented package map | P3 | S | — (land after 025) | #142 | TODO — GO 2026-09-29: moves + delete dead ContainedScope + commit KGP ABI validation |
+| 26 | 013 | Dokka API reference | P3 | M | — | improve | TODO — drop `anchor-internal` from its module list |
+| 27 | 014 | Virtual-time cancellable tests | P3 | M | — | improve | TODO |
+| 28 | 015 | Feature build convention plugin | P3 | M | — | improve | TODO |
+| 29 | 016 | Module layout decisions (anchor-internal, anchorS) | P3 | M | 007 | improve | PARTIAL — anchor-internal folded (GO 2026-07-07); anchorS rename TODO (`anchorS` leaks into klib `unique_name`) |
+| 30 | 018 | Spike: ViewState save/restore across process death | P3 | M | — | improve | TODO (spike) |
+| 31 | 019 | Design: iOS/Swift DX parity layer vs SKIE | P3 | M | 005 (conceptually) | improve | TODO (spike) |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) |
 REJECTED (with one-line rationale) | SUPERSEDED (by NNN).

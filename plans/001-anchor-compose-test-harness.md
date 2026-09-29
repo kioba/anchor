@@ -247,3 +247,47 @@ Stop and report back (do not improvise) if:
   display error, set `java.awt.headless=true` in the test JVM args.
 - iOS/Android source-set tests are intentionally not added here; desktop is the
   fast, CI-friendly target for composition semantics.
+
+## Investigation results (2026-09-29)
+
+Executed on `test/001-anchor-compose-harness`, stacked on `origin/fix/022-anchor-action-type-resolution` (`2651e8f`, PR #271).
+
+- **Drift** (`git diff --stat 492f7bc..HEAD -- anchor-compose/ gradle/libs.versions.toml`): 7 files. The drift doesn't change the plan's intent, only where the harness lives and how it's set up.
+  - #271 already added the desktop UI-test set-up to `anchor-compose/build.gradle.kts`. `desktopTest` has `libs.compose.multiplatform.uiTest`, `compose.desktop.currentOs`, `libs.kotlin.coroutinesTest` and `libs.kotlin.coroutinesSwing`, and the two aliases are in `libs.versions.toml`. This is the same set-up as plan 025 Step 1, so Step 1 needs no build change.
+  - #271 added `desktopTest/.../NestedAnchorTest.kt`, which uses `androidx.compose.ui.test.v2.runComposeUiTest`.
+  - `AnchorConsumer.kt` has landed. `anchor()` now resolves anchors by ViewState through `LocalAnchors` and remembers its callbacks.
+- **commonTest vs desktopTest**: `commonTest` sources also run on `testAndroidHostTest` and `iosSimulatorArm64Test`. In `anchor/build/test-results/`, `CancellableBasicTest` from `commonTest` runs under both. Compose UI tests can't run on the Android host without Robolectric, and this plan excludes Android and iOS tests. So the harness goes in `desktopTest`, next to `NestedAnchorTest`.
+- **v2 test host (CMP 1.11.1)**:
+  - It provides its own `ViewModelStoreOwner` and a RESUMED `LocalLifecycleOwner` (`DefaultArchitectureComponentsOwner`), and tests can't move that lifecycle. `runOnUiThread` is the Swing EDT, which is also `Dispatchers.Main` via coroutines-swing.
+  - `waitForIdle()` doesn't pump EDT work. Collectors on `Main.immediate` resume through the EDT queue, so a "did not happen" assertion needs `runOnUiThread {}` + `waitForIdle()` first. The harness's `drainUiThread()` does this.
+- **Lifecycle below STARTED (for plan 002)**: `TestLifecycleOwner` uses `LifecycleRegistry.createUnsafe`, is installed via `LocalLifecycleOwner`, and is moved on the EDT. A scratch probe on current code (not committed) behaved as follows:
+  - `HandleSignal` handled Toast(1) while RESUMED.
+  - Toast(2), posted while CREATED, was dropped and never delivered after returning to RESUMED.
+  - Toast(3), posted after resume, was delivered. The final list was `[1, 3]` in 3/3 runs.
+  - Plan 002's maintenance note says signals emitted while stopped "sit in the 64-buffer and deliver on restart". That doesn't hold for any collector that unsubscribes below STARTED: `replay = 0` and no subscriber means the signal is dropped. This is plan 024's territory.
+- **Recomposition counting**: `CompositionCounter.record()` placed in the `collectState` caller counts `expected:<1> but was:<4>` after 3 label-only updates, in 5/5 runs. This reproduces #143 (plan 025) with this harness. The committed test 4 counts the slice's *consumer* (0 extra recompositions), which is current and correct behavior. The caller-level assertion is left to plan 025, since `commonMain` is out of scope here.
+
+## Execution results (2026-09-29)
+
+- **Status**: STOPPED before push. The code is done and committed locally, but the `./gradlew build` gate is blocked by the environment.
+- **Branch**: `test/001-anchor-compose-harness` (local only, commit `4aff2b0`), based on `origin/fix/022-anchor-action-type-resolution` (`2651e8f`, PR #271). Not pushed, and no PR opened.
+- **Blocker**: Xcode.app was updated to 27.0 (27A266a) at 17:29 during the run. `/Library/Preferences/com.apple.dt.Xcode` records the license as agreed only for 26.3. Every `xcrun` call now exits 69 ("You have not agreed to the Xcode license agreements"). `./gradlew build --continue` fails with exactly 30 failures, all of them iOS `link*Ios*` tasks or `iosSimulatorArm64Test` `device` evaluation, and every one is an xcrun/license error. Everything else passed, including `:anchor-compose:check`, Android lint and all `testAndroidHostTest`/`desktopTest` tasks. **Maintainer action**: `sudo xcodebuild -license accept`, then rerun `./gradlew build` on the branch, push it, and open the stacked PR (`--base fix/022-anchor-action-type-resolution`, depends on #271).
+- **Files**:
+  - Created `anchor-compose/src/desktopTest/kotlin/dev/kioba/anchor/compose/{TestFixtures,ComposeTestHarness,RememberAnchorTest}.kt`.
+  - No build-file or version-catalog change: #271's `desktopTest` dependencies already cover what the harness needs.
+- **Deviations**:
+  1. The harness lives in `desktopTest`, not `commonTest`. `commonTest` also runs on the Android host (which would need Robolectric) and the iOS simulator. Plan 002's `HandleSignalTest` should go in `desktopTest` too.
+  2. The tests use v2 `runComposeUiTest`, per the triage note.
+  3. They use foundation `BasicText` + `clickable` (`TestButton`) instead of a material `Button`.
+  4. Test 4 now counts recompositions of the slice's consumer (asserted: no recomposition on label-only changes).
+  5. There is a 5th test for lifecycle below STARTED, which validates the harness for plan 002.
+  6. Extra fixtures: `setLabel`, `postSignals(List<TestSignal>)` and `TestSignal.Other` (for plan 002's burst and other-type cases).
+- **Test evidence**:
+  - `./gradlew :anchor-compose:desktopTest`: 11/11 pass (`RememberAnchorTest` 5, `NestedAnchorTest` 6).
+  - The same command with `--rerun`, run 30 times: 30/30 pass, no flakes, including the HandleSignal test.
+  - Sensitivity checks (scratch, not committed): a caller-level `CompositionCounter` reproduces #143 (`expected:<1> but was:<4>`, 5/5). Without `moveLifecycleTo(CREATED)`, the paused-state assertion fails deterministically (5/5), so `drainUiThread` makes the negative assertion meaningful.
+- **For plan 002**:
+  - Use `TestLifecycleOwner` + `setContentWithLifecycle` + `moveLifecycleTo` to go below STARTED.
+  - Use `postSignals(listOf(...))` for ordered bursts.
+  - Use `drainUiThread()` before asserting that a signal was not handled.
+- **For plan 025**: reuse `CompositionCounter` and the fixtures. `collectState` still returns a stale selector value on this base, and the caller recomposes on every change.
