@@ -245,8 +245,13 @@ public interface SubscriptionAnchor {
    * Emits an internal event.
    *
    * The event is delivered to every `connect` handler attached at the time of the call, and each
-   * handler receives events in emission order. An event emitted while no handler is attached
-   * (for example, from `init`, which runs before subscriptions attach) is dropped.
+   * handler receives events in emission order. An event emitted while no handler is attached is
+   * dropped.
+   *
+   * Subscriptions attach before `init` runs: `init` starts once every `connect` handler is
+   * collecting its event flow or has ended. Events emitted from `init` therefore reach every live
+   * handler, each after the [Created] event it receives on attach. A handler that never collects
+   * its event flow and never ends keeps `init` from running.
    *
    * `emit` returns once the event is queued for every attached handler; it does not wait for any
    * handler to process it. It suspends only when 64 events are already pending behind the slowest

@@ -14,12 +14,15 @@ import dev.kioba.anchor.SignalScope
 import dev.kioba.anchor.SubscriptionScope
 import dev.kioba.anchor.SubscriptionsScope
 import dev.kioba.anchor.ViewState
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,9 +35,11 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onSubscription
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.plus
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.AbstractCoroutineContextElement
 import kotlin.coroutines.CoroutineContext
 
 /**
@@ -44,6 +49,18 @@ import kotlin.coroutines.CoroutineContext
  * the bus for good.
  */
 private const val EVENT_BUFFER_CAPACITY: Int = 64
+
+/**
+ * Tags a `connect()` handler's coroutine so the event bus can tell when that
+ * handler first subscribes. Coroutines that operators such as `flatMapLatest`
+ * start to collect upstream inherit it, so it is found wherever the handler
+ * subscribes.
+ */
+private class HandlerAttachment(
+  val attached: CompletableDeferred<Unit>,
+) : AbstractCoroutineContextElement(HandlerAttachment) {
+  companion object Key : CoroutineContext.Key<HandlerAttachment>
+}
 
 @PublishedApi
 internal class AnchorRuntime<R, S, Err>(
@@ -94,7 +111,12 @@ internal class AnchorRuntime<R, S, Err>(
   private val emitter: SharedFlow<Event> =
     _emitter
       .asSharedFlow()
-      .onSubscription { emit(Created) }
+      .onSubscription {
+        // Marked before Created is handled, so whatever Created triggers
+        // never holds up subscribe().
+        currentCoroutineContext()[HandlerAttachment]?.attached?.complete(Unit)
+        emit(Created)
+      }
 
   internal suspend fun consumeInitial() {
     init?.invoke(this@AnchorRuntime)
@@ -117,6 +139,14 @@ internal class AnchorRuntime<R, S, Err>(
         }
       }
 
+  /**
+   * Launches every `connect()` handler and returns once each one is actively
+   * collecting the event bus, or has ended without doing so. An event emitted
+   * after this call returns is delivered to every live handler.
+   *
+   * A handler that never collects its event flow and never ends keeps this
+   * call suspended.
+   */
   suspend fun CoroutineScope.subscribe(): Job {
     val handlers = emitter.handlers()
     // SupervisorJob: a thrown subscription must not cancel siblings.
@@ -129,9 +159,16 @@ internal class AnchorRuntime<R, S, Err>(
     // SupervisorJob provides already keeps it from touching sibling flows.
     val containment = CoroutineExceptionHandler { _, _ -> }
     val supervised = CoroutineScope(this.coroutineContext + supervisor + containment)
-    for (flow in handlers) {
-      flow.launchIn(supervised)
-    }
+    handlers
+      .map { flow ->
+        val attached = CompletableDeferred<Unit>()
+        flow
+          .launchIn(supervised + HandlerAttachment(attached))
+          // A handler that ends before subscribing can never receive an
+          // event, so it must not hold up the caller.
+          .invokeOnCompletion { attached.complete(Unit) }
+        attached
+      }.awaitAll()
     return supervisor
   }
 
