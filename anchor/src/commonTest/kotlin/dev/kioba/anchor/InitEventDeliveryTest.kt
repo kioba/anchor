@@ -1,0 +1,278 @@
+package dev.kioba.anchor
+
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.ViewModelStoreOwner
+import dev.kioba.anchor.internal.AnchorRuntime
+import dev.kioba.anchor.viewmodel.ContainerViewModel
+import dev.kioba.anchor.viewmodel.ContainerViewModelFactory
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.fail
+
+private sealed interface InitEvent : Event {
+  data object Setup : InitEvent
+
+  data object Ping : InitEvent
+}
+
+class InitEventDeliveryTest {
+
+  private fun createAnchor(
+    init: (suspend Anchor<EmptyEffect, TestState, TestError>.() -> Unit)? = null,
+    subscriptions: (suspend SubscriptionsScope<EmptyEffect, TestState, TestError>.() -> Unit)? = null,
+    onDomainError: (suspend ErrorScope<EmptyEffect, TestState>.(TestError) -> Unit)? = null,
+    defect: (suspend ErrorScope<EmptyEffect, TestState>.(Throwable) -> Unit)? = null,
+  ): AnchorRuntime<EmptyEffect, TestState, TestError> =
+    AnchorRuntime(
+      initialState = { TestState(value = 0) },
+      effectScope = { EmptyEffect },
+      init = init,
+      subscriptions = subscriptions,
+      onDomainError = onDomainError,
+      defect = defect,
+    )
+
+  /**
+   * Starts the anchor in a [ContainerViewModel], the way `RememberAnchor` and
+   * iOS `rememberAnchor` do, runs [block], and clears the ViewModel afterwards
+   * so no subscription outlives the test.
+   */
+  private suspend fun AnchorRuntime<EmptyEffect, TestState, TestError>.inViewModel(
+    block: suspend () -> Unit,
+  ) {
+    val store = ViewModelStore()
+    val owner =
+      object : ViewModelStoreOwner {
+        override val viewModelStore: ViewModelStore = store
+      }
+    val runtime = this
+    val provider = ViewModelProvider.create(owner, ContainerViewModelFactory { ContainerViewModel(runtime) })
+    provider[ContainerViewModel::class]
+    try {
+      block()
+    } finally {
+      store.clear()
+    }
+  }
+
+  private suspend fun <T : Any> awaitOrFail(
+    message: String,
+    block: suspend () -> T,
+  ): T =
+    withTimeoutOrNull(2_000) { block() } ?: fail(message)
+
+  @Test
+  fun `an event emitted from init reaches its connect handler`(): Unit =
+    runBlocking {
+      val anchor =
+        createAnchor(
+          init = { emit { InitEvent.Setup } },
+          subscriptions = {
+            connect<InitEvent.Setup> { events -> events.anchor { reduce { copy(value = 1) } } }
+          },
+        )
+
+      anchor.inViewModel {
+        awaitOrFail("the Setup event emitted from init never reached its handler") {
+          anchor.viewState.first { it.value == 1 }
+        }
+      }
+    }
+
+  @Test
+  fun `a handler receives Created before the events init emits`(): Unit =
+    runBlocking {
+      val received = MutableStateFlow<List<Event>>(emptyList())
+      val anchor =
+        createAnchor(
+          init = { emit { InitEvent.Setup } },
+          subscriptions = {
+            connect<Event> { events -> events.onEach { event -> received.update { it + event } } }
+          },
+        )
+
+      anchor.inViewModel {
+        val events =
+          awaitOrFail("the handler did not receive both Created and Setup") {
+            received.first { it.size >= 2 }
+          }
+        assertEquals(listOf(Created, InitEvent.Setup), events)
+      }
+    }
+
+  @Test
+  fun `a domain error raised in init leaves subscriptions attached`(): Unit =
+    runBlocking {
+      val errors = MutableStateFlow<List<TestError>>(emptyList())
+      val defects = MutableStateFlow<List<Throwable>>(emptyList())
+      val anchor =
+        createAnchor(
+          init = { raise(TestError.NotFound) },
+          subscriptions = {
+            connect<InitEvent.Ping> { events -> events.anchor { reduce { copy(value = 1) } } }
+          },
+          onDomainError = { error -> errors.update { it + error } },
+          defect = { throwable -> defects.update { it + throwable } },
+        )
+
+      anchor.inViewModel {
+        awaitOrFail("init's domain error never reached onDomainError") {
+          errors.first { it.isNotEmpty() }
+        }
+
+        anchor.emit { InitEvent.Ping }
+
+        awaitOrFail("no subscription handled an event emitted after init raised") {
+          anchor.viewState.first { it.value == 1 }
+        }
+        assertEquals(listOf<TestError>(TestError.NotFound), errors.value)
+        assertEquals(emptyList(), defects.value)
+      }
+    }
+
+  @Test
+  fun `a defect thrown in init leaves subscriptions attached`(): Unit =
+    runBlocking {
+      val errors = MutableStateFlow<List<TestError>>(emptyList())
+      val defects = MutableStateFlow<List<Throwable>>(emptyList())
+      val anchor =
+        createAnchor(
+          init = { throw IllegalStateException("init boom") },
+          subscriptions = {
+            connect<InitEvent.Ping> { events -> events.anchor { reduce { copy(value = 1) } } }
+          },
+          onDomainError = { error -> errors.update { it + error } },
+          defect = { throwable -> defects.update { it + throwable } },
+        )
+
+      anchor.inViewModel {
+        awaitOrFail("init's defect never reached the defect handler") {
+          defects.first { it.isNotEmpty() }
+        }
+
+        anchor.emit { InitEvent.Ping }
+
+        awaitOrFail("no subscription handled an event emitted after init threw") {
+          anchor.viewState.first { it.value == 1 }
+        }
+        assertEquals(listOf("init boom"), defects.value.map { it.message })
+        assertEquals(emptyList(), errors.value)
+      }
+    }
+
+  @Test
+  fun `a domain error raised in subscription setup does not skip init`(): Unit =
+    runBlocking {
+      val errors = MutableStateFlow<List<TestError>>(emptyList())
+      val anchor =
+        createAnchor(
+          init = { reduce { copy(value = 1) } },
+          subscriptions = { anchor.raise(TestError.NotFound) },
+          onDomainError = { error -> errors.update { it + error } },
+        )
+
+      anchor.inViewModel {
+        awaitOrFail("init did not run after subscription setup raised") {
+          anchor.viewState.first { it.value == 1 }
+        }
+        assertEquals(listOf<TestError>(TestError.NotFound), errors.value)
+      }
+    }
+
+  @Test
+  fun `init runs when there are no subscriptions`(): Unit =
+    runBlocking {
+      val anchor = createAnchor(init = { reduce { copy(value = 1) } })
+
+      anchor.inViewModel {
+        awaitOrFail("init did not run without subscriptions") {
+          anchor.viewState.first { it.value == 1 }
+        }
+      }
+    }
+
+  @OptIn(ExperimentalCoroutinesApi::class)
+  @Test
+  fun `a handler that subscribes through flatMapLatest receives init events`(): Unit =
+    runBlocking {
+      val anchor =
+        createAnchor(
+          init = { emit { InitEvent.Setup } },
+          subscriptions = {
+            // flatMapLatest collects its upstream in a separately dispatched
+            // coroutine, so this handler subscribes to the bus asynchronously.
+            connect<InitEvent.Setup> { events ->
+              events
+                .flatMapLatest { flowOf(1) }
+                .anchor { value -> reduce { copy(value = value) } }
+            }
+          },
+        )
+
+      anchor.inViewModel {
+        awaitOrFail("the Setup event emitted from init never reached the flatMapLatest handler") {
+          anchor.viewState.first { it.value == 1 }
+        }
+      }
+    }
+
+  @Test
+  fun `a handler that ends before subscribing does not hold up init`(): Unit =
+    runBlocking {
+      val defects = MutableStateFlow<List<Throwable>>(emptyList())
+      val anchor =
+        createAnchor(
+          init = { emit { InitEvent.Setup } },
+          subscriptions = {
+            connect<InitEvent.Setup> { events ->
+              events.onStart { throw IllegalStateException("handler boom") }
+            }
+            connect<InitEvent.Setup> { events -> events.anchor { reduce { copy(value = 1) } } }
+          },
+          defect = { throwable -> defects.update { it + throwable } },
+        )
+
+      anchor.inViewModel {
+        awaitOrFail("init never ran, or its Setup event never reached the live handler") {
+          anchor.viewState.first { it.value == 1 }
+        }
+        assertEquals(listOf("handler boom"), defects.value.map { it.message })
+      }
+    }
+
+  @Test
+  fun `init does not wait for a handler to finish processing Created`(): Unit =
+    runBlocking {
+      val initRan = CompletableDeferred<Unit>()
+      val anchor =
+        createAnchor(
+          init = { initRan.complete(Unit) },
+          subscriptions = {
+            connect<Created> { events ->
+              events.anchor {
+                initRan.await()
+                reduce { copy(value = 1) }
+              }
+            }
+          },
+        )
+
+      anchor.inViewModel {
+        awaitOrFail("init waited for the Created handler, which waits for init") {
+          anchor.viewState.first { it.value == 1 }
+        }
+      }
+    }
+}
