@@ -11,7 +11,7 @@ struct ConfigView: View {
 
 struct ConfigUi: View {
   @Binding var state: ConfigState
-  @Binding var anchor: AnchorAction<shared.Anchor<ConfigEffect, ConfigState, KotlinNothing>>
+  @Binding var anchor: AnchorAction<shared.Anchor<ConfigEffect, ConfigState, any ConfigError>>
 
   @State var text: String = ""
   var body: some View {
