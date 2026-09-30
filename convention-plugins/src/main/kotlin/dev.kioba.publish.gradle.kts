@@ -1,5 +1,10 @@
+import com.vanniktech.maven.publish.JavadocJar
+import com.vanniktech.maven.publish.KotlinMultiplatform
+import com.vanniktech.maven.publish.SourcesJar
+
 plugins {
     id("com.vanniktech.maven.publish")
+    id("dev.kioba.dokka")
 }
 
 val githubPackagesUsername = System.getenv("ORG_GRADLE_PROJECT_githubPackagesUsername")
@@ -10,6 +15,19 @@ val githubPackagesPassword = System.getenv("ORG_GRADLE_PROJECT_githubPackagesPas
     ?: ""
 
 mavenPublishing {
+    // With Dokka applied, the publish plugin would otherwise switch the -javadoc.jar
+    // to Dokka output and run Dokka on every publish. Keep the published artifacts
+    // unchanged (empty javadoc jar); the HTML reference ships with the docs site.
+    plugins.withId("org.jetbrains.kotlin.multiplatform") {
+        configure(
+            KotlinMultiplatform(
+                javadocJar = JavadocJar.Empty(),
+                sourcesJar = SourcesJar.Sources(),
+                androidVariantsToPublish = emptyList(),
+            )
+        )
+    }
+
     coordinates(
         groupId = project.property("POM_GROUP_ID").toString(),
         artifactId = project.name,
