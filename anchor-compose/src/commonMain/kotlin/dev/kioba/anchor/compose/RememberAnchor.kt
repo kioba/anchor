@@ -3,7 +3,7 @@ package dev.kioba.anchor.compose
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisallowComposableCalls
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -39,7 +39,15 @@ public interface AnchorStateScope<S : ViewState> {
   /**
    * Collects a specific part of the [ViewState].
    *
-   * Recomposes only when the selected value (returned by the [selector]) changes.
+   * The calling Composable recomposes only when the selected value (returned by the [selector])
+   * changes, compared with `equals`. State changes that leave the selected value equal do not
+   * recompose it.
+   *
+   * The [selector] may capture values from the composition, such as a parameter or a remembered
+   * state. A recomposition that passes a new [selector] returns that selector's result, even if the
+   * [ViewState] has not changed.
+   *
+   * To read the whole [ViewState], use [state], which recomposes on any change.
    *
    * @param T The type of the selected value.
    * @param selector A function that maps the [ViewState] to the desired value.
@@ -68,8 +76,9 @@ internal class AnchorStateScopeImpl<S : ViewState>(
     selector: (S) -> T,
   ): T {
     val updatedSelector = rememberUpdatedState(selector)
-    val state by stateFlow.collectAsStateWithLifecycle(context = Dispatchers.Main.immediate)
-    return remember(state, updatedSelector) { updatedSelector.value(state) }
+    val state = stateFlow.collectAsStateWithLifecycle(context = Dispatchers.Main.immediate)
+    val selected = remember(state) { derivedStateOf { updatedSelector.value(state.value) } }
+    return selected.value
   }
 }
 
