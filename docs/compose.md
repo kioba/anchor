@@ -139,6 +139,19 @@ RememberAnchor(scope = { counterAnchor() }) {
 
 `HandleSignal` uses `LaunchedEffect` internally — it respects the composable lifecycle and automatically stops collecting when the composable leaves the composition.
 
+### Delivery guarantees
+
+A posted signal is delivered to every collector that is attached and accepts it at the time of posting; `HandleSignal<T>` accepts the signals of type `T`. If no attached collector accepts it, the signal is **held**, up to 64 signals, dropping the oldest, and is delivered **once** to the first accepting collector that attaches afterwards. Delivered signals are never replayed.
+
+In practice:
+
+- A signal posted from `init`, before the first composition starts collecting, reaches the first `HandleSignal` for its type.
+- `HandleSignal` collects only while the lifecycle is at least `STARTED`. A signal posted while the app is in the background, or during a configuration change, is delivered when the screen is back.
+- Several `HandleSignal`s for different types on one screen each receive their own signals, held or live.
+- A signal handled before a rotation (a navigation, say) does not fire again afterwards.
+- A signal whose handler is cancelled mid-run, for example when the lifecycle drops below `STARTED` during `showSnackbar`, is not delivered again.
+- Held signals live in memory only: process death loses them. Anything the user must still see after that belongs in state.
+
 ---
 
 ## Compose Previews

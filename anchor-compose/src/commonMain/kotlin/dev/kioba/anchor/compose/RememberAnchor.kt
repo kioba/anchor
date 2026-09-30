@@ -175,13 +175,13 @@ public inline fun <reified S, R> RememberAnchor(
     )
 
   val stateFlow = remember(anchorScope) { anchorScope.viewState }
-  val signalFlow = remember(anchorScope) { anchorScope.signals }
+  val signalSource = remember(anchorScope) { SignalSource { accepts -> anchorScope.signalsMatching(accepts) } }
   val compositionScope = remember(stateFlow) { AnchorStateScopeImpl(stateFlow) }
   val parentAnchors = LocalAnchors.current
   val anchors = remember(parentAnchors, anchorScope) { parentAnchors + (S::class to anchorScope) }
 
   CompositionLocalProvider(
-    LocalSignals provides signalFlow,
+    LocalSignals provides signalSource,
     LocalAnchor provides anchorScope,
     LocalAnchors provides anchors,
     content = { compositionScope.content() },

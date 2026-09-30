@@ -83,6 +83,14 @@ HandleSignal<MySignal.ShowError> { signal ->
 }
 ```
 
+### Delivery guarantees
+
+A posted signal is delivered to every collector that is attached and accepts it at the time of posting. If no attached collector accepts it, the signal is **held**, up to 64 signals, dropping the oldest, and is delivered **once** to the first accepting collector that attaches afterwards. Delivered signals are never replayed. A signal already handed to a collector that is cancelled before processing it is lost.
+
+- `HandleSignal<T>` accepts the signals of type `T`. A signal posted from `init` before the UI collects, or while the UI is stopped, waits for the first handler of its type. See [Compose Integration](compose.md).
+- An accept-all collector, such as `nativeSignals()` on iOS or a collector of `AnchorSink.signals`, accepts every signal, so it also claims held signals of any type.
+- Held signals live in memory only: process death loses them. Anything the user must still see after that belongs in state.
+
 ## Events & Subscriptions
 
 `Event`s are internal messages. They are useful for complex logic where one action triggers another, or for reacting to lifecycle events like `Created`.

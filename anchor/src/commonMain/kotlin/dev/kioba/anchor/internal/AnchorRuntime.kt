@@ -14,9 +14,12 @@ import dev.kioba.anchor.SignalScope
 import dev.kioba.anchor.SubscriptionScope
 import dev.kioba.anchor.SubscriptionsScope
 import dev.kioba.anchor.ViewState
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.Runnable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
@@ -35,7 +38,42 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlin.concurrent.Volatile
+import kotlin.coroutines.ContinuationInterceptor
 import kotlin.coroutines.CoroutineContext
+
+/**
+ * Events the bus holds for its slowest `connect()` handler before `emit {}`
+ * suspends. Without this buffer, an action a handler runs (or an error handler
+ * invoked from it) that calls `emit {}` waits on that same handler, wedging
+ * the bus for good.
+ */
+private const val EVENT_BUFFER_CAPACITY: Int = 64
+
+/**
+ * The dispatcher `connect()` handlers run on. While [starting], it runs every
+ * coroutine in place instead of dispatching it, including the ones operators
+ * such as `flatMapLatest`, `buffer` or `combine` start to collect upstream, so
+ * a handler launched then runs until everything it started is suspended.
+ * Afterwards it dispatches to [delegate] like any other dispatcher. A handler
+ * coroutine resumed from another thread during that short window runs in
+ * place on that thread.
+ */
+private class HandlerDispatcher(
+  private val delegate: CoroutineDispatcher,
+) : CoroutineDispatcher() {
+  @Volatile
+  var starting: Boolean = true
+
+  override fun isDispatchNeeded(context: CoroutineContext): Boolean =
+    !starting && delegate.isDispatchNeeded(context)
+
+  override fun dispatch(
+    context: CoroutineContext,
+    block: Runnable,
+  ): Unit =
+    delegate.dispatch(context, block)
+}
 
 @PublishedApi
 internal class AnchorRuntime<R, S, Err>(
@@ -54,14 +92,12 @@ internal class AnchorRuntime<R, S, Err>(
   @Suppress("ktlint:standard:backing-property-naming", "PropertyName")
   internal val _viewState: MutableStateFlow<S> = MutableStateFlow(initialState())
 
-  @PublishedApi
-  @Suppress("ktlint:standard:backing-property-naming", "PropertyName")
-  internal val _signals: MutableSharedFlow<SignalProvider> =
-    MutableSharedFlow(extraBufferCapacity = 64)
+  internal val signalBus: SignalBus = SignalBus()
 
   @PublishedApi
   @Suppress("ktlint:standard:backing-property-naming", "PropertyName")
-  internal val _emitter: MutableSharedFlow<Event> = MutableSharedFlow()
+  internal val _emitter: MutableSharedFlow<Event> =
+    MutableSharedFlow(extraBufferCapacity = EVENT_BUFFER_CAPACITY)
 
   /**
    * Map storing cancellable jobs keyed by their identifier.
@@ -80,7 +116,12 @@ internal class AnchorRuntime<R, S, Err>(
 
   override val viewState: StateFlow<S> = _viewState.asStateFlow()
 
-  override val signals: SharedFlow<SignalProvider> = _signals.asSharedFlow()
+  override val signals: SharedFlow<SignalProvider> = signalBus.signals
+
+  internal fun signalsMatching(
+    accepts: (Signal) -> Boolean,
+  ): Flow<SignalProvider> =
+    signalBus.signalsMatching(accepts)
 
   private val emitter: SharedFlow<Event> =
     _emitter
@@ -108,6 +149,18 @@ internal class AnchorRuntime<R, S, Err>(
         }
       }
 
+  /**
+   * Launches every `connect()` handler, running each in place until it
+   * suspends, and returns without waiting for any handler to subscribe.
+   *
+   * A handler that collects its event flow in its own coroutines has
+   * subscribed by the time this returns, so it receives every event emitted
+   * afterwards. One whose subscription waits on anything else (`flowOn`
+   * another dispatcher, a scope from outside, asynchronous work before it
+   * collects) subscribes later and misses what is emitted before then. One
+   * that never collects its event flow never subscribes. Neither holds up
+   * the caller.
+   */
   suspend fun CoroutineScope.subscribe(): Job {
     val handlers = emitter.handlers()
     // SupervisorJob: a thrown subscription must not cancel siblings.
@@ -119,9 +172,17 @@ internal class AnchorRuntime<R, S, Err>(
     // "contained, not fatal" consistent across platforms — the isolation
     // SupervisorJob provides already keeps it from touching sibling flows.
     val containment = CoroutineExceptionHandler { _, _ -> }
-    val supervised = CoroutineScope(this.coroutineContext + supervisor + containment)
-    for (flow in handlers) {
-      flow.launchIn(supervised)
+    val dispatcher =
+      HandlerDispatcher(
+        delegate = this.coroutineContext[ContinuationInterceptor] as? CoroutineDispatcher ?: Dispatchers.Default,
+      )
+    val supervised = CoroutineScope(this.coroutineContext + supervisor + containment + dispatcher)
+    try {
+      for (flow in handlers) {
+        flow.launchIn(supervised)
+      }
+    } finally {
+      dispatcher.starting = false
     }
     return supervisor
   }
@@ -223,7 +284,7 @@ internal class AnchorRuntime<R, S, Err>(
     block: SignalScope.() -> Signal,
   ) {
     val signal = SignalScope.block()
-    _signals.emit(SignalProvider { signal })
+    signalBus.post(SignalProvider { signal })
   }
 
   override suspend fun emit(
