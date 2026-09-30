@@ -4,7 +4,7 @@ import dev.kioba.anchor.internal.AnchorRuntime
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
@@ -16,7 +16,7 @@ import kotlin.test.assertTrue
 class JobIdentityTest {
   @Test
   fun `verify job identity - does coroutineContext Job match launched job`() =
-    runBlocking {
+    runTest {
       var launchedJob: Job? = null
       var contextJob: Job? = null
       var identityMatches: Boolean? = null
@@ -49,7 +49,7 @@ class JobIdentityTest {
 
   @Test
   fun `verify cleanup identity check in cancellable pattern`() =
-    runBlocking {
+    runTest {
       val anchor =
         AnchorRuntime<EmptyEffect, TestState, Nothing>(
           initialState = { TestState(value = 0) },
@@ -58,13 +58,10 @@ class JobIdentityTest {
           subscriptions = null,
         )
 
-      // Execute a job
+      // Execute a job; the call returns once the job has completed and cleaned up
       anchor.cancellable("test") {
         delay(10)
       }
-
-      // Wait for cleanup to happen
-      delay(100)
 
       // If the identity check is broken, jobs.size would be 1
       // If it works correctly, jobs.size should be 0
