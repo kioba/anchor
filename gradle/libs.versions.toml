@@ -8,6 +8,7 @@ android-compileSdk = "37"
 agp = "9.2.1"
 compose-plugin = "1.11.1"
 maven-publish = "0.37.0"
+dokka = "2.2.0"
 
 # Library versions
 activityKtx = "1.13.0"
@@ -75,6 +76,7 @@ maven-publish-plugin = { module = "com.vanniktech:gradle-maven-publish-plugin", 
 # Build
 agp = { module = "com.android.tools.build:gradle", version.ref = "agp" }
 kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
+dokka-gradle-plugin = { module = "org.jetbrains.dokka:dokka-gradle-plugin", version.ref = "dokka" }
 
 [plugins]
 # Android plugins
@@ -92,3 +94,6 @@ kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref =
 # Publishing plugins
 vaniktechMavenPublish = { id = "com.vanniktech.maven.publish", version.ref = "maven-publish" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+
+# Documentation plugins
+dokka = { id = "org.jetbrains.dokka", version.ref = "dokka" }
