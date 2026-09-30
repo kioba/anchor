@@ -24,7 +24,8 @@ import kotlin.coroutines.CoroutineContext
  * - [cancellable] runs its block inline and keeps no jobs, so it never cancels a block with the
  *   same key that is still running.
  * - [effect] runs its block in the caller's context and ignores the requested [CoroutineContext],
- *   dispatcher included. Effect calls are not recorded.
+ *   dispatcher included. Effect calls are recorded apart from [verifyActions], in
+ *   [effectCallPositions], for `assertEffect` only.
  * - [post] and [emit] only record. There is no signal stream and no event bus, so nothing reaches
  *   a signal collector or a `connect()` handler.
  * - The factory's `init` and `subscriptions` blocks never run: the `create` overrides in the
@@ -45,6 +46,10 @@ internal class AnchorTestRuntime<R, S, Err>(
 ) : Anchor<R, S, Err>() where R : Effect, S : ViewState, Err : Any {
 
   val verifyActions = mutableListOf<VerifyAction>()
+
+  /** `verifyActions.size` at each `effect { }` entry, in call order. Read by `assertEffect`. */
+  @PublishedApi
+  internal val effectCallPositions: MutableList<Int> = mutableListOf()
 
   @PublishedApi
   internal var capturedDomainError: Err? = null
@@ -92,13 +97,16 @@ internal class AnchorTestRuntime<R, S, Err>(
   /**
    * Runs [block] against the effect scope in the caller's context and returns its result.
    * [coroutineContext] is ignored, so the block does NOT switch to the requested dispatcher.
-   * The call is not recorded.
+   * It records the call's position in [effectCallPositions] before running [block], so a block
+   * that throws still counts as called.
    */
   override suspend fun <T> effect(
     coroutineContext: CoroutineContext,
     block: suspend R.() -> T,
-  ): T =
-    block(effectScope)
+  ): T {
+    effectCallPositions.add(verifyActions.size)
+    return block(effectScope)
+  }
 
   override fun reduce(
     reducer: S.() -> S

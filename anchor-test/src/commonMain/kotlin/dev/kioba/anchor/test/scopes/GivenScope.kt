@@ -12,12 +12,18 @@ public interface GivenScope<R : Effect, S : ViewState, Err : Any> {
   )
 
   /**
-   * Records [f] as effect-scope setup, but nothing invokes it: neither
-   * [dev.kioba.anchor.test.runAnchorTest] nor the outer `given` of
-   * [dev.kioba.anchor.test.runAnchorSequenceTest] runs these blocks, so [f] has no effect on the
-   * action. Configure the effect scope with [effectScope] instead. Inside a sequence `step`,
-   * [StepGivenScope.effect] does run its block against the shared effect scope before that step's
-   * action.
+   * Runs [f] against the effect scope before the action, so a test can seed or adjust it in place,
+   * for example through a suspending setter on a fake.
+   *
+   * - The blocks run after the effect scope is resolved (the [effectScope] override if there is
+   *   one, otherwise the factory's), in declaration order. A block declared before [effectScope]
+   *   still applies to the override.
+   * - They run in the test coroutine, so `delay` uses virtual time.
+   * - In the outer `given` of [dev.kioba.anchor.test.runAnchorSequenceTest] they run once, before
+   *   the first step, against the effect scope that every step shares. Use
+   *   [StepGivenScope.effect] for changes before a single step.
+   * - A block that throws fails the test with that exception. It reaches neither `onDomainError`
+   *   nor `defect`.
    */
   public suspend fun effect(
     f: suspend R.() -> Unit,
