@@ -697,7 +697,7 @@ fun `counter increment updates state`() {
 }
 ```
 
-The test uses a `AnchorTestRuntime` under the hood — a recording implementation that captures every `reduce`, `post`, `emit`, and `effect` call in order, then replays your assertions against the recording.
+The test uses a `AnchorTestRuntime` under the hood — a recording implementation that captures every `reduce`, `post`, `emit`, `raise`, and `orDie` call in order, plus where each `effect` call happened, then replays your assertions against the recording.
 
 ---
 
@@ -726,6 +726,18 @@ given("the API returns a specific user") {
     effectScope { MyEffect(api = FakeApi()) }
 }
 ```
+
+### `effect`
+
+Run setup against the effect scope before the action. The block's receiver is the effect scope the action will use (your `effectScope` override, or else the factory's default), and it can suspend, so it can seed a fake through suspending setters:
+
+```kotlin
+given("the repository already holds a user") {
+    effect { repository.save(User(id = 1, name = "Ada")) }
+}
+```
+
+Blocks run in declaration order, in the test coroutine, so `delay` uses virtual time. In the outer `given` of `runAnchorSequenceTest` they run once, before the first step. A block that throws fails the test.
 
 ---
 
@@ -781,13 +793,16 @@ verify("a cancel event was emitted") {
 
 ### `assertEffect`
 
-Verifies an effect block was executed:
+Verifies the action entered an `effect { }` block at this point in the order: after the actions asserted before it, and before the next one. Its block then runs with the effect scope after the whole action has finished, so use it to assert on a fake:
 
 ```kotlin
-verify("the API was called") {
-    assertEffect { api.fetchData() }
+verify("the API was called once and the result stored") {
+    assertEffect { assertEquals(1, api.fetchCount) }
+    assertState { copy(user = "Ada") }
 }
 ```
+
+`assertEffect` checks that *an* effect ran at that point, not which one. Calling an effect method inside its block calls it again and verifies nothing. Effect calls you don't assert are ignored.
 
 ### Ordering
 

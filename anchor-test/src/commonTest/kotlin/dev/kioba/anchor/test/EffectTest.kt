@@ -73,9 +73,9 @@ class EffectTest {
 
   /**
    * Verifies that `effect { }` calls are NOT recorded in verifyActions.
-   * AnchorTestRuntime.effect() executes the block directly and returns
-   * the result without adding to the action list. An action with only
-   * an effect call and no reduce/post/emit produces zero recorded actions.
+   * An action with only an effect call and no reduce/post/emit produces
+   * zero recorded actions: an effect call needs no assertion, and an
+   * unasserted one never fails verification.
    */
   @Test
   fun effectDoesNotRecordAction() =
@@ -92,10 +92,6 @@ class EffectTest {
    * asserting the state change that depends on the effect's return value.
    * Since `effect { }` is not recorded in verifyActions, the correctness
    * of the effect scope is proven through the reduce that uses its result.
-   *
-   * Note: `assertEffect` adds to expectedActions but does not consume from
-   * actualActions, causing a size mismatch when mixed with other assertions.
-   * The idiomatic way to verify effects is through their impact on state.
    */
   @Test
   fun effectVerifiedThroughStateImpact() =
@@ -118,7 +114,9 @@ class EffectTest {
    * Regression for #53: `given { effect { ... } }` must accept a suspending
    * lambda so tests can seed effect-scope state via suspending setters
    * (e.g. priming a fake repository). Calling `delay` inside the block
-   * proves the parameter is `suspend R.() -> Unit`.
+   * proves the parameter is `suspend R.() -> Unit`. That the block runs and
+   * its seed reaches the action is proven by
+   * `EffectApisTest.givenEffectSeedsTheFactoryEffectScope`.
    */
   @Test
   fun givenEffectAcceptsSuspendingBlock() =

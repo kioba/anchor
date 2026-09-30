@@ -26,8 +26,8 @@ import kotlinx.coroutines.test.runTest
  * - `effect(context)` ignores `context` and runs in the caller's context.
  * - `post` and `emit` only record. `assertSignal` and `assertEvent` prove that the action sent a
  *   signal or event, not that a collector or `connect()` handler received it.
- * - `effect` calls are not recorded, so `assertEffect` cannot confirm that one ran (see
- *   [dev.kioba.anchor.test.scopes.VerifyScope.assertEffect]).
+ * - `assertEffect` checks that an `effect` call happened at that point in the order, not which one
+ *   (see [dev.kioba.anchor.test.scopes.VerifyScope.assertEffect]).
  *
  * Cover cancellation, debouncing, dispatcher use, `init`, subscriptions and signal delivery with a
  * test that drives the production runtime through a public entry point: the `ContainerViewModel`
