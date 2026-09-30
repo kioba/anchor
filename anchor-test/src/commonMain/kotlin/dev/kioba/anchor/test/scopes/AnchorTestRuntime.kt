@@ -12,6 +12,26 @@ import dev.kioba.anchor.SubscriptionScope
 import dev.kioba.anchor.ViewState
 import kotlin.coroutines.CoroutineContext
 
+/**
+ * Recording [Anchor] that [dev.kioba.anchor.test.runAnchorTest] and
+ * [dev.kioba.anchor.test.runAnchorSequenceTest] build in place of the production runtime.
+ *
+ * It trades production semantics for deterministic verification: every operation runs inline in
+ * the caller's coroutine, and `reduce`, `post`, `emit`, `raise` and `orDie` are appended to
+ * [verifyActions] for `verify` to match in order. It deliberately differs from the production
+ * runtime:
+ *
+ * - [cancellable] runs its block inline and keeps no jobs, so it never cancels a block with the
+ *   same key that is still running.
+ * - [effect] runs its block in the caller's context and ignores the requested [CoroutineContext],
+ *   dispatcher included. Effect calls are not recorded.
+ * - [post] and [emit] only record. There is no signal stream and no event bus, so nothing reaches
+ *   a signal collector or a `connect()` handler.
+ * - The factory's `init` and `subscriptions` blocks never run: the `create` overrides in the
+ *   `buildBaseRuntime` functions of [AnchorTestScope] and [AnchorSequenceTestScope] drop them.
+ *
+ * Behavior that depends on any of these is only exercised by the production runtime.
+ */
 @PublishedApi
 internal class AnchorTestRuntime<R, S, Err>(
   @PublishedApi
@@ -36,18 +56,32 @@ internal class AnchorTestRuntime<R, S, Err>(
   override val state: S
     get() = currentState
 
+  /**
+   * Records the signal and returns. Nothing is delivered: there is no signal stream or collector,
+   * so the production runtime's delivery rules (for example, what happens to a signal posted
+   * before an accepting collector attaches) are not modeled.
+   */
   override suspend fun post(
     block: SignalScope.() -> Signal
   ) {
     verifyActions.add(SignalAction { block(SignalScope) })
   }
 
+  /**
+   * Records the event and returns. There is no event bus and no `connect()` handler runs, so
+   * subscription chains the event would trigger are not exercised.
+   */
   override suspend fun emit(
     block: SubscriptionScope.() -> Event,
   ) {
     verifyActions.add(EventAction { block(SubscriptionScope) })
   }
 
+  /**
+   * Runs [block] inline and returns when it finishes. Unlike the production runtime it keeps no
+   * job per [key], so it does NOT cancel a block with the same key that is still running: both
+   * run to completion and both record their actions.
+   */
   override suspend fun cancellable(
     key: Any,
     block: suspend Anchor<R, S, Err>.() -> Unit,
@@ -55,6 +89,11 @@ internal class AnchorTestRuntime<R, S, Err>(
     block()
   }
 
+  /**
+   * Runs [block] against the effect scope in the caller's context and returns its result.
+   * [coroutineContext] is ignored, so the block does NOT switch to the requested dispatcher.
+   * The call is not recorded.
+   */
   override suspend fun <T> effect(
     coroutineContext: CoroutineContext,
     block: suspend R.() -> T,

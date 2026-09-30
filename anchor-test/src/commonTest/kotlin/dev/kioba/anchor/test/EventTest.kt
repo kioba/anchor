@@ -27,6 +27,18 @@ private fun RememberAnchorScope.evtAnchor(): EvtAnchor =
     effectScope = { EvtEffect() },
   )
 
+private fun RememberAnchorScope.subscribedEvtAnchor(): EvtAnchor =
+  create(
+    initialState = ::EvtViewState,
+    effectScope = { EvtEffect() },
+    init = { reduce { copy(value = -1) } },
+    subscriptions = {
+      connect<EvtEvent.Refresh> { events ->
+        events.anchor { reduce { copy(value = value + 100) } }
+      }
+    },
+  )
+
 class EventTest {
 
   /**
@@ -107,6 +119,24 @@ class EventTest {
         assertState { copy(value = 1) }
         assertEvent { EvtEvent.Refresh }
         assertState { copy(value = value + 1) }
+      }
+    }
+
+  /**
+   * Pins the documented divergence on `runAnchorTest`: the factory's `init`
+   * and `subscriptions` blocks are never run, and `emit` only records the
+   * event. If either block ran, its reduce would be recorded and the
+   * single `assertEvent` below would fail the action-count check.
+   */
+  @Test
+  fun initAndSubscriptionsAreNotRun() =
+    runAnchorTest(RememberAnchorScope::subscribedEvtAnchor) {
+      given("a factory with an init block and a Refresh subscription") {}
+
+      on("emitting Refresh") { emit { EvtEvent.Refresh } }
+
+      verify("only the emitted event is recorded") {
+        assertEvent { EvtEvent.Refresh }
       }
     }
 }
