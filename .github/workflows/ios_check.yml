@@ -26,7 +26,7 @@ jobs:
           java-version: '21'
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -42,3 +42,16 @@ jobs:
           compileKotlinIosArm64
           compileKotlinIosSimulatorArm64
           --stacktrace
+
+      - name: Build the iOS sample app
+        run: >
+          xcodebuild
+          -project iosApp/iosApp.xcodeproj
+          -scheme iosApp
+          -configuration Debug
+          -sdk iphonesimulator
+          -destination "generic/platform=iOS Simulator"
+          -derivedDataPath build/xcode-dd
+          CODE_SIGNING_ALLOWED=NO
+          ARCHS=arm64
+          build
