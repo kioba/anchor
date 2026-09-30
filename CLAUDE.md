@@ -94,15 +94,13 @@ See https://gitmoji.dev for the full list.
 ```bash
 # Publish to Maven Central (requires credentials)
 ./gradlew publishToMavenCentral
-
-# Publish to GitHub Packages (requires GPR credentials)
-./gradlew publish
 ```
 
-**Note**: Publishing requires credentials set via:
+**Note**: Publishing requires Maven Central credentials and signing keys for the vaniktechMavenPublish plugin. The `publish package` workflow passes them as `ORG_GRADLE_PROJECT_mavenCentralUsername`, `ORG_GRADLE_PROJECT_mavenCentralPassword`, `ORG_GRADLE_PROJECT_signingInMemoryKey` and `ORG_GRADLE_PROJECT_signingInMemoryKeyPassword`, and runs `./gradlew publishAndReleaseToMavenCentral`.
 
-- `gpr.user` and `gpr.key` properties (GitHub Packages)
-- Maven Central credentials via vaniktechMavenPublish plugin
+Avoid the generic `./gradlew publish` for releases: it publishes to every repository in `publishing.repositories`, which is Maven Central plus the `githubPackages` repository still declared in `convention-plugins/src/main/kotlin/dev.kioba.publish.gradle.kts`. CI stopped publishing to GitHub Packages in #232.
+
+Building needs no repository credentials: project dependencies resolve from `google()` and `mavenCentral()` (see `settings.gradle.kts`).
 
 ## Architecture
 
@@ -471,10 +469,3 @@ The warning about `androidInstrumentedTest` and `androidUnitTest` is expected du
 ### Explicit API Mode
 
 The library uses `kotlin { explicitApi() }`, requiring all public APIs to have explicit visibility modifiers and return types.
-
-### GitHub Packages Authentication
-
-If you encounter authentication issues with GitHub Packages, set:
-
-- `gpr.user` (GitHub username) and `gpr.key` (Personal Access Token) in `~/.gradle/gradle.properties`
-- Or use environment variables `USERNAME` and `TOKEN`
