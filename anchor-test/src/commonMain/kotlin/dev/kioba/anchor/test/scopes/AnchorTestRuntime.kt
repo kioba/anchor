@@ -46,6 +46,10 @@ internal class AnchorTestRuntime<R, S, Err>(
 
   val verifyActions = mutableListOf<VerifyAction>()
 
+  /** `verifyActions.size` at each `effect { }` entry, in call order. Read by `assertEffect`. */
+  @PublishedApi
+  internal val effectCallPositions: MutableList<Int> = mutableListOf()
+
   @PublishedApi
   internal var capturedDomainError: Err? = null
 
@@ -97,8 +101,10 @@ internal class AnchorTestRuntime<R, S, Err>(
   override suspend fun <T> effect(
     coroutineContext: CoroutineContext,
     block: suspend R.() -> T,
-  ): T =
-    block(effectScope)
+  ): T {
+    effectCallPositions.add(verifyActions.size)
+    return block(effectScope)
+  }
 
   override fun reduce(
     reducer: S.() -> S

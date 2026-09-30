@@ -133,6 +133,7 @@ internal suspend inline fun <reified R : Effect, reified S : ViewState, Err : An
 
     assertEvents<R, S, Err>(
       actualActions = stepRuntime.verifyActions,
+      effectCallPositions = stepRuntime.effectCallPositions,
       initialState = currentState,
       effectScope = stepEffectScope,
       expectedActions = step.expectedActions,

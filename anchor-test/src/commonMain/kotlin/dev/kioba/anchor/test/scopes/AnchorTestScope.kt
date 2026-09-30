@@ -12,6 +12,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 public class AnchorTestScope<R : Effect, S : ViewState, Err : Any>(
   @PublishedApi
@@ -86,6 +87,7 @@ internal suspend inline fun <reified R : Effect, reified S : ViewState, Err : An
 
   assertEvents<R, S, Err>(
     actualActions = runtime.verifyActions,
+    effectCallPositions = runtime.effectCallPositions,
     initialState = base.initState,
     effectScope = base.effectScope,
     expectedActions = verify.expectedActions.toList(),
@@ -151,16 +153,20 @@ internal fun <R : Effect, S : ViewState, Err : Any> assertHandlers(
 @PublishedApi
 internal inline fun <reified R : Effect, reified S : ViewState, Err : Any> assertEvents(
   actualActions: MutableList<VerifyAction>,
+  effectCallPositions: List<Int>,
   initialState: S,
   effectScope: R,
   expectedActions: List<VerifyAction>,
 ) {
-  assertEquals(expectedActions.size, actualActions.size)
+  assertEquals(expectedActions.count { it !is EffectAction<*> }, actualActions.size)
+  val recordedCount = actualActions.size
+  val effectCalls = EffectCallCursor(effectCallPositions)
 
   expectedActions
     .runningFold(initialState) { currentState, action ->
       when (action) {
         is EffectAction<*> -> {
+          effectCalls.consume(matched = recordedCount - actualActions.size)
           @Suppress("UNCHECKED_CAST")
           (action as EffectAction<R>).effect(effectScope)
           currentState
@@ -201,4 +207,21 @@ internal inline fun <reified R : Effect, reified S : ViewState, Err : Any> asser
         }
       }
     }
+}
+
+@PublishedApi
+internal class EffectCallCursor(
+  private val positions: List<Int>,
+) {
+  private var next = 0
+
+  /** Matches one effect call made after exactly [matched] recorded actions; skips earlier unasserted calls. */
+  fun consume(matched: Int) {
+    while (next < positions.size && positions[next] < matched) next++
+    assertTrue(
+      next < positions.size && positions[next] == matched,
+      "assertEffect: expected an effect { } call after $matched recorded action(s), found effect calls at $positions",
+    )
+    next++
+  }
 }

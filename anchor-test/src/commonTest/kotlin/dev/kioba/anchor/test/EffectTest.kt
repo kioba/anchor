@@ -10,7 +10,6 @@ import kotlinx.coroutines.delay
 import kotlin.coroutines.ContinuationInterceptor
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
 
 private data class FxEffect(
   val data: String = "default",
@@ -185,58 +184,6 @@ class EffectTest {
 
       verify("the block stayed on the caller's dispatcher") {
         assertState { copy(result = "caller dispatcher") }
-      }
-    }
-
-  /**
-   * Pins the documented behavior of `VerifyScope.assertEffect`: effects
-   * are not recorded, so an `assertEffect` next to assertions that already
-   * match every recorded action fails the action-count check.
-   */
-  @Test
-  fun assertEffectFailsWhenOtherAssertionsMatchEveryAction() {
-    assertFailsWith<AssertionError> {
-      runAnchorTest(RememberAnchorScope::fxAnchor) {
-        given("custom effect scope") {
-          effectScope { FxEffect(data = "custom") }
-        }
-
-        on("reading data from effect and reducing") {
-          val d = effect { data }
-          reduce { copy(result = d) }
-        }
-
-        verify("effect and state asserted") {
-          assertEffect { }
-          assertState { copy(result = "custom") }
-        }
-      }
-    }
-  }
-
-  /**
-   * Pins the documented behavior of `VerifyScope.assertEffect`: it counts
-   * as an expected action but consumes no recorded one. With one recorded
-   * action left unasserted the counts match and verification passes, and
-   * the trailing reduce below is never checked. Update this test together
-   * with the `assertEffect` KDoc if that API changes.
-   */
-  @Test
-  fun assertEffectLeavesATrailingActionUnchecked() =
-    runAnchorTest(RememberAnchorScope::fxAnchor) {
-      given("custom effect scope") {
-        effectScope { FxEffect(data = "custom") }
-      }
-
-      on("reading data from effect and reducing twice") {
-        val d = effect { data }
-        reduce { copy(result = d) }
-        reduce { copy(result = "never checked") }
-      }
-
-      verify("first reduce and an effect asserted") {
-        assertState { copy(result = "custom") }
-        assertEffect { }
       }
     }
 }
