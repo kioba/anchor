@@ -58,6 +58,7 @@ public class AnchorTestScope<R : Effect, S : ViewState, Err : Any>(
 @PublishedApi
 internal suspend inline fun <reified R : Effect, reified S : ViewState, Err : Any> AnchorTestScope<R, S, Err>.assert() {
   val base: AnchorTestRuntime<R, S, Err> = buildBaseRuntime<R, S, Err>()
+  for (configure in givenScope.effects) { base.effectScope.configure() }
   val action = checkNotNull(pendingAction) { "runAnchorTest block must call on()" }
   val verify = checkNotNull(pendingVerify) { "runAnchorTest block must call verify()" }
 
