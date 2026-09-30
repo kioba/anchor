@@ -4,6 +4,7 @@ import dev.kioba.anchor.internal.AnchorRuntime
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
@@ -21,6 +22,7 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 private sealed interface LoadEvent : Event {
@@ -36,11 +38,13 @@ private class LoadFailure(message: String) : RuntimeException(message)
  * while the listener keeps running.
  *
  * An error inside an `.anchor {}` action is routed to `onDomainError` or
- * `defect` for that event only. An error anywhere else in the chain (an
+ * `defect` for that event only. That includes a cancellation that does not
+ * come from the scope, such as a `withTimeout` expiry, and a domain error
+ * with only `defect` configured. An error anywhere else in the chain (an
  * operator before or after `.anchor {}`, or a `flatMapLatest` inner flow) is
- * routed once and ends the listener for good. So are unhandled errors,
- * cancellation exceptions that do not come from the scope, and an error
- * handler that throws. Sibling listeners keep running in every case.
+ * routed once and ends the listener for good. An error with no matching
+ * handler, and an error handler that throws, end the listener without being
+ * routed again. Sibling listeners keep running in every case.
  *
  * `anchorErrors()` at the end of an inner flow keeps the listener alive; see
  * `AnchorErrorsTest`.
@@ -285,54 +289,62 @@ class SubscriptionIsolationTest {
       }
     }
 
-  // Pins current behavior that plans/030 is expected to change. Update this
-  // test there; nothing else in this file depends on it.
   @Test
-  fun `an unhandled domain error inside an anchor action ends its listener without reaching defect`(): Unit =
+  fun `a domain error with only defect configured is routed and the listener survives`(): Unit =
     runBlocking {
-      val defects = MutableStateFlow<List<Throwable>>(emptyList())
-      val anchor =
-        createAnchor(defect = { e -> defects.update { it + e } }) {
-          connect<LoadEvent.Load> { events -> events.anchor { raise(TestError.NotFound) } }
-        }
-
-      anchor.withListeners(listeners = 1) { supervisor ->
-        anchor.emit { LoadEvent.Load(fail = true) }
-        supervisor.awaitLiveListeners(0)
-
-        // RaisedException is a CancellationException, which safeExecute
-        // treats as fatal, so with no onDomainError it bypasses defect.
-        assertEquals(emptyList(), defects.value)
-      }
-    }
-
-  // Pins current behavior that plans/030 is expected to change. Update this
-  // test there; nothing else in this file depends on it.
-  @Test
-  fun `a timeout inside an anchor action ends its listener without reaching defect`(): Unit =
-    runBlocking {
+      val loads = MutableStateFlow<List<Boolean>>(emptyList())
       val defects = MutableStateFlow<List<Throwable>>(emptyList())
       val anchor =
         createAnchor(defect = { e -> defects.update { it + e } }) {
           connect<LoadEvent.Load> { events ->
-            events.anchor { withTimeout(1) { awaitCancellation() } }
+            events.anchor { event ->
+              if (event.fail) raise(TestError.NotFound)
+              loads.update { it + event.fail }
+            }
           }
         }
 
       anchor.withListeners(listeners = 1) { supervisor ->
         anchor.emit { LoadEvent.Load(fail = true) }
-        supervisor.awaitLiveListeners(0)
+        anchor.emit { LoadEvent.Load(fail = false) }
 
-        // TimeoutCancellationException is a CancellationException: fatal to
-        // safeExecute, so it ends the listener and is never reported.
-        assertEquals(emptyList(), defects.value)
+        // With no onDomainError, the error escalates to defect as orDie
+        // would, and is handled for this event only.
+        assertEquals(listOf(false), loads.awaitSize(1))
+        assertEquals(TestError.NotFound, assertIs<DomainDefectException>(defects.value.single()).error)
+        supervisor.awaitLiveListeners(1)
       }
     }
 
-  // Pins current behavior that plans/030 is expected to change (the handler
-  // runs twice). Update this test there; nothing else depends on it.
   @Test
-  fun `a defect handler that throws ends the listener`(): Unit =
+  fun `a timeout inside an anchor action is routed to defect and the listener survives`(): Unit =
+    runBlocking {
+      val loads = MutableStateFlow<List<Boolean>>(emptyList())
+      val defects = MutableStateFlow<List<Throwable>>(emptyList())
+      val anchor =
+        createAnchor(defect = { e -> defects.update { it + e } }) {
+          connect<LoadEvent.Load> { events ->
+            events.anchor { event ->
+              if (event.fail) withTimeout(1) { awaitCancellation() }
+              loads.update { it + event.fail }
+            }
+          }
+        }
+
+      anchor.withListeners(listeners = 1) { supervisor ->
+        anchor.emit { LoadEvent.Load(fail = true) }
+        anchor.emit { LoadEvent.Load(fail = false) }
+
+        // The listener is still active when the timeout fires, so the
+        // cancellation is a failure of this event, not the end of the chain.
+        assertEquals(listOf(false), loads.awaitSize(1))
+        assertIs<TimeoutCancellationException>(defects.value.single())
+        supervisor.awaitLiveListeners(1)
+      }
+    }
+
+  @Test
+  fun `a defect handler that throws is invoked once and ends the listener`(): Unit =
     runBlocking {
       val defects = MutableStateFlow<List<String?>>(emptyList())
       val anchor =
@@ -349,8 +361,9 @@ class SubscriptionIsolationTest {
         anchor.emit { LoadEvent.Load(fail = true) }
         supervisor.awaitLiveListeners(0)
 
-        // The chain-level catch hands the handler's own failure back to it.
-        assertEquals(listOf<String?>("action failed", "defect handler failed"), defects.value)
+        // The handler's own failure is not routed back to it: it is an
+        // unhandled failure, so it ends the listener.
+        assertEquals(listOf<String?>("action failed"), defects.value)
       }
     }
 
