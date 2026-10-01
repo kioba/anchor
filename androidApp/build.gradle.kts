@@ -73,4 +73,12 @@ dependencies {
   implementation(projects.features.main)
 
   testImplementation(libs.junit)
+
+  constraints {
+    // AGP 9.4+ pins the androidTest classpath to the app's resolved versions and
+    // fails when a test library needs a newer one. espresso-core 3.7.0 needs
+    // concurrent-futures 1.2.0, while the app alone resolves 1.1.0 (via
+    // profileinstaller), so raise the app's version to match.
+    implementation(libs.concurrent.futures)
+  }
 }
