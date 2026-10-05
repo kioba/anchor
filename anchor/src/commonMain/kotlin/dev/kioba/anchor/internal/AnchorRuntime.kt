@@ -37,6 +37,14 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
 
+/**
+ * Events the bus holds for its slowest `connect()` handler before `emit {}`
+ * suspends. Without this buffer, an action a handler runs (or an error handler
+ * invoked from it) that calls `emit {}` waits on that same handler, wedging
+ * the bus for good.
+ */
+private const val EVENT_BUFFER_CAPACITY: Int = 64
+
 @PublishedApi
 internal class AnchorRuntime<R, S, Err>(
   val initialState: () -> S,
@@ -61,7 +69,8 @@ internal class AnchorRuntime<R, S, Err>(
 
   @PublishedApi
   @Suppress("ktlint:standard:backing-property-naming", "PropertyName")
-  internal val _emitter: MutableSharedFlow<Event> = MutableSharedFlow()
+  internal val _emitter: MutableSharedFlow<Event> =
+    MutableSharedFlow(extraBufferCapacity = EVENT_BUFFER_CAPACITY)
 
   /**
    * Map storing cancellable jobs keyed by their identifier.
