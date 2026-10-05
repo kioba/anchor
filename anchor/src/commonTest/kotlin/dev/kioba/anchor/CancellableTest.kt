@@ -1,17 +1,20 @@
 package dev.kioba.anchor
 
 import dev.kioba.anchor.internal.AnchorRuntime
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.yield
+import kotlinx.coroutines.test.currentTime
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 /**
@@ -22,7 +25,15 @@ import kotlin.test.assertTrue
  * 2. Memory cleanup - completed jobs are removed from the map
  * 3. Cancellation behavior - old jobs are cancelled before new ones start
  * 4. Edge cases - multiple keys, rapid calls, exceptions, etc.
+ *
+ * The tests run on `runTest`'s virtual time. `cancellable` launches its job in the
+ * caller's scope, so every block and every `delay` runs on the test dispatcher:
+ * delays cost no wall-clock time, interleavings are deterministic, and
+ * `currentTime` shows whether a cancelled job was cut short or waited out.
+ * Contention across real threads is covered by the JVM-only
+ * `CancellableKeyIsolationTest` in `desktopTest`.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class CancellableTest {
   private fun createTestAnchor(): AnchorRuntime<EmptyEffect, TestState, Nothing> =
     AnchorRuntime(
@@ -39,7 +50,7 @@ class CancellableTest {
    */
   @Test
   fun `cancellable cancels previous job with same key`() =
-    runBlocking {
+    runTest {
       val anchor = createTestAnchor()
       val job1Started = CompletableDeferred<Unit>()
       val job1Cancelled = CompletableDeferred<Boolean>()
@@ -52,8 +63,9 @@ class CancellableTest {
           try {
             delay(1000) // Long delay
             job1Cancelled.complete(false) // Should not reach here
-          } catch (_: Exception) {
+          } catch (e: CancellationException) {
             job1Cancelled.complete(true) // Should be cancelled
+            throw e
           }
         }
       }
@@ -71,8 +83,9 @@ class CancellableTest {
       // Wait for job2 to complete
       job2Completed.await()
 
-      // Verify job1 was cancelled
+      // Verify job1 was cancelled rather than waited out
       assertTrue(job1Cancelled.await(), "First job should be cancelled")
+      assertEquals(0, currentTime, "Second job should not wait out the first job's delay")
     }
 
   /**
@@ -83,21 +96,18 @@ class CancellableTest {
    */
   @Test
   fun `cancellable prevents race condition with concurrent calls`() =
-    runBlocking {
+    runTest {
       val anchor = createTestAnchor()
       val completedJobs = mutableListOf<Int>()
-      val mutex = kotlinx.coroutines.sync.Mutex()
 
-      // Launch 100 concurrent jobs with the same key
+      // Launch 100 concurrent jobs with the same key. They interleave on the test
+      // dispatcher, so each call cancels its predecessor before that one runs.
       val jobs =
         (1..100).map { jobId ->
-          async(Dispatchers.Default) {
+          async {
             anchor.cancellable("race-test") {
-              // Small delay to increase chance of overlap
               delay(10)
-              mutex.withLock {
-                completedJobs.add(jobId)
-              }
+              completedJobs.add(jobId)
             }
           }
         }
@@ -105,16 +115,14 @@ class CancellableTest {
       // Wait for all launches to complete
       jobs.awaitAll()
 
-      // Give time for any lingering jobs
-      delay(100)
-
-      // Only ONE job should have completed (the last one)
-      // Due to timing, it might be close to 100 but should be very few
-      assertTrue(
-        completedJobs.size <= 3,
-        "Expected at most 3 jobs to complete, but ${completedJobs.size} completed. " +
+      // Only ONE job should have completed: the last one
+      assertEquals(
+        listOf(100),
+        completedJobs,
+        "Expected only the last job to complete, but $completedJobs completed. " +
           "This indicates a race condition!",
       )
+      assertEquals(0, anchor.jobs.size, "Jobs map should be empty")
     }
 
   /**
@@ -124,18 +132,16 @@ class CancellableTest {
    */
   @Test
   fun `cancellable cleans up completed jobs from map`() =
-    runBlocking {
+    runTest {
       val anchor = createTestAnchor()
 
-      // Execute 100 jobs with different keys
+      // Execute 100 jobs with different keys. Each call returns only after its
+      // job has completed and removed its own entry.
       repeat(100) { i ->
         anchor.cancellable("key-$i") {
           delay(10)
         }
       }
-
-      // Wait for all jobs to complete
-      delay(200)
 
       // Verify jobs map is empty (all cleaned up)
       assertEquals(
@@ -153,40 +159,44 @@ class CancellableTest {
    */
   @Test
   fun `cancellable with different keys do not interfere`() =
-    runBlocking {
+    runTest {
       val anchor = createTestAnchor()
       val job1Completed = CompletableDeferred<Unit>()
       val job2Completed = CompletableDeferred<Unit>()
       val job3Completed = CompletableDeferred<Unit>()
 
       // Launch jobs with different keys concurrently
-      launch {
-        anchor.cancellable("key1") {
-          delay(50)
-          job1Completed.complete(Unit)
+      val caller1 =
+        launch {
+          anchor.cancellable("key1") {
+            delay(50)
+            job1Completed.complete(Unit)
+          }
         }
-      }
 
-      launch {
-        anchor.cancellable("key2") {
-          delay(50)
-          job2Completed.complete(Unit)
+      val caller2 =
+        launch {
+          anchor.cancellable("key2") {
+            delay(50)
+            job2Completed.complete(Unit)
+          }
         }
-      }
 
-      launch {
-        anchor.cancellable("key3") {
-          delay(50)
-          job3Completed.complete(Unit)
+      val caller3 =
+        launch {
+          anchor.cancellable("key3") {
+            delay(50)
+            job3Completed.complete(Unit)
+          }
         }
-      }
 
-      // All three should complete
-      job1Completed.await()
-      job2Completed.await()
-      job3Completed.await()
+      joinAll(caller1, caller2, caller3)
 
-      // Success - all jobs completed without interfering
+      // All three should complete, side by side rather than one after another
+      assertTrue(job1Completed.isCompleted, "key1 job should complete")
+      assertTrue(job2Completed.isCompleted, "key2 job should complete")
+      assertTrue(job3Completed.isCompleted, "key3 job should complete")
+      assertEquals(50, currentTime, "Jobs with different keys should run concurrently")
     }
 
   /**
@@ -196,21 +206,16 @@ class CancellableTest {
    */
   @Test
   fun `cancellable cleans up even when job throws exception`() =
-    runBlocking {
+    runTest {
       val anchor = createTestAnchor()
 
-      // Launch job that throws exception
-      try {
+      // Launch job that throws exception; it propagates to the caller
+      assertFailsWith<RuntimeException> {
         anchor.cancellable("exception-test") {
           delay(10)
           throw RuntimeException("Test exception")
         }
-      } catch (_: RuntimeException) {
-        // Expected
       }
-
-      // Wait for cleanup
-      delay(100)
 
       // Verify cleanup happened despite exception
       assertEquals(
@@ -236,24 +241,21 @@ class CancellableTest {
    */
   @Test
   fun `cancellable handles rapid sequential calls correctly`() =
-    runBlocking {
+    runTest {
       val anchor = createTestAnchor()
-      var lastCompletedJob = 0
+      val completedJobs = mutableListOf<Int>()
 
-      // Make 10 sequential calls with the same key
+      // Make 10 sequential calls with the same key. Each call waits for its own
+      // job, so no call finds a running predecessor to cancel.
       repeat(10) { i ->
         anchor.cancellable("sequential") {
           delay(5)
-          lastCompletedJob = i
+          completedJobs.add(i)
         }
-        yield() // Yield to allow job to start
       }
 
-      // Wait for last job to complete
-      delay(100)
-
-      // The last job (9) should have completed
-      assertEquals(9, lastCompletedJob, "Last job should have completed")
+      // Every job, up to the last one (9), should have completed in order
+      assertEquals((0..9).toList(), completedJobs, "Every sequential job should complete")
 
       // Jobs map should be empty
       assertEquals(0, anchor.jobs.size, "Jobs map should be empty")
@@ -266,29 +268,33 @@ class CancellableTest {
    */
   @Test
   fun `cancellable propagates cancellation to job internals`() =
-    runBlocking {
+    runTest {
       val anchor = createTestAnchor()
       val innerJobCancelled = CompletableDeferred<Boolean>()
-      val job1Started = CompletableDeferred<Unit>()
+      val innerJobStarted = CompletableDeferred<Unit>()
 
-      // Start first job with internal coroutine
+      // Start first job with internal coroutine. coroutineScope makes the internal
+      // coroutine a child of the cancellable job, not of this test's launch.
       launch {
         anchor.cancellable("propagation-test") {
-          job1Started.complete(Unit)
-          try {
+          coroutineScope {
             // Launch internal work
             launch {
-              delay(1000)
-              innerJobCancelled.complete(false)
-            }.join()
-          } catch (_: Exception) {
-            innerJobCancelled.complete(true)
+              innerJobStarted.complete(Unit)
+              try {
+                delay(1000)
+                innerJobCancelled.complete(false)
+              } catch (e: CancellationException) {
+                innerJobCancelled.complete(true)
+                throw e
+              }
+            }
           }
         }
       }
 
-      // Wait for job1 to start
-      job1Started.await()
+      // Wait for the internal coroutine to start
+      innerJobStarted.await()
 
       // Cancel by starting new job with same key
       launch {
@@ -296,9 +302,6 @@ class CancellableTest {
           delay(10)
         }
       }
-
-      // Wait a bit for cancellation to propagate
-      delay(100)
 
       // Verify internal job was cancelled
       assertTrue(
@@ -314,28 +317,27 @@ class CancellableTest {
    */
   @Test
   fun `cancellable allows state updates during rapid cancellations`() =
-    runBlocking {
+    runTest {
       val anchor = createTestAnchor()
 
       // Make rapid calls that update state
-      repeat(50) { i ->
-        launch {
-          anchor.cancellable("state-update") {
-            anchor.reduce { copy(value = i) }
-            delay(10)
+      val callers =
+        List(50) { i ->
+          launch {
+            anchor.cancellable("state-update") {
+              anchor.reduce { copy(value = i) }
+              delay(10)
+            }
           }
         }
-      }
 
-      // Wait for everything to settle
-      delay(500)
+      // Wait for every caller to return
+      callers.joinAll()
 
-      // State should have been updated (might be any value from 0-49)
-      // The important thing is no crash and cleanup happened
-      assertTrue(
-        anchor.state.value in 0..49,
-        "State should contain one of the update values",
-      )
+      // Each call cancelled its predecessor before that one ran, so only one
+      // 10ms block ran and the state holds the latest call's update
+      assertEquals(10, currentTime, "Rapid calls should cancel each other")
+      assertEquals(49, anchor.state.value, "State should hold the latest update")
 
       // Jobs map should be empty
       assertEquals(0, anchor.jobs.size, "All jobs should be cleaned up")
@@ -349,7 +351,7 @@ class CancellableTest {
    */
   @Test
   fun `cancellable removes job from map when cancelled before completion`() =
-    runBlocking {
+    runTest {
       val anchor = createTestAnchor()
       val job1Started = CompletableDeferred<Unit>()
 
@@ -366,16 +368,14 @@ class CancellableTest {
       // Verify job is in map
       assertEquals(1, anchor.jobs.size, "Job should be in map while running")
 
-      // Cancel by starting new empty job
+      // Cancel by starting new empty job; the call returns once it has completed
       anchor.cancellable("cancel-test") {
         // Empty - completes immediately
       }
 
-      // Wait a bit for cleanup
-      delay(100)
-
-      // Verify map is empty
+      // Verify map is empty, and the first job was cut short rather than waited out
       assertEquals(0, anchor.jobs.size, "Job should be removed after cancellation")
+      assertEquals(0, currentTime, "First job should be cancelled, not waited out")
     }
 
   /**
@@ -385,35 +385,33 @@ class CancellableTest {
    */
   @Test
   fun `cancellable handles stress test with many concurrent keys`() =
-    runBlocking {
+    runTest {
       val anchor = createTestAnchor()
       val jobsCompleted = mutableSetOf<String>()
-      val mutex = kotlinx.coroutines.sync.Mutex()
 
       // Launch 200 jobs with 20 different keys (10 jobs per key)
       val jobs =
         (1..200).map { i ->
           val key = "key-${i % 20}"
-          async(Dispatchers.Default) {
+          async {
             anchor.cancellable(key) {
               delay(20)
-              mutex.withLock {
-                jobsCompleted.add("$key-$i")
-              }
+              jobsCompleted.add("$key-$i")
             }
           }
         }
 
       jobs.awaitAll()
 
-      // Wait for cleanup
-      delay(200)
-
-      // At least some jobs should have completed
-      assertTrue(
-        jobsCompleted.isNotEmpty(),
-        "Some jobs should have completed",
+      // Exactly one job per key should have completed: the latest call for that key
+      assertEquals(
+        (181..200).map { i -> "key-${i % 20}-$i" }.toSet(),
+        jobsCompleted,
+        "Only the latest job for each key should complete",
       )
+
+      // The keys ran side by side: one 20ms window, not one per key
+      assertEquals(20, currentTime, "Jobs with different keys should run concurrently")
 
       // All jobs should be cleaned up
       assertEquals(
