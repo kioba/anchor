@@ -14,9 +14,12 @@ import dev.kioba.anchor.SignalScope
 import dev.kioba.anchor.SubscriptionScope
 import dev.kioba.anchor.SubscriptionsScope
 import dev.kioba.anchor.ViewState
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.Runnable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
@@ -35,6 +38,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlin.concurrent.Volatile
+import kotlin.coroutines.ContinuationInterceptor
 import kotlin.coroutines.CoroutineContext
 
 /**
@@ -44,6 +49,31 @@ import kotlin.coroutines.CoroutineContext
  * the bus for good.
  */
 private const val EVENT_BUFFER_CAPACITY: Int = 64
+
+/**
+ * The dispatcher `connect()` handlers run on. While [starting], it runs every
+ * coroutine in place instead of dispatching it, including the ones operators
+ * such as `flatMapLatest`, `buffer` or `combine` start to collect upstream, so
+ * a handler launched then runs until everything it started is suspended.
+ * Afterwards it dispatches to [delegate] like any other dispatcher. A handler
+ * coroutine resumed from another thread during that short window runs in
+ * place on that thread.
+ */
+private class HandlerDispatcher(
+  private val delegate: CoroutineDispatcher,
+) : CoroutineDispatcher() {
+  @Volatile
+  var starting: Boolean = true
+
+  override fun isDispatchNeeded(context: CoroutineContext): Boolean =
+    !starting && delegate.isDispatchNeeded(context)
+
+  override fun dispatch(
+    context: CoroutineContext,
+    block: Runnable,
+  ): Unit =
+    delegate.dispatch(context, block)
+}
 
 @PublishedApi
 internal class AnchorRuntime<R, S, Err>(
@@ -71,6 +101,24 @@ internal class AnchorRuntime<R, S, Err>(
   @Suppress("ktlint:standard:backing-property-naming", "PropertyName")
   internal val _emitter: MutableSharedFlow<Event> =
     MutableSharedFlow(extraBufferCapacity = EVENT_BUFFER_CAPACITY)
+
+  /**
+   * Guards [startupEvents] and [live]. Never held across `_emitter.emit`,
+   * so a handler action that emits while the flush waits on that handler
+   * cannot deadlock.
+   */
+  private val startupLock = Mutex()
+
+  /**
+   * Events emitted before the bus goes live, in call order: those `init`
+   * emits, any emitted by actions that run before the handlers start, and
+   * any that handlers emit while they start or while the queue flushes.
+   * [goLive] flushes them to the bus once every handler has started.
+   */
+  private val startupEvents: MutableList<Event> = mutableListOf()
+
+  /** Whether `emit {}` sends straight to the bus instead of queuing. */
+  private var live: Boolean = false
 
   /**
    * Map storing cancellable jobs keyed by their identifier.
@@ -117,22 +165,75 @@ internal class AnchorRuntime<R, S, Err>(
         }
       }
 
+  /**
+   * Starts every `connect()` handler in place, each until it suspends, then
+   * flushes the events queued until now to the bus and sends later
+   * `emit {}` calls straight to it. Never waits for a handler to subscribe,
+   * though the flush can suspend behind a slow handler once 64 events are
+   * pending for it.
+   *
+   * A handler that collects its event flow in its own coroutines has
+   * subscribed before the flush, so it receives [Created], then every
+   * queued event in order, then live ones. One whose subscription waits on
+   * anything else (any `flowOn` with a dispatcher, including
+   * `Dispatchers.Default`; a scope from outside; asynchronous work before
+   * it collects) subscribes later and misses what was delivered before
+   * then. One that never collects its event flow never subscribes. Neither
+   * holds up the caller. The flush also runs when subscription setup
+   * throws, so a failed setup does not leave `emit {}` queuing.
+   *
+   * The caller must not be inside an active unconfined event loop: the
+   * in-place start would then run the handlers only after the flush, and
+   * every handler would miss the queue. `ContainerViewModel` calls this
+   * from a coroutine dispatched to `Dispatchers.Default`.
+   */
   suspend fun CoroutineScope.subscribe(): Job {
-    val handlers = emitter.handlers()
-    // SupervisorJob: a thrown subscription must not cancel siblings.
-    val supervisor = SupervisorJob(parent = this.coroutineContext[Job])
-    // Without a handler, an exception a subscription rethrows past
-    // safeExecute (no defect handler configured) reaches each platform's
-    // default uncaught-exception path. The JVM/Android default just logs it;
-    // Kotlin/Native's default aborts the whole process. This handler makes
-    // "contained, not fatal" consistent across platforms — the isolation
-    // SupervisorJob provides already keeps it from touching sibling flows.
-    val containment = CoroutineExceptionHandler { _, _ -> }
-    val supervised = CoroutineScope(this.coroutineContext + supervisor + containment)
-    for (flow in handlers) {
-      flow.launchIn(supervised)
+    try {
+      val handlers = emitter.handlers()
+      // SupervisorJob: a thrown subscription must not cancel siblings.
+      val supervisor = SupervisorJob(parent = this.coroutineContext[Job])
+      // Without a handler, an exception a subscription rethrows past
+      // safeExecute (no defect handler configured) reaches each platform's
+      // default uncaught-exception path. The JVM/Android default just logs it;
+      // Kotlin/Native's default aborts the whole process. This handler makes
+      // "contained, not fatal" consistent across platforms — the isolation
+      // SupervisorJob provides already keeps it from touching sibling flows.
+      val containment = CoroutineExceptionHandler { _, _ -> }
+      val dispatcher =
+        HandlerDispatcher(
+          delegate = this.coroutineContext[ContinuationInterceptor] as? CoroutineDispatcher ?: Dispatchers.Default,
+        )
+      val supervised = CoroutineScope(this.coroutineContext + supervisor + containment + dispatcher)
+      try {
+        for (flow in handlers) {
+          flow.launchIn(supervised)
+        }
+      } finally {
+        dispatcher.starting = false
+      }
+      return supervisor
+    } finally {
+      goLive()
     }
-    return supervisor
+  }
+
+  /**
+   * Flushes the startup queue to the bus in order, then sends every later
+   * `emit {}` straight to the bus. An event emitted during the flush is
+   * queued behind the rest and goes out in a later batch. The bus goes live
+   * only once a batch comes back empty.
+   */
+  private suspend fun goLive() {
+    do {
+      val batch =
+        startupLock.withLock {
+          startupEvents.toList().also {
+            startupEvents.clear()
+            if (it.isEmpty()) live = true
+          }
+        }
+      for (event in batch) _emitter.emit(event)
+    } while (batch.isNotEmpty())
   }
 
   // DSL
@@ -237,7 +338,13 @@ internal class AnchorRuntime<R, S, Err>(
 
   override suspend fun emit(
     block: SubscriptionScope.() -> Event,
-  ): Unit =
-    _emitter
-      .emit(SubscriptionScope.block())
+  ) {
+    val event = SubscriptionScope.block()
+    val queued =
+      startupLock.withLock {
+        if (!live) startupEvents += event
+        !live
+      }
+    if (!queued) _emitter.emit(event)
+  }
 }
