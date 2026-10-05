@@ -7,10 +7,40 @@ on:
 permissions:
   contents: write
 jobs:
+  api_reference:
+    name: 'generate API reference'
+    # macOS, like the release build, so the iOS source sets are analysed with
+    # the Kotlin/Native toolchain they are published from.
+    runs-on: macos-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '21'
+      - uses: android-actions/setup-android@v4
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Generate Dokka HTML for the published modules
+        run: ./gradlew :dokkaGenerate --stacktrace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: api-reference
+          path: build/dokka/html
+          if-no-files-found: error
+          retention-days: 1
   deploy:
+    needs: api_reference
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # MkDocs copies non-Markdown files under docs/ verbatim, so the Dokka
+      # site is served at <site>/reference/ next to the hand-written guides.
+      - uses: actions/download-artifact@v4
+        with:
+          name: api-reference
+          path: docs/reference
       - uses: actions/setup-python@v5
         with:
           python-version: 3.x
