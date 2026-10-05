@@ -21,19 +21,19 @@ class SwiftSignalProvider: SignalProvider {
   }
 }
 
-final class ViewModel<E, S>: ObservableObject where E: Effect, S: ViewState {
+final class ViewModel<E, S, Err>: ObservableObject where E: Effect, S: ViewState, Err: AnyObject {
   private let container: AnchorContainer<E, S>
-  let anchorInstance: shared.Anchor<E, S, KotlinNothing>
-  var anchor: AnchorAction<shared.Anchor<E, S, KotlinNothing>>
+  let anchorInstance: shared.Anchor<E, S, Err>
+  var anchor: AnchorAction<shared.Anchor<E, S, Err>>
   @Published var state: S
   @Published var signal: SwiftSignalProvider
 
-  init(factory: @escaping (any RememberAnchorScope) -> shared.Anchor<E, S, KotlinNothing>) {
+  init(factory: @escaping (any RememberAnchorScope) -> shared.Anchor<E, S, Err>) {
     let container = AnchorContainerKt.createAnchor(
       scope: { scope in factory(scope) as! shared.Anchor<any Effect, any ViewState, AnyObject> },
       customKey: nil
     ) as! AnchorContainer<E, S>
-    let localAnchor = container.anchor as! shared.Anchor<E, S, KotlinNothing>
+    let localAnchor = container.anchor as! shared.Anchor<E, S, Err>
 
     self.container = container
     self.anchorInstance = localAnchor
@@ -56,8 +56,8 @@ final class ViewModel<E, S>: ObservableObject where E: Effect, S: ViewState {
   }
 }
 
-private struct EnvironmentBinding<E, S>: ViewModifier where E: Effect, S: ViewState {
-  let viewModel: ViewModel<E, S>
+private struct EnvironmentBinding<E, S, Err>: ViewModifier where E: Effect, S: ViewState, Err: AnyObject {
+  let viewModel: ViewModel<E, S, Err>
 
   func body(content: Content) -> some View {
     content
@@ -66,9 +66,9 @@ private struct EnvironmentBinding<E, S>: ViewModifier where E: Effect, S: ViewSt
 }
 
 extension View {
-  func environmentAnchor<E: Effect, S: ViewState>(
-    _ viewModel: ViewModel<E, S>
+  func environmentAnchor<E: Effect, S: ViewState, Err: AnyObject>(
+    _ viewModel: ViewModel<E, S, Err>
   ) -> some View {
-    modifier(EnvironmentBinding<E, S>(viewModel: viewModel))
+    modifier(EnvironmentBinding<E, S, Err>(viewModel: viewModel))
   }
 }
