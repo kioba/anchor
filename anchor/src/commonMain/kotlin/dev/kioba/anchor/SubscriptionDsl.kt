@@ -2,6 +2,7 @@ package dev.kioba.anchor
 
 import dev.kioba.anchor.internal.safeExecute
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.onEach
 
@@ -35,9 +36,12 @@ public class SubscriptionsScope<R, S, Err>(
   /**
    * Extension function to execute an action on the [Anchor] for each value emitted by a [Flow].
    *
-   * If the action calls [Raise.raise], the error is routed to the `onDomainError` handler
-   * without killing the subscription pipeline. If no handler is configured, the exception
-   * propagates and cancels the subscription.
+   * If the action calls [Raise.raise] or throws, the error is routed to the `onDomainError`
+   * or `defect` handler for that value, and the chain keeps running. If the matching handler
+   * is not configured, the error ends the chain.
+   *
+   * Errors thrown before this operator, such as in an inner flow of `flatMapLatest`, are not
+   * covered: see [connect] and [anchorErrors].
    *
    * @param I The type of values emitted by the [Flow].
    * @param action The action to execute on the [Anchor].
@@ -53,7 +57,51 @@ public class SubscriptionsScope<R, S, Err>(
     }
 
   /**
+   * Routes an error from this [Flow] to the [Anchor]'s error handlers, then completes it.
+   *
+   * Like `catch`, it handles errors from upstream only. A domain error raised upstream goes
+   * to `onDomainError`, and any other error goes to `defect`, as they do for an `.anchor {}`
+   * action. The flow then completes instead of failing.
+   *
+   * Use it at the end of an inner flow, such as the one `flatMapLatest` starts for each event,
+   * so that a failure ends only that inner flow. The [connect] handler keeps running, and the
+   * next event starts a fresh inner flow. Each failing inner flow is routed once and never
+   * retried.
+   *
+   * Cancelling the coroutine that collects the flow, including `flatMapLatest` switching to
+   * the next event, is never routed. If the matching handler is not configured, the error is
+   * rethrown, which ends the chain as it would without this operator.
+   *
+   * Example:
+   * ```kotlin
+   * connect<MyEvent.Refresh> { events ->
+   *   events
+   *     .flatMapLatest { effect.fetchData().anchorErrors() }
+   *     .anchor(MyAnchor::showData)
+   * }
+   * ```
+   *
+   * @param T The type of values emitted by the [Flow].
+   * @return A [Flow] that emits the same values and completes after routing an error.
+   */
+  public fun <T> Flow<T>.anchorErrors(): Flow<T> =
+    catch { error ->
+      safeExecute(anchor, onDomainError, defect) {
+        throw error
+      }
+    }
+
+  /**
    * Connects a handler to internal [Event]s of type [A].
+   *
+   * An error inside an `.anchor {}` action is routed for that value, and the handler keeps
+   * running. An error that escapes the chain anywhere else, such as an operator before or
+   * after `.anchor {}` or an inner flow of `flatMapLatest`, is routed to `onDomainError` or
+   * `defect` once and ends this handler for the rest of the anchor's life. A handler that
+   * has ended is not restarted. Other handlers keep running either way.
+   *
+   * To keep the handler alive when an inner flow fails, end the inner flow with
+   * [anchorErrors].
    *
    * @param A The type of [Event] to connect to.
    * @param block A transformation block that takes a [Flow] of [A] and returns a [Flow] to be collected.
