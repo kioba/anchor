@@ -248,18 +248,24 @@ public interface SubscriptionAnchor {
    * handler receives events in emission order. An event emitted while no handler is attached is
    * dropped.
    *
-   * `connect` handlers start before `init` runs, and each runs until it suspends. A handler that
-   * collects its event flow in its own coroutines, through operators such as `filter`, `map`,
-   * `flatMapLatest`, `buffer` or `combine`, is attached by then, so it receives the events `init`
-   * emits, after the [Created] event it receives on attach. A handler attaches later, and misses
-   * the events emitted before then, when its subscription waits on something else: `flowOn`
-   * another dispatcher, a scope from outside such as `shareIn`, or asynchronous work before it
-   * collects. `init` never waits for a handler to attach, so a handler that never collects its
-   * event flow, such as one observing a repository instead, does not hold it up.
+   * Until the anchor's subscriptions start, `emit` queues the event instead. `init` runs first, so
+   * this covers the events `init` emits and any emitted by actions that run before the handlers
+   * start. The handlers then start in place, each until it suspends. Every handler that collects its
+   * event flow in its own coroutines, through operators such as `filter`, `map`, `flatMapLatest`,
+   * `buffer` or `combine`, is attached by then. Each receives [Created], with the state `init` set
+   * already in place. Then the queue is delivered to all of them in order, followed by later events.
+   * So an event a handler emits while it handles a queued event reaches every other started
+   * handler. A handler attaches later, and misses the queued events and anything emitted before it
+   * attaches, when its subscription waits on something else: `flowOn` another dispatcher, a scope
+   * from outside such as `shareIn`, or asynchronous work before it collects. A handler that
+   * subscribes again, for example through `retry`, receives [Created] again but not the queued
+   * events. `init` must return: until it does, the handlers do not start and emitted events stay
+   * queued.
    *
-   * `emit` returns once the event is queued for every attached handler; it does not wait for any
-   * handler to process it. It suspends only when 64 events are already pending behind the slowest
-   * handler, and resumes once that handler catches up.
+   * `emit` returns once the event is queued, for every attached handler or in the startup queue; it
+   * does not wait for any handler to process it. Once subscriptions have started, it suspends only
+   * when 64 events are already pending behind the slowest handler, and resumes once that handler
+   * catches up.
    *
    * An action run by a `connect` handler, or an error handler invoked from it, can call `emit`.
    * That handler takes no new events until the invocation returns, so an invocation that emits

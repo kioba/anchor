@@ -220,9 +220,11 @@ class InitEventDeliveryTest {
         )
 
       anchor.inViewModel {
-        awaitOrFail("init did not run after subscription setup raised") {
-          anchor.viewState.first { it.value == 1 }
+        // init runs first, so wait for the later step: the error from subscription setup.
+        awaitOrFail("the domain error from subscription setup never reached onDomainError") {
+          errors.first { it.isNotEmpty() }
         }
+        assertEquals(1, anchor.viewState.value.value)
         assertEquals(listOf<TestError>(TestError.NotFound), errors.value)
       }
     }
@@ -359,26 +361,25 @@ class InitEventDeliveryTest {
       val received = MutableStateFlow<List<Event>>(emptyList())
       val anchor =
         createAnchor(
-          init = {
-            emit { InitEvent.Setup }
-            reduce { copy(value = 1) }
-          },
+          init = { emit { InitEvent.Setup } },
           subscriptions = {
+            // Starts in place, so it receives Setup when the startup queue is flushed.
+            connect<InitEvent.Setup> { events -> events.anchor { reduce { copy(value = 1) } } }
             connect<Event> { events -> events.flowOn(held).onEach { event -> received.update { it + event } } }
           },
         )
 
       try {
         anchor.inViewModel {
-          awaitOrFail("init waited for a handler whose dispatcher had not run yet") {
+          awaitOrFail("the startup queue never flushed Setup to the handler started in place") {
             anchor.viewState.first { it.value == 1 }
           }
 
           // flowOn collects upstream on its dispatcher, so the handler
-          // subscribes only once that dispatcher runs, after init's Setup.
+          // subscribes only once that dispatcher runs, after the flush.
           launch(Dispatchers.Default) { held.drain() }
           awaitOrFail("the flowOn handler never subscribed") {
-            anchor._emitter.subscriptionCount.first { it >= 1 }
+            anchor._emitter.subscriptionCount.first { it >= 2 }
           }
           anchor.emit { InitEvent.Ping }
 

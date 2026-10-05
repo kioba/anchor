@@ -16,14 +16,15 @@ import kotlinx.coroutines.launch
 
 /**
  * Hosts an anchor for the lifetime of a ViewModel and starts it once:
- * subscriptions start first, then `init` runs.
+ * `init` runs first, then subscriptions start.
  *
- * Each `connect` handler that attaches as it starts therefore receives
- * `Created` (on attach) before any event emitted by `init`, and receives
- * those events too; `SubscriptionAnchor.emit` spells out which handlers
- * attach as they start. A domain error or defect from either step is routed
- * to `onDomainError` or `defect` as before; once handled, it does not skip
- * the other step.
+ * Events emitted before subscriptions start, by `init` or by actions that
+ * run meanwhile, are queued. Each `connect` handler that attaches as it
+ * starts receives `Created`, by which time `init` has finished, then the
+ * queued events in order, then later events. `SubscriptionAnchor.emit`
+ * spells out which handlers attach as they start. A domain error or defect
+ * from either step is routed to `onDomainError` or `defect` as before; once
+ * handled, it does not skip the other step.
  */
 public class ContainerViewModel<R, S, Err>
   @PublishedApi
@@ -54,16 +55,17 @@ public class ContainerViewModel<R, S, Err>
 
   init {
     viewModelScope.launch(Dispatchers.Default) {
-      // Subscriptions start before init runs, so events init emits reach
+      // init runs first, so handlers start against the state it set; the
+      // events it emits wait in the startup queue until subscribe() flushes
       // them. Each step has its own error boundary, so a handled error in
       // one never skips the other.
+      safeExecute(anchor, anchor.onDomainError, anchor.defect) {
+        anchor.consumeInitial()
+      }
       safeExecute(anchor, anchor.onDomainError, anchor.defect) {
         with(anchor) {
           subscribe()
         }
-      }
-      safeExecute(anchor, anchor.onDomainError, anchor.defect) {
-        anchor.consumeInitial()
       }
     }
   }
