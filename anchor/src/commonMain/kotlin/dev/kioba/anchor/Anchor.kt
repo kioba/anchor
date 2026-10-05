@@ -212,6 +212,11 @@ public interface CancellableAnchor<R, S, Err> where R : Effect, S : ViewState, E
    * Executes a block that can be cancelled by its [key].
    *
    * If a job with the same key is already running, it will be cancelled before the new block is executed.
+   * The new block starts only after the previous block for the same key has completed, so at most one
+   * block per key runs at a time. Blocks with different keys never wait for each other.
+   *
+   * Cancellation is cooperative; wrap blocking calls in `runInterruptible` (JVM/Android) or use suspending
+   * APIs. A previous block stuck in blocking code delays only the next block for the same key.
    *
    * @param key The identifier for the cancellable job.
    * @param block The block to execute.
