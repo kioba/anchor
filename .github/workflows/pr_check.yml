@@ -22,6 +22,8 @@ jobs:
           DOCS_VERSION=$(grep -oP 'version: "\K[0-9]+\.[0-9]+\.[0-9]+' mkdocs.yml)
           CLAUDE_VERSION=$(grep -oP 'Published version: `\K[0-9]+\.[0-9]+\.[0-9]+' CLAUDE.md)
           README_VERSION=$(grep -oP "${GROUP_ID}:anchor:\K[0-9]+\.[0-9]+\.[0-9]+" README.md | head -1)
+          AGENTS_VERSION=$(sed -n -E 's/.*\*\*Published version\*\*: ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' AGENTS.md | head -1)
+          AGENTS_DEP_VERSION=$(grep -oP "${GROUP_ID}:anchor:\K[0-9]+\.[0-9]+\.[0-9]+" AGENTS.md | head -1)
           ERRORS=0
 
           if [ "$README_VERSION" != "$DOCS_VERSION" ]; then
@@ -34,8 +36,18 @@ jobs:
             ERRORS=$((ERRORS+1))
           fi
 
+          if [ "$AGENTS_VERSION" != "$DOCS_VERSION" ]; then
+            echo "::error file=AGENTS.md::Published version $AGENTS_VERSION does not match mkdocs.yml ($DOCS_VERSION)"
+            ERRORS=$((ERRORS+1))
+          fi
+
+          if [ "$AGENTS_DEP_VERSION" != "$DOCS_VERSION" ]; then
+            echo "::error file=AGENTS.md::Dependency version $AGENTS_DEP_VERSION does not match mkdocs.yml ($DOCS_VERSION)"
+            ERRORS=$((ERRORS+1))
+          fi
+
           if [ $ERRORS -gt 0 ]; then
-            echo "::error::Found $ERRORS version mismatch(es). Ensure README.md, mkdocs.yml, and CLAUDE.md all reference the same published version."
+            echo "::error::Found $ERRORS version mismatch(es). Ensure README.md, mkdocs.yml, CLAUDE.md, and AGENTS.md all reference the same published version."
             exit 1
           fi
 
