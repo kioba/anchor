@@ -11,6 +11,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Runnable
+import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.buffer
@@ -20,6 +21,8 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.onSubscription
+import kotlinx.coroutines.flow.retry
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -33,6 +36,8 @@ private sealed interface InitEvent : Event {
   data object Setup : InitEvent
 
   data object Ping : InitEvent
+
+  data object Done : InitEvent
 }
 
 /**
@@ -284,26 +289,20 @@ class InitEventDeliveryTest {
     }
 
   @Test
-  fun `init does not wait for a handler to finish processing Created`(): Unit =
+  fun `a Created handler sees the state init set`(): Unit =
     runBlocking {
-      val initRan = CompletableDeferred<Unit>()
+      val seen = CompletableDeferred<Int>()
       val anchor =
         createAnchor(
-          init = { initRan.complete(Unit) },
+          init = { reduce { copy(value = 5) } },
           subscriptions = {
-            connect<Created> { events ->
-              events.anchor {
-                initRan.await()
-                reduce { copy(value = 1) }
-              }
-            }
+            connect<Created> { events -> events.anchor { seen.complete(state.value) } }
           },
         )
 
       anchor.inViewModel {
-        awaitOrFail("init waited for the Created handler, which waits for init") {
-          anchor.viewState.first { it.value == 1 }
-        }
+        val value = awaitOrFail("the Created handler never ran") { seen.await() }
+        assertEquals(5, value)
       }
     }
 
@@ -391,6 +390,192 @@ class InitEventDeliveryTest {
         }
       } finally {
         held.close()
+      }
+    }
+
+  @Test
+  fun `an event a Created handler emits during startup reaches a handler declared after it`(): Unit =
+    runBlocking {
+      val anchor =
+        createAnchor(
+          subscriptions = {
+            connect<Created> { events -> events.anchor { emit { InitEvent.Ping } } }
+            connect<InitEvent.Ping> { events -> events.anchor { reduce { copy(value = 1) } } }
+          },
+        )
+
+      anchor.inViewModel {
+        awaitOrFail("the Ping a Created handler emitted during startup never reached the Ping handler") {
+          anchor.viewState.first { it.value == 1 }
+        }
+      }
+    }
+
+  @Test
+  fun `an event chain started by init reaches a handler declared after the one that emits`(): Unit =
+    runBlocking {
+      val anchor =
+        createAnchor(
+          init = { emit { InitEvent.Setup } },
+          subscriptions = {
+            connect<InitEvent.Setup> { events -> events.anchor { emit { InitEvent.Ping } } }
+            connect<InitEvent.Ping> { events -> events.anchor { reduce { copy(value = 1) } } }
+          },
+        )
+
+      anchor.inViewModel {
+        awaitOrFail("the Ping emitted while handling Setup from init never reached the Ping handler") {
+          anchor.viewState.first { it.value == 1 }
+        }
+      }
+    }
+
+  @Test
+  fun `an event emitted while init runs is delivered after the events init emitted`(): Unit =
+    runBlocking {
+      val initStarted = CompletableDeferred<Unit>()
+      val releaseInit = CompletableDeferred<Unit>()
+      val received = MutableStateFlow<List<Event>>(emptyList())
+      val anchor =
+        createAnchor(
+          init = {
+            emit { InitEvent.Setup }
+            initStarted.complete(Unit)
+            releaseInit.await()
+          },
+          subscriptions = {
+            connect<Event> { events -> events.onEach { event -> received.update { it + event } } }
+          },
+        )
+
+      anchor.inViewModel {
+        awaitOrFail("init never started") { initStarted.await() }
+        // Stands in for a UI action that emits while init is still running.
+        anchor.emit { InitEvent.Ping }
+        releaseInit.complete(Unit)
+
+        val events =
+          awaitOrFail("the handler did not receive Created, Setup and Ping") {
+            received.first { it.size >= 3 }
+          }
+        assertEquals(listOf(Created, InitEvent.Setup, InitEvent.Ping), events)
+      }
+    }
+
+  @Test
+  fun `every handler receives the events queued during startup`(): Unit =
+    runBlocking {
+      val first = MutableStateFlow<List<Event>>(emptyList())
+      val second = MutableStateFlow<List<Event>>(emptyList())
+      val anchor =
+        createAnchor(
+          init = {
+            emit { InitEvent.Setup }
+            emit { InitEvent.Ping }
+          },
+          subscriptions = {
+            connect<Event> { events -> events.onEach { event -> first.update { it + event } } }
+            connect<Event> { events -> events.onEach { event -> second.update { it + event } } }
+          },
+        )
+
+      anchor.inViewModel {
+        val expected = listOf(Created, InitEvent.Setup, InitEvent.Ping)
+        val firstEvents = awaitOrFail("the first handler missed queued events") { first.first { it.size >= 3 } }
+        val secondEvents = awaitOrFail("the second handler missed queued events") { second.first { it.size >= 3 } }
+        assertEquals(expected, firstEvents)
+        assertEquals(expected, secondEvents)
+      }
+    }
+
+  @Test
+  fun `a handler that subscribes again receives Created but not the startup events again`(): Unit =
+    runBlocking {
+      val received = MutableStateFlow<List<Event>>(emptyList())
+      var failedOnce = false
+      val anchor =
+        createAnchor(
+          init = { emit { InitEvent.Setup } },
+          subscriptions = {
+            connect<Event> { events ->
+              events
+                .onEach { event -> received.update { it + event } }
+                .onEach { event ->
+                  if (event == InitEvent.Setup && !failedOnce) {
+                    failedOnce = true
+                    throw IllegalStateException("fail once")
+                  }
+                }.retry(1)
+            }
+          },
+        )
+
+      anchor.inViewModel {
+        awaitOrFail("the handler never subscribed again") { received.first { it.size >= 3 } }
+        anchor.emit { InitEvent.Ping }
+
+        val events =
+          awaitOrFail("the handler did not receive the live Ping after subscribing again") {
+            received.first { InitEvent.Ping in it }
+          }
+        assertEquals(listOf(Created, InitEvent.Setup, Created, InitEvent.Ping), events)
+      }
+    }
+
+  @Test
+  fun `an event a handler emits during the flush arrives after every queued event`(): Unit =
+    runBlocking {
+      val received = MutableStateFlow<List<Event>>(emptyList())
+      val anchor =
+        createAnchor(
+          init = {
+            emit { InitEvent.Setup }
+            repeat(100) { emit { InitEvent.Ping } }
+          },
+          subscriptions = {
+            // More Pings queue behind Setup than the bus buffers, so the flush
+            // waits on this handler while its action emits Done.
+            connect<InitEvent.Setup> { events -> events.anchor { emit { InitEvent.Done } } }
+            connect<Event> { events -> events.onEach { event -> received.update { it + event } } }
+          },
+        )
+
+      anchor.inViewModel {
+        val events =
+          awaitOrFail("the flush deadlocked, or Done never arrived") {
+            received.first { InitEvent.Done in it }
+          }
+        assertEquals(listOf(Created, InitEvent.Setup) + List(100) { InitEvent.Ping } + InitEvent.Done, events)
+      }
+    }
+
+  @Test
+  fun `emit goes live even when subscription setup raises`(): Unit =
+    runBlocking {
+      val errors = MutableStateFlow<List<TestError>>(emptyList())
+      val anchor =
+        createAnchor(
+          subscriptions = { anchor.raise(TestError.NotFound) },
+          onDomainError = { error -> errors.update { it + error } },
+        )
+
+      anchor.inViewModel {
+        awaitOrFail("the domain error from subscription setup never reached onDomainError") {
+          errors.first { it.isNotEmpty() }
+        }
+
+        // Watch the bus directly: if emit still queued, Ping would never reach it.
+        val subscribed = CompletableDeferred<Unit>()
+        val onBus =
+          async(Dispatchers.Default) {
+            anchor._emitter
+              .onSubscription { subscribed.complete(Unit) }
+              .first { it == InitEvent.Ping }
+          }
+        awaitOrFail("the bus watcher never subscribed") { subscribed.await() }
+        anchor.emit { InitEvent.Ping }
+
+        awaitOrFail("Ping never reached the bus after subscription setup raised") { onBus.await() }
       }
     }
 }
