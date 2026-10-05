@@ -8,7 +8,9 @@ package dev.kioba.anchor
  * full [Anchor] type.
  *
  * When used with [Anchor], `raise` propagates the error to the
- * `onDomainError` handler configured via `create()`.
+ * `onDomainError` handler configured via `create()`. Without one, it goes to
+ * the `defect` handler as a [DomainDefectException], as `orDie` would; with
+ * neither handler, the action stops silently.
  *
  * For [PureAnchor] (`Anchor<R, S, Nothing>`), `raise(Nothing)` is statically
  * uncallable — the type system prevents misuse with zero runtime cost.

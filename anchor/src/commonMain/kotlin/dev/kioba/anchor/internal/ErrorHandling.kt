@@ -1,10 +1,14 @@
 package dev.kioba.anchor.internal
 
 import dev.kioba.anchor.Anchor
+import dev.kioba.anchor.DomainDefectException
 import dev.kioba.anchor.Effect
 import dev.kioba.anchor.ErrorScope
 import dev.kioba.anchor.RaisedException
 import dev.kioba.anchor.ViewState
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
+import kotlin.coroutines.cancellation.CancellationException
 
 public suspend inline fun <R, S, Err> catchDomainError(
   anchor: Anchor<R, S, Err>,
@@ -28,10 +32,25 @@ public suspend inline fun <R, S, Err> catchDefects(
   try {
     block()
   } catch (e: Throwable) {
-    if (!e.isNonFatal()) throw e
+    if (!e.isRoutableDefect()) throw e
     defect?.invoke(anchor, e) ?: throw e
   }
 }
+
+/**
+ * Whether [catchDefects] may hand this to `defect`. A [CancellationException]
+ * caught while the running coroutine is still active does not come from
+ * cancelling it (a `withTimeout` expiry, awaiting a `Deferred` cancelled
+ * elsewhere), so it is a failure like any other. The coroutine's own
+ * cancellation and a [RaisedException] never are.
+ */
+@PublishedApi
+internal suspend fun Throwable.isRoutableDefect(): Boolean =
+  when (this) {
+    is RaisedException -> false
+    is CancellationException -> currentCoroutineContext().isActive
+    else -> isNonFatal()
+  }
 
 public suspend inline fun <R, S, Err> safeExecute(
   anchor: Anchor<R, S, Err>,
@@ -40,8 +59,18 @@ public suspend inline fun <R, S, Err> safeExecute(
   block: () -> Unit,
 ) where R : Effect, S : ViewState, Err : Any {
   catchDefects(anchor, defect) {
-    catchDomainError(anchor, onDomainError) {
+    try {
       block()
+    } catch (e: RaisedException) {
+      @Suppress("UNCHECKED_CAST")
+      val error = e.error as Err
+      when {
+        onDomainError != null -> onDomainError.invoke(anchor, error)
+        // Escalate as orDie(error) would. Thrown inside catchDefects' block,
+        // so a defect handler that throws is not invoked a second time.
+        defect != null -> throw DomainDefectException(error)
+        else -> throw e
+      }
     }
   }
 }

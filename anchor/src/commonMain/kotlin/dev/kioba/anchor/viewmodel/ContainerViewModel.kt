@@ -9,9 +9,12 @@ import dev.kioba.anchor.SignalProvider
 import dev.kioba.anchor.ViewState
 import dev.kioba.anchor.internal.AnchorRuntime
 import dev.kioba.anchor.internal.safeExecute
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 
 /**
@@ -23,7 +26,8 @@ import kotlinx.coroutines.launch
  * those events too; `SubscriptionAnchor.emit` spells out which handlers
  * attach as they start. A domain error or defect from either step is routed
  * to `onDomainError` or `defect` as before; once handled, it does not skip
- * the other step.
+ * the other step. Subscriptions belong to the ViewModel, not to `init`, so
+ * nothing `init` does, not even a failure no handler receives, cancels them.
  */
 public class ContainerViewModel<R, S, Err>
   @PublishedApi
@@ -59,7 +63,10 @@ public class ContainerViewModel<R, S, Err>
       // one never skips the other.
       safeExecute(anchor, anchor.onDomainError, anchor.defect) {
         with(anchor) {
-          subscribe()
+          // Parent the listeners to the ViewModel, not to this coroutine:
+          // however init ends, including a cancellation safeExecute
+          // rethrows, it must not cancel them. Still Dispatchers.Default.
+          CoroutineScope(currentCoroutineContext() + viewModelScope.coroutineContext.job).subscribe()
         }
       }
       safeExecute(anchor, anchor.onDomainError, anchor.defect) {
