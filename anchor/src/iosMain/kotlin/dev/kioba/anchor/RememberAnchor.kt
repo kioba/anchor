@@ -52,6 +52,10 @@ public fun <R : Effect, S : ViewState> AnchorSink<R, S, *>.nativeViewState(): Na
  * Convenience extension to get a [NativeSharedFlow] wrapper for signals.
  *
  * Use this from iOS to collect signal emissions via callbacks.
+ *
+ * Its collector accepts every signal. Each `collect` first receives, once, the signals held while no collector was
+ * attached (for example one posted from `init` before this call), then live ones. Delivered signals are never
+ * replayed. See [AnchorSink.signals] for the full delivery contract.
  */
 public fun <R : Effect, S : ViewState> AnchorSink<R, S, *>.nativeSignals(): NativeSharedFlow<SignalProvider> =
   NativeSharedFlow(signals)
