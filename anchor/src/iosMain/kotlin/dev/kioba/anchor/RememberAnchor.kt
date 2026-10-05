@@ -1,17 +1,11 @@
 package dev.kioba.anchor
 
-import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.ViewModelStore
-import androidx.lifecycle.ViewModelStoreOwner
-import dev.kioba.anchor.internal.AnchorRuntime
-import dev.kioba.anchor.viewmodel.ContainerViewModel
-import dev.kioba.anchor.viewmodel.containerViewModelFactory
-
 /**
- * Creates and remembers an [Anchor] instance for iOS.
+ * Creates an [Anchor] for iOS without anything that owns it.
  *
- * This function provides a way to use Anchor in iOS targets, integrating with the lifecycle
- * of the component where it's called. It uses a [ViewModelStore] to retain the Anchor instance.
+ * Nothing retains or releases the anchor: every call creates a new one whose `init` and subscriptions run until the
+ * process ends. Use [createAnchor] instead, hold the [AnchorContainer] it returns, and call
+ * [AnchorContainer.clear] from your view's teardown.
  *
  * @param S The [ViewState] type.
  * @param E The [Effect] type.
@@ -19,31 +13,27 @@ import dev.kioba.anchor.viewmodel.containerViewModelFactory
  * @param customKey Optional key for Anchor storage.
  * @return The [Anchor] instance.
  */
-@Suppress("UNCHECKED_CAST")
+@Deprecated(
+  message =
+    "rememberAnchor neither retains nor disposes the anchor; every call " +
+      "creates a runtime whose coroutines are never cancelled. Use createAnchor() " +
+      "and call clear() from your view's teardown.",
+  replaceWith = ReplaceWith("createAnchor(scope, customKey)"),
+)
 public fun <S, E> rememberAnchor(
   scope: (RememberAnchorScope) -> Anchor<E, S, *>,
   customKey: String? = null,
 ): Anchor<E, S, *>
   where
-  E : Effect,
-  S : ViewState {
-  val storeOwner = object : ViewModelStoreOwner {
-    override val viewModelStore = ViewModelStore()
-  }
-  val factory = containerViewModelFactory { scope(AnchorRuntimeScope) as AnchorRuntime<E, S, *> }
-  val provider = ViewModelProvider.create(storeOwner, factory)
-  val anchorScope = when {
-    customKey != null -> provider[customKey, ContainerViewModel::class]
-    else -> provider[ContainerViewModel::class]
-  } as ContainerViewModel<E, S, *>
-
-  return anchorScope.anchor
-}
+        E : Effect,
+        S : ViewState =
+  createAnchor(scope, customKey).anchor
 
 /**
  * Convenience extension to get a [NativeStateFlow] wrapper for the view state.
  *
- * Use this from iOS to collect state updates via callbacks.
+ * Use this from iOS to collect state updates via callbacks. Its collectors are not tied to an [AnchorContainer], so
+ * cancel each yourself; [AnchorContainer.collectState] collectors stop on [AnchorContainer.clear].
  */
 public fun <R : Effect, S : ViewState> AnchorSink<R, S, *>.nativeViewState(): NativeStateFlow<S> =
   NativeStateFlow(viewState)
@@ -56,6 +46,9 @@ public fun <R : Effect, S : ViewState> AnchorSink<R, S, *>.nativeViewState(): Na
  * Its collector accepts every signal. Each `collect` first receives, once, the signals held while no collector was
  * attached (for example one posted from `init` before this call), then live ones. Delivered signals are never
  * replayed. See [AnchorSink.signals] for the full delivery contract.
+ *
+ * Its collectors are not tied to an [AnchorContainer], so cancel each yourself; [AnchorContainer.collectSignals]
+ * collectors stop on [AnchorContainer.clear].
  */
 public fun <R : Effect, S : ViewState> AnchorSink<R, S, *>.nativeSignals(): NativeSharedFlow<SignalProvider> =
   NativeSharedFlow(signals)
