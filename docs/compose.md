@@ -101,6 +101,23 @@ CustomSlider(onChange = anchor(SettingsAnchor::updateRange))
 
 Actions are executed asynchronously on `Dispatchers.Default` within the ViewModel's coroutine scope.
 
+### Nested anchors
+
+`anchor()` picks its target by the ViewState of the action's receiver: it runs on the nearest enclosing `RememberAnchor` whose ViewState is `S`. Content inside a nested `RememberAnchor` can therefore call actions of both the inner and the outer anchor:
+
+```kotlin
+RememberAnchor(scope = { mainAnchor() }) {           // MainViewState
+    RememberAnchor(scope = { counterAnchor() }) {    // CounterState
+        Button(onClick = anchor(CounterAnchor::increment)) { Text("+") }  // runs on the counter anchor
+        Button(onClick = anchor(MainAnchor::selectHome)) { Text("Home") } // runs on the main anchor
+    }
+}
+```
+
+- If no enclosing `RememberAnchor` has the action's ViewState, `anchor()` throws an `IllegalStateException` that names the missing state type.
+- If two enclosing anchors share the same ViewState (for example through `customKey`), the nearest one wins.
+- Signals stay scoped to the nearest `RememberAnchor`. A `post {}` from an outer anchor's action reaches only the `HandleSignal` calls in the outer anchor's content, not those inside the nested `RememberAnchor`.
+
 ---
 
 ## Handling Signals
@@ -139,7 +156,7 @@ fun CounterPreview() {
 }
 ```
 
-`PreviewAnchor` wraps the state in an `AnchorStateScope` so your content composable works identically to production. Actions dispatched via `anchor()` become no-ops in previews.
+`PreviewAnchor` wraps the state in an `AnchorStateScope` so your content composable works identically to production. Actions dispatched via `anchor()` on the previewed ViewState become no-ops. If the previewed content also calls actions of an outer anchor, nest a `PreviewAnchor` for that anchor's state as well.
 
 ---
 
