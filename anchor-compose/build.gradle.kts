@@ -21,5 +21,14 @@ kotlin {
         implementation(libs.kotlin.test)
       }
     }
+
+    val desktopTest by getting {
+      dependencies {
+        implementation(libs.compose.multiplatform.uiTest)
+        implementation(compose.desktop.currentOs)
+        implementation(libs.kotlin.coroutinesTest)
+        implementation(libs.kotlin.coroutinesSwing)
+      }
+    }
   }
 }
