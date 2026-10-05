@@ -10,7 +10,6 @@ import kotlinx.coroutines.delay
 import kotlin.coroutines.ContinuationInterceptor
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
 
 private data class FxEffect(
   val data: String = "default",
@@ -74,9 +73,9 @@ class EffectTest {
 
   /**
    * Verifies that `effect { }` calls are NOT recorded in verifyActions.
-   * AnchorTestRuntime.effect() executes the block directly and returns
-   * the result without adding to the action list. An action with only
-   * an effect call and no reduce/post/emit produces zero recorded actions.
+   * An action with only an effect call and no reduce/post/emit produces
+   * zero recorded actions: an effect call needs no assertion, and an
+   * unasserted one never fails verification.
    */
   @Test
   fun effectDoesNotRecordAction() =
@@ -93,10 +92,6 @@ class EffectTest {
    * asserting the state change that depends on the effect's return value.
    * Since `effect { }` is not recorded in verifyActions, the correctness
    * of the effect scope is proven through the reduce that uses its result.
-   *
-   * Note: `assertEffect` adds to expectedActions but does not consume from
-   * actualActions, causing a size mismatch when mixed with other assertions.
-   * The idiomatic way to verify effects is through their impact on state.
    */
   @Test
   fun effectVerifiedThroughStateImpact() =
@@ -119,7 +114,9 @@ class EffectTest {
    * Regression for #53: `given { effect { ... } }` must accept a suspending
    * lambda so tests can seed effect-scope state via suspending setters
    * (e.g. priming a fake repository). Calling `delay` inside the block
-   * proves the parameter is `suspend R.() -> Unit`.
+   * proves the parameter is `suspend R.() -> Unit`. That the block runs and
+   * its seed reaches the action is proven by
+   * `EffectApisTest.givenEffectSeedsTheFactoryEffectScope`.
    */
   @Test
   fun givenEffectAcceptsSuspendingBlock() =
@@ -185,58 +182,6 @@ class EffectTest {
 
       verify("the block stayed on the caller's dispatcher") {
         assertState { copy(result = "caller dispatcher") }
-      }
-    }
-
-  /**
-   * Pins the documented behavior of `VerifyScope.assertEffect`: effects
-   * are not recorded, so an `assertEffect` next to assertions that already
-   * match every recorded action fails the action-count check.
-   */
-  @Test
-  fun assertEffectFailsWhenOtherAssertionsMatchEveryAction() {
-    assertFailsWith<AssertionError> {
-      runAnchorTest(RememberAnchorScope::fxAnchor) {
-        given("custom effect scope") {
-          effectScope { FxEffect(data = "custom") }
-        }
-
-        on("reading data from effect and reducing") {
-          val d = effect { data }
-          reduce { copy(result = d) }
-        }
-
-        verify("effect and state asserted") {
-          assertEffect { }
-          assertState { copy(result = "custom") }
-        }
-      }
-    }
-  }
-
-  /**
-   * Pins the documented behavior of `VerifyScope.assertEffect`: it counts
-   * as an expected action but consumes no recorded one. With one recorded
-   * action left unasserted the counts match and verification passes, and
-   * the trailing reduce below is never checked. Update this test together
-   * with the `assertEffect` KDoc if that API changes.
-   */
-  @Test
-  fun assertEffectLeavesATrailingActionUnchecked() =
-    runAnchorTest(RememberAnchorScope::fxAnchor) {
-      given("custom effect scope") {
-        effectScope { FxEffect(data = "custom") }
-      }
-
-      on("reading data from effect and reducing twice") {
-        val d = effect { data }
-        reduce { copy(result = d) }
-        reduce { copy(result = "never checked") }
-      }
-
-      verify("first reduce and an effect asserted") {
-        assertState { copy(result = "custom") }
-        assertEffect { }
       }
     }
 }

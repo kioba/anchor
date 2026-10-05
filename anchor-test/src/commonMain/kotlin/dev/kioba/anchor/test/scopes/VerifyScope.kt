@@ -21,21 +21,16 @@ public interface VerifyScope<R, S, Err> where R : Effect, S : ViewState, Err : A
   )
 
   /**
-   * Adds an expected entry that no recorded action can match. Despite its name, it does not check
-   * that the action called `effect { }`: the test runtime does not record effect calls.
+   * Asserts that the action entered an `effect { }` block at this point in the order: after the
+   * actions asserted before this call, and before the one asserted next. [f] then runs with the
+   * effect scope after the whole action has finished, so use it for assertions on a fake, for
+   * example `assertEffect { assertEquals(1, api.fetchCount) }`.
    *
-   * Verification first requires as many expected entries as recorded actions, then matches the
-   * other assertions against the recorded actions in order. This entry consumes none of them, so:
-   *
-   * - Next to assertions that match every recorded action, it fails the count check (for example
-   *   `expected:<2> but was:<1>`).
-   * - It passes only when each `assertEffect` leaves one recorded action unasserted. Those
-   *   trailing recorded actions are then never checked.
-   *
-   * When the count check passes, [f] is invoked in its turn with the effect scope, after the action
-   * has run.
-   * To verify an effect, assert what the action did with its result instead, for example with
-   * [assertState].
+   * - It does not identify which effect ran, only that one was entered at this point. An effect
+   *   whose block throws still counts.
+   * - Calling an effect method inside [f] calls it again and verifies nothing.
+   * - Effect calls without a matching `assertEffect` are ignored, and `assertEffect` does not count
+   *   toward the recorded actions that the other assertions must match.
    */
   public fun assertEffect(
     f: R.() -> Unit,

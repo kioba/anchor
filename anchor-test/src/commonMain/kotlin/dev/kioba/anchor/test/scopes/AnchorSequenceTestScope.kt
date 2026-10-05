@@ -100,6 +100,7 @@ public class AnchorStepScope<R : Effect, S : ViewState, Err : Any> {
 internal suspend inline fun <reified R : Effect, reified S : ViewState, Err : Any> AnchorSequenceTestScope<R, S, Err>.assertSequence() {
   val base: AnchorTestRuntime<R, S, Err> = buildBaseRuntime<R, S, Err>()
   var currentState: S = base.initState
+  for (configure in outerGiven.effects) { base.effectScope.configure() }
 
   for (step in steps) {
     val stepEffectScope: R = base.effectScope
@@ -132,6 +133,7 @@ internal suspend inline fun <reified R : Effect, reified S : ViewState, Err : An
 
     assertEvents<R, S, Err>(
       actualActions = stepRuntime.verifyActions,
+      effectCallPositions = stepRuntime.effectCallPositions,
       initialState = currentState,
       effectScope = stepEffectScope,
       expectedActions = step.expectedActions,

@@ -14,8 +14,9 @@ Tests are ordered from simple to complex across files. Within each file, happy-p
 | `ReduceTest.kt` | `assertState` | 7 | State updates, threading across reduces, idempotency, negative cases |
 | `SignalTest.kt` | `assertSignal` | 4 | Signal posting, ordering, interleaving with reduces |
 | `EventTest.kt` | `assertEvent` | 5 | Event emission, ordering, interleaving with reduces, `init`/`subscriptions` not run |
-| `GivenScopeTest.kt` | Setup | 8 | `initialState`, `effectScope`, handler overrides, composition, `given { effect { } }` not run |
-| `EffectTest.kt` | `effect { }` | 9 | Effect execution, scope resolution, non-recording behavior, ignored context, `assertEffect` behavior |
+| `GivenScopeTest.kt` | Setup | 6 | `initialState`, `effectScope`, handler overrides, composition |
+| `EffectTest.kt` | `effect { }` | 7 | Effect execution, scope resolution, non-recording behavior, ignored context |
+| `EffectApisTest.kt` | `given { effect { } }` / `assertEffect` | 13 | Given-effect setup (suspending seed, override order, outer sequence `given` runs once, throwing setup), positional `assertEffect` matching (skips unasserted calls, fails on missing call or wrong order, no hidden trailing action) |
 | `CancellableTest.kt` | `cancellable` | 4 | Inline execution in tests, mixed actions, multiple blocks, same key does not cancel |
 | `WithStateTest.kt` | `withState` | 3 | Read-only state access, post-reduce reads, no-action recording |
 | `ErrorHandlingTest.kt` | Error primitives | 17 | `raise`, `recover`, `orDie`, `ensure`, `Recover` extensions |
@@ -23,7 +24,7 @@ Tests are ordered from simple to complex across files. Within each file, happy-p
 | `ActionOrderingTest.kt` | Ordering | 5 | Mixed sequences, type mismatches, size mismatches |
 | `SequenceTest.kt` | `runAnchorSequenceTest` / `step {}` | 7 | State threading, shared effect, per-step `effect {}`, composable steps, structural errors |
 
-**Total: 80 tests**
+**Total: 89 tests**
 
 ## Coverage Map
 
@@ -35,6 +36,7 @@ Tests are ordered from simple to complex across files. Within each file, happy-p
 |----------|-----------|
 | `initialState { }` | `GivenScopeTest`, `WithStateTest` |
 | `effectScope { }` | `GivenScopeTest`, `EffectTest`, `ActionOrderingTest` |
+| `effect { }` | `EffectApisTest`, `EffectTest` (suspending block compiles) |
 | `onDomainError { }` | `GivenScopeTest`, `ErrorHandlerBehaviorTest` |
 | `defect { }` | `GivenScopeTest`, `ErrorHandlerBehaviorTest` |
 
@@ -44,7 +46,7 @@ Tests are ordered from simple to complex across files. Within each file, happy-p
 | `assertState { }` | `ReduceTest`, `RunAnchorTestTest`, `SignalTest`, `EventTest`, all error tests |
 | `assertSignal { }` | `SignalTest`, `CancellableTest`, `ErrorHandlerBehaviorTest`, `ActionOrderingTest` |
 | `assertEvent { }` | `EventTest`, `ErrorHandlerBehaviorTest`, `ActionOrderingTest` |
-| `assertEffect { }` | `EffectTest` (pins the count-check behavior documented on `VerifyScope.assertEffect`) |
+| `assertEffect { }` | `EffectApisTest` |
 | `assertRaise { }` | `ErrorHandlingTest`, `ErrorHandlerBehaviorTest` |
 | `assertOrDie { }` | `ErrorHandlingTest`, `ErrorHandlerBehaviorTest` |
 | `assertDomainError { }` | `ErrorHandlingTest`, `GivenScopeTest`, `ErrorHandlerBehaviorTest` |
@@ -56,7 +58,7 @@ Tests are ordered from simple to complex across files. Within each file, happy-p
 | `reduce { }` | `ReduceTest`, most other files |
 | `post { }` | `SignalTest`, `CancellableTest`, `ActionOrderingTest` |
 | `emit { }` | `EventTest`, `ActionOrderingTest` |
-| `effect { }` | `EffectTest`, `GivenScopeTest`, `ActionOrderingTest` |
+| `effect { }` | `EffectTest`, `EffectApisTest`, `GivenScopeTest`, `ActionOrderingTest` |
 | `cancellable { }` | `CancellableTest` |
 | `withState { }` | `WithStateTest` |
 | `raise()` | `ErrorHandlingTest`, `ErrorHandlerBehaviorTest` |
@@ -76,6 +78,7 @@ Tests are ordered from simple to complex across files. Within each file, happy-p
 |----------|-----------|
 | `runAnchorSequenceTest` | `SequenceTest`, feature `*SequenceTest` files |
 | outer `given { }` (`initialState`, `effectScope`) | `SequenceTest`, feature `*SequenceTest` files |
+| outer `given { effect { } }` (runs once before step 1) | `EffectApisTest` |
 | `step { }` | `SequenceTest`, feature `*SequenceTest` files |
 | `StepGivenScope.effect { }` (per-step mutation of shared scope) | `SequenceTest` |
 | `AnchorStepScope` extensions (composable steps) | `SequenceTest`, `CounterSequenceTest`, `MainSequenceTest` |
@@ -85,6 +88,7 @@ Tests are ordered from simple to complex across files. Within each file, happy-p
 - Size mismatch (too many/few assertions): `ReduceTest`, `ActionOrderingTest`
 - Value mismatch (wrong state/signal/event): `ReduceTest`, `SignalTest`, `EventTest`
 - Type mismatch (wrong assertion order): `ActionOrderingTest`
+- `assertEffect` with no effect call at its position, or a trailing unasserted action: `EffectApisTest`
 
 ## Test Fixtures
 
@@ -98,6 +102,7 @@ Each file defines its own private fixtures with unique names to avoid Kotlin sam
 | `EventTest.kt` | `Evt` | No |
 | `GivenScopeTest.kt` | `Given` | Yes (`GivenErr`) |
 | `EffectTest.kt` | `Fx` | No |
+| `EffectApisTest.kt` | `Eap` | No |
 | `CancellableTest.kt` | `Cancel` | No |
 | `WithStateTest.kt` | `Ws` | No |
 | `ErrorHandlingTest.kt` | `Test` | Yes (`TestErr`) |
@@ -105,12 +110,6 @@ Each file defines its own private fixtures with unique names to avoid Kotlin sam
 | `ActionOrderingTest.kt` | `Ord` | No |
 
 ## Known Limitations
-
-### `assertEffect` size mismatch
-`assertEffect` adds an `EffectAction` to `expectedActions` but does not consume from `actualActions` during verification. This causes a size mismatch (`expectedActions.size != actualActions.size`) when `assertEffect` is mixed with other assertions. Effects should be verified indirectly through their impact on state.
-
-### `GivenScope.effect { }` is a no-op
-`GivenScopeImpl.effects` list is populated by `given { effect { } }` but is never consumed by `AnchorTestScope.assert()`, nor for the outer `given` by `assertSequence()`. Only `effectScope { }` actually replaces the effect scope; only a step's `given { effect { } }` runs. Pinned by `GivenScopeTest`.
 
 ### `cancellable` in tests runs inline
 `AnchorTestRuntime.cancellable()` executes the block directly without cancellation semantics. Tests cannot verify that a second invocation with the same key cancels the first (`CancellableTest.sameKeyDoesNotCancelInFlightBlock`).
