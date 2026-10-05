@@ -9,6 +9,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.kioba.anchor.Anchor
+import dev.kioba.anchor.AnchorScope
 import dev.kioba.anchor.Effect
 import dev.kioba.anchor.RememberAnchorScope
 import dev.kioba.anchor.ViewState
@@ -76,6 +77,8 @@ internal class AnchorStateScopeImpl<S : ViewState>(
  * A utility Composable for previewing UI that uses Anchor.
  *
  * It provides a static [state] to the [content] block, simulating a [RememberAnchor] environment.
+ * Callbacks created with [anchor] for actions on an Anchor whose ViewState is [S] are no-ops.
+ * To preview UI that also calls actions of an outer anchor, nest one [PreviewAnchor] per ViewState.
  *
  * @param S The [ViewState] type.
  * @param state The static state to use for the preview.
@@ -94,11 +97,20 @@ internal class AnchorStateScopeImpl<S : ViewState>(
  */
 @Suppress("ModifierRequired")
 @Composable
-public fun <S : ViewState> PreviewAnchor(
+public inline fun <reified S : ViewState> PreviewAnchor(
   state: S,
-  content: @Composable AnchorStateScope<S>.() -> Unit,
+  crossinline content: @Composable AnchorStateScope<S>.() -> Unit,
 ) {
-  AnchorStateScopeImpl(stateFlow = MutableStateFlow(state)).content()
+  val parentAnchors = LocalAnchors.current
+  val anchors =
+    remember(parentAnchors) {
+      parentAnchors + (S::class to AnchorScope<Effect, ViewState> { _ -> /* No-op in previews */ })
+    }
+
+  CompositionLocalProvider(
+    LocalAnchors provides anchors,
+    content = { AnchorStateScopeImpl(stateFlow = MutableStateFlow(state)).content() },
+  )
 }
 
 /**
@@ -108,7 +120,9 @@ public fun <S : ViewState> PreviewAnchor(
  * This Composable integrates Anchor with Compose Multiplatform by:
  * 1. Creating or retrieving a ViewModel-scoped Anchor instance.
  * 2. Providing signal handling capabilities via [LocalSignals].
- * 3. Making action functions available via [LocalAnchor] (used by the [anchor] helper).
+ * 3. Making action functions available via [LocalAnchors] (used by the [anchor] helper), keyed by [S]
+ *    so actions of an outer anchor keep working inside a nested [RememberAnchor], and via
+ *    [LocalAnchor] (used by [AnchorConsumer]).
  *
  * The Anchor instance is retained across configuration changes (like screen rotation) through
  * ViewModel integration, ensuring your state persists throughout the component lifecycle.
@@ -163,10 +177,13 @@ public inline fun <reified S, R> RememberAnchor(
   val stateFlow = remember(anchorScope) { anchorScope.viewState }
   val signalFlow = remember(anchorScope) { anchorScope.signals }
   val compositionScope = remember(stateFlow) { AnchorStateScopeImpl(stateFlow) }
+  val parentAnchors = LocalAnchors.current
+  val anchors = remember(parentAnchors, anchorScope) { parentAnchors + (S::class to anchorScope) }
 
   CompositionLocalProvider(
     LocalSignals provides signalFlow,
     LocalAnchor provides anchorScope,
+    LocalAnchors provides anchors,
     content = { compositionScope.content() },
   )
 }
