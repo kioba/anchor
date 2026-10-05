@@ -111,7 +111,8 @@ internal class AnchorRuntime<R, S, Err>(
 
   /**
    * Events emitted before the bus goes live, in call order: those `init`
-   * emits, and any emitted by actions that run before the handlers start.
+   * emits, any emitted by actions that run before the handlers start, and
+   * any that handlers emit while they start or while the queue flushes.
    * [goLive] flushes them to the bus once every handler has started.
    */
   private val startupEvents: MutableList<Event> = mutableListOf()
@@ -167,16 +168,24 @@ internal class AnchorRuntime<R, S, Err>(
   /**
    * Starts every `connect()` handler in place, each until it suspends, then
    * flushes the events queued until now to the bus and sends later
-   * `emit {}` calls straight to it. Never waits for a handler to subscribe.
+   * `emit {}` calls straight to it. Never waits for a handler to subscribe,
+   * though the flush can suspend behind a slow handler once 64 events are
+   * pending for it.
    *
    * A handler that collects its event flow in its own coroutines has
    * subscribed before the flush, so it receives [Created], then every
    * queued event in order, then live ones. One whose subscription waits on
-   * anything else (`flowOn` another dispatcher, a scope from outside,
-   * asynchronous work before it collects) subscribes later and misses what
-   * was emitted before then. One that never collects its event flow never
-   * subscribes. Neither holds up the caller. The flush runs even when
-   * subscription setup throws, so events never stay queued.
+   * anything else (any `flowOn` with a dispatcher, including
+   * `Dispatchers.Default`; a scope from outside; asynchronous work before
+   * it collects) subscribes later and misses what was delivered before
+   * then. One that never collects its event flow never subscribes. Neither
+   * holds up the caller. The flush also runs when subscription setup
+   * throws, so a failed setup does not leave `emit {}` queuing.
+   *
+   * The caller must not be inside an active unconfined event loop: the
+   * in-place start would then run the handlers only after the flush, and
+   * every handler would miss the queue. `ContainerViewModel` calls this
+   * from a coroutine dispatched to `Dispatchers.Default`.
    */
   suspend fun CoroutineScope.subscribe(): Job {
     try {

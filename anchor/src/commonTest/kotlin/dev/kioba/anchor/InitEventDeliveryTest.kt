@@ -149,7 +149,7 @@ class InitEventDeliveryTest {
     }
 
   @Test
-  fun `a domain error raised in init leaves subscriptions attached`(): Unit =
+  fun `a domain error raised in init does not skip subscriptions`(): Unit =
     runBlocking {
       val errors = MutableStateFlow<List<TestError>>(emptyList())
       val defects = MutableStateFlow<List<Throwable>>(emptyList())
@@ -179,7 +179,7 @@ class InitEventDeliveryTest {
     }
 
   @Test
-  fun `a defect thrown in init leaves subscriptions attached`(): Unit =
+  fun `a defect thrown in init does not skip subscriptions`(): Unit =
     runBlocking {
       val errors = MutableStateFlow<List<TestError>>(emptyList())
       val defects = MutableStateFlow<List<Throwable>>(emptyList())
@@ -267,7 +267,7 @@ class InitEventDeliveryTest {
     }
 
   @Test
-  fun `a handler that ends before subscribing does not hold up init`(): Unit =
+  fun `a handler that ends before subscribing does not hold up the other handlers`(): Unit =
     runBlocking {
       val defects = MutableStateFlow<List<Throwable>>(emptyList())
       val anchor =
@@ -283,7 +283,7 @@ class InitEventDeliveryTest {
         )
 
       anchor.inViewModel {
-        awaitOrFail("init never ran, or its Setup event never reached the live handler") {
+        awaitOrFail("the Setup event from init never reached the live handler") {
           anchor.viewState.first { it.value == 1 }
         }
         assertEquals(listOf("handler boom"), defects.value.map { it.message })
@@ -309,7 +309,7 @@ class InitEventDeliveryTest {
     }
 
   @Test
-  fun `a handler that never collects its events does not block init`(): Unit =
+  fun `a handler that never collects its events does not hold up startup`(): Unit =
     runBlocking {
       val repository = MutableStateFlow(7)
       val observed = MutableStateFlow<List<Int>>(emptyList())
@@ -325,7 +325,7 @@ class InitEventDeliveryTest {
         )
 
       anchor.inViewModel {
-        awaitOrFail("init never ran, or its Setup event never reached the handler collecting its events") {
+        awaitOrFail("the Setup event from init never reached the handler collecting its events") {
           anchor.viewState.first { it.value == 1 }
         }
         assertEquals(listOf(7), observed.value)
