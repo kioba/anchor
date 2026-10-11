@@ -197,6 +197,24 @@ subscriptions = {
 }
 ```
 
+### Errors in subscriptions
+
+An error inside `.anchor { }` is routed to `onDomainError` or `defect` for that event, and the chain keeps running.
+
+An error that escapes a chain anywhere else is routed once and ends that chain for the rest of the anchor's life. This covers an operator before or after `.anchor { }`, and an inner flow started by `flatMapLatest`. A chain that has ended is not restarted. Other chains keep running either way.
+
+To keep a chain alive when an inner flow fails, end the inner flow with `anchorErrors()`. It routes the error the same way, completes only that inner flow, and lets the next event start a fresh one:
+
+```kotlin
+subscriptions = {
+    connect<MyEvent.Refresh> { events ->
+        events
+            .flatMapLatest { effect.fetchData().anchorErrors() }
+            .anchor(MyAnchor::showData)
+    }
+}
+```
+
 ---
 
 # Compose Integration
