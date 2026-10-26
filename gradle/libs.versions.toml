@@ -6,7 +6,7 @@ android-compileSdk = "37"
 
 # plugin versions
 agp = "9.4.1"
-compose-plugin = "1.12.1"
+compose-plugin = "1.12.2"
 maven-publish = "0.37.0"
 
 # Library versions
@@ -15,8 +15,8 @@ coreKtx = "1.19.1"
 kotlin = "2.4.21"
 kotlinxCoroutines = "1.11.0"
 kotlinxCoroutinesAndroid = "1.11.0"
-kotlinxSerializationCoreJvm = "1.11.0"
-kotlinxSerializationJson = "1.11.0"
+kotlinxSerializationCoreJvm = "1.12.0"
+kotlinxSerializationJson = "1.12.0"
 
 # Compose versions
 foundation = "1.11.4"
