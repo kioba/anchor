@@ -174,9 +174,13 @@ internal class AnchorRuntime<R, S, Err>(
       effect = effect,
       onDomainError = onDomainError,
       defect = defect,
-    ).also { scope -> scope.release = released }
-      .also { scope -> subscriptions?.invoke(scope) }
-      .flows
+    ).also { scope ->
+      // Set after the subscriptions block, so a `.anchor {}` flow it collects
+      // itself runs at once; the handlers it declares are collected later and
+      // still wait at the gate.
+      subscriptions?.invoke(scope)
+      scope.release = released
+    }.flows
       .map { flow ->
         flow.catch { e ->
           safeExecute(this@AnchorRuntime, onDomainError, defect) {
