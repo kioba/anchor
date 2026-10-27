@@ -264,7 +264,8 @@ public interface SubscriptionAnchor {
    * delivered before it subscribed again. `init` must return: until it does, the handlers do not
    * start and emitted events stay queued. Observe long-lived sources from `subscriptions`, not from
    * `init`. The handlers start however `init` ends, including when it fails or is cancelled, unless
-   * the anchor itself is being torn down.
+   * the anchor itself is being torn down. A failure in `init` that no handler catches is still
+   * reported like a failing action, which crashes the app on Android and iOS.
    *
    * `emit` returns once the event is queued, for every attached handler or in the startup queue; it
    * does not wait for any handler to process it. Once subscriptions have started, it suspends only

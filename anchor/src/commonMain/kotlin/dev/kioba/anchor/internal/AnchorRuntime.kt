@@ -61,6 +61,8 @@ private const val EVENT_BUFFER_CAPACITY: Int = 64
  * Only flow setup runs in place. Each handler subscribes to the bus and then
  * waits at the runtime's release gate, and every `.anchor {}` action waits at
  * it too, so no `Created` action and no handler action runs while [starting].
+ * The exception is `onDomainError` or `defect` for a handler whose setup
+ * throws during the window: it runs in place.
  * A handler coroutine resumed from another thread during that short window,
  * such as one collecting an outside flow, runs its setup in place on that
  * thread. A `yield()` during the window dispatches the handler to [delegate],

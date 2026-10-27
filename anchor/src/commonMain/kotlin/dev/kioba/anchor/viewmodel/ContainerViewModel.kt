@@ -30,8 +30,8 @@ import kotlinx.coroutines.launch
  * cancellation from inside `init`, such as a `withTimeout` or a `raise()`
  * with no `onDomainError`, ends `init` silently. An unhandled failure is
  * reported like a failing action: it crashes on Android and iOS, and is
- * logged on desktop. Only clearing the ViewModel while `init` runs keeps
- * subscriptions from starting.
+ * logged on desktop. An `init` that never returns never starts them, and
+ * clearing the ViewModel while `init` runs keeps them from starting.
  */
 public class ContainerViewModel<R, S, Err>
   @PublishedApi
