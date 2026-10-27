@@ -12,6 +12,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Runnable
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.buffer
@@ -26,10 +27,12 @@ import kotlinx.coroutines.flow.retry
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.CoroutineContext
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.fail
 
 private sealed interface InitEvent : Event {
@@ -578,5 +581,74 @@ class InitEventDeliveryTest {
 
         awaitOrFail("Ping never reached the bus after subscription setup raised") { onBus.await() }
       }
+    }
+
+  @Test
+  fun `an init that times out still starts subscriptions and delivers what it emitted`(): Unit =
+    runBlocking {
+      val anchor =
+        createAnchor(
+          init = {
+            emit { InitEvent.Setup }
+            withTimeout(10) { awaitCancellation() }
+          },
+          subscriptions = {
+            connect<InitEvent.Setup> { events -> events.anchor { reduce { copy(value = 1) } } }
+          },
+        )
+
+      anchor.inViewModel {
+        awaitOrFail("subscriptions never started after init timed out") {
+          anchor.viewState.first { it.value == 1 }
+        }
+      }
+    }
+
+  @Test
+  fun `an unhandled domain error in init still starts subscriptions`(): Unit =
+    runBlocking {
+      val anchor =
+        createAnchor(
+          // No onDomainError, so raise() ends init with a RaisedException, which is a CancellationException.
+          init = {
+            emit { InitEvent.Setup }
+            raise(TestError.NotFound)
+          },
+          subscriptions = {
+            connect<InitEvent.Setup> { events -> events.anchor { reduce { copy(value = 1) } } }
+          },
+        )
+
+      anchor.inViewModel {
+        awaitOrFail("subscriptions never started after init raised without onDomainError") {
+          anchor.viewState.first { it.value == 1 }
+        }
+      }
+    }
+
+  @Test
+  fun `clearing the ViewModel while init runs starts no handler`(): Unit =
+    runBlocking {
+      val initStarted = CompletableDeferred<Unit>()
+      val subscriptionsRan = CompletableDeferred<Unit>()
+      val anchor =
+        createAnchor(
+          init = {
+            initStarted.complete(Unit)
+            awaitCancellation()
+          },
+          subscriptions = { subscriptionsRan.complete(Unit) },
+        )
+
+      anchor.inViewModel {
+        awaitOrFail("init never started") { initStarted.await() }
+      }
+
+      // inViewModel cleared the ViewModel while init was still suspended.
+      assertNull(
+        withTimeoutOrNull(200) { subscriptionsRan.await() },
+        "subscriptions started after the ViewModel was cleared",
+      )
+      assertEquals(0, anchor._emitter.subscriptionCount.value)
     }
 }
