@@ -43,7 +43,8 @@ class InitUnhandledFailureJvmTest {
         object : ViewModelStoreOwner {
           override val viewModelStore: ViewModelStore = store
         }
-      ViewModelProvider.create(owner, ContainerViewModelFactory { ContainerViewModel(anchor) })[ContainerViewModel::class]
+      val provider = ViewModelProvider.create(owner, ContainerViewModelFactory { ContainerViewModel(anchor) })
+      provider[ContainerViewModel::class]
 
       try {
         val reached = withTimeoutOrNull(2_000) { anchor.viewState.first { it.value == 1 } }
