@@ -16,6 +16,7 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.buffer
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
@@ -727,6 +728,26 @@ class InitEventDeliveryTest {
             received.first { InitEvent.Done in it }
           }
         assertEquals(List(10) { InitEvent.Ping } + InitEvent.Done, events)
+      }
+    }
+
+  @Test
+  fun `an anchor action collected inside the subscriptions block does not hang startup`(): Unit =
+    runBlocking {
+      val anchor =
+        createAnchor(
+          subscriptions = {
+            // Collected here, not returned from connect, so it runs while subscriptions are set up.
+            flowOf(1).anchor { value -> reduce { copy(value = value) } }.collect()
+            connect<InitEvent.Ping> { events -> events.anchor { reduce { copy(value = 2) } } }
+          },
+        )
+
+      anchor.inViewModel {
+        anchor.emit { InitEvent.Ping }
+        awaitOrFail("startup hung on an anchor action collected inside the subscriptions block") {
+          anchor.viewState.first { it.value == 2 }
+        }
       }
     }
 }
