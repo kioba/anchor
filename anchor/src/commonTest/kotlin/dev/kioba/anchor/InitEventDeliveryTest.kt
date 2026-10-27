@@ -651,4 +651,78 @@ class InitEventDeliveryTest {
       )
       assertEquals(0, anchor._emitter.subscriptionCount.value)
     }
+
+  @Test
+  fun `a Created action runs only after every handler has subscribed`(): Unit =
+    runBlocking {
+      val subscribers = CompletableDeferred<Int>()
+      val anchor =
+        createAnchor(
+          subscriptions = {
+            // Declared first, so it starts in place before the other two exist.
+            connect<Created> { events ->
+              events.anchor {
+                subscribers.complete((this as AnchorRuntime<*, *, *>)._emitter.subscriptionCount.value)
+              }
+            }
+            connect<InitEvent.Ping> { events -> events }
+            connect<InitEvent.Done> { events -> events }
+          },
+        )
+
+      anchor.inViewModel {
+        val count = awaitOrFail("the Created handler never ran") { subscribers.await() }
+        assertEquals(3, count)
+      }
+    }
+
+  @Test
+  fun `an action of a handler that observes an outside flow runs only after every handler has subscribed`(): Unit =
+    runBlocking {
+      val subscribers = CompletableDeferred<Int>()
+      val anchor =
+        createAnchor(
+          subscriptions = {
+            // Never subscribes to the bus. Its source emits as soon as it is collected.
+            connect<InitEvent.Setup> { _ ->
+              flowOf(1).anchor {
+                subscribers.complete((this as AnchorRuntime<*, *, *>)._emitter.subscriptionCount.value)
+              }
+            }
+            connect<InitEvent.Ping> { events -> events }
+            connect<InitEvent.Done> { events -> events }
+          },
+        )
+
+      anchor.inViewModel {
+        val count = awaitOrFail("the outside-flow handler never ran its action") { subscribers.await() }
+        assertEquals(2, count)
+      }
+    }
+
+  @Test
+  fun `every event a Created action emits reaches a handler declared after it in order`(): Unit =
+    runBlocking {
+      val received = MutableStateFlow<List<Event>>(emptyList())
+      val anchor =
+        createAnchor(
+          subscriptions = {
+            connect<Created> { events ->
+              events.anchor {
+                repeat(10) { emit { InitEvent.Ping } }
+                emit { InitEvent.Done }
+              }
+            }
+            connect<InitEvent> { events -> events.onEach { event -> received.update { it + event } } }
+          },
+        )
+
+      anchor.inViewModel {
+        val events =
+          awaitOrFail("the events a Created action emitted never all arrived") {
+            received.first { InitEvent.Done in it }
+          }
+        assertEquals(List(10) { InitEvent.Ping } + InitEvent.Done, events)
+      }
+    }
 }
