@@ -616,17 +616,18 @@ class InitEventDeliveryTest {
         createAnchor(
           // No onDomainError, so raise() ends init with a RaisedException, which is a CancellationException.
           init = {
+            reduce { copy(value = 5) }
             emit { InitEvent.Setup }
             raise(TestError.NotFound)
           },
           subscriptions = {
-            connect<InitEvent.Setup> { events -> events.anchor { reduce { copy(value = 1) } } }
+            connect<InitEvent.Setup> { events -> events.anchor { reduce { copy(value = value + 1) } } }
           },
         )
 
       anchor.inViewModel {
         awaitOrFail("subscriptions never started after init raised without onDomainError") {
-          anchor.viewState.first { it.value == 1 }
+          anchor.viewState.first { it.value == 6 }
         }
       }
     }
