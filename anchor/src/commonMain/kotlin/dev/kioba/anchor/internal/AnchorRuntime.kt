@@ -14,6 +14,7 @@ import dev.kioba.anchor.SignalScope
 import dev.kioba.anchor.SubscriptionScope
 import dev.kioba.anchor.SubscriptionsScope
 import dev.kioba.anchor.ViewState
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
@@ -55,9 +56,15 @@ private const val EVENT_BUFFER_CAPACITY: Int = 64
  * coroutine in place instead of dispatching it, including the ones operators
  * such as `flatMapLatest`, `buffer` or `combine` start to collect upstream, so
  * a handler launched then runs until everything it started is suspended.
- * Afterwards it dispatches to [delegate] like any other dispatcher. A handler
- * coroutine resumed from another thread during that short window runs in
- * place on that thread.
+ * Afterwards it dispatches to [delegate] like any other dispatcher.
+ *
+ * Only flow setup runs in place. Each handler subscribes to the bus and then
+ * waits at the runtime's release gate, and every `.anchor {}` action waits at
+ * it too, so no `Created` action and no handler action runs while [starting].
+ * A handler coroutine resumed from another thread during that short window,
+ * such as one collecting an outside flow, runs its setup in place on that
+ * thread. A `yield()` during the window dispatches the handler to [delegate],
+ * so it subscribes late.
  */
 private class HandlerDispatcher(
   private val delegate: CoroutineDispatcher,
@@ -139,10 +146,22 @@ internal class AnchorRuntime<R, S, Err>(
 
   override val signals: SharedFlow<SignalProvider> = _signals.asSharedFlow()
 
+  /**
+   * The release gate. It opens once, after every handler has started in
+   * place, and stays open. Each bus subscription waits on it before it
+   * receives [Created], and every `.anchor {}` action of the handlers waits
+   * on it before it runs, so no handler action runs before every handler
+   * started in place has subscribed.
+   */
+  private val released: CompletableDeferred<Unit> = CompletableDeferred()
+
   private val emitter: SharedFlow<Event> =
     _emitter
       .asSharedFlow()
-      .onSubscription { emit(Created) }
+      .onSubscription {
+        released.await()
+        emit(Created)
+      }
 
   internal suspend fun consumeInitial() {
     init?.invoke(this@AnchorRuntime)
@@ -155,7 +174,8 @@ internal class AnchorRuntime<R, S, Err>(
       effect = effect,
       onDomainError = onDomainError,
       defect = defect,
-    ).also { scope -> subscriptions?.invoke(scope) }
+    ).also { scope -> scope.release = released }
+      .also { scope -> subscriptions?.invoke(scope) }
       .flows
       .map { flow ->
         flow.catch { e ->
@@ -167,20 +187,22 @@ internal class AnchorRuntime<R, S, Err>(
 
   /**
    * Starts every `connect()` handler in place, each until it suspends, then
-   * flushes the events queued until now to the bus and sends later
-   * `emit {}` calls straight to it. Never waits for a handler to subscribe,
-   * though the flush can suspend behind a slow handler once 64 events are
-   * pending for it.
+   * releases them, then flushes the events queued until now to the bus and
+   * sends later `emit {}` calls straight to it. Never waits for a handler to
+   * subscribe, though the flush can suspend behind a slow handler once 64
+   * events are pending for it.
    *
-   * A handler that collects its event flow in its own coroutines has
-   * subscribed before the flush, so it receives [Created], then every
-   * queued event in order, then live ones. One whose subscription waits on
-   * anything else (any `flowOn` with a dispatcher, including
-   * `Dispatchers.Default`; a scope from outside; asynchronous work before
-   * it collects) subscribes later and misses what was delivered before
-   * then. One that never collects its event flow never subscribes. Neither
-   * holds up the caller. The flush also runs when subscription setup
-   * throws, so a failed setup does not leave `emit {}` queuing.
+   * A handler that collects its event flow in its own coroutines subscribes
+   * during the in-place start and then waits at the release gate, so no
+   * handler action runs before every such handler has subscribed. Once
+   * released, it receives [Created], then every queued event in order, then
+   * live ones. One whose subscription waits on anything else (any `flowOn`
+   * with a dispatcher, including `Dispatchers.Default`; a scope from outside;
+   * asynchronous work or a `yield()` before it collects) subscribes later and
+   * misses what was delivered before then. One that never collects its event
+   * flow never subscribes. Neither holds up the caller. The gate opens, and
+   * the flush runs, even when subscription setup throws, so a failed setup
+   * does not leave `emit {}` queuing.
    *
    * The caller must not be inside an active unconfined event loop: the
    * in-place start would then run the handlers only after the flush, and
@@ -213,6 +235,9 @@ internal class AnchorRuntime<R, S, Err>(
       }
       return supervisor
     } finally {
+      // After in-place mode has ended, so released handlers resume on the
+      // delegate; before the flush, so it never fills a parked handler's buffer.
+      released.complete(Unit)
       goLive()
     }
   }

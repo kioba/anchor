@@ -331,6 +331,10 @@ class InitEventDeliveryTest {
         awaitOrFail("the Setup event from init never reached the handler collecting its events") {
           anchor.viewState.first { it.value == 1 }
         }
+        // Its action waits at the release gate like every handler action, so it can finish after the other's.
+        awaitOrFail("the handler observing the repository never ran its action") {
+          observed.first { it.isNotEmpty() }
+        }
         assertEquals(listOf(7), observed.value)
       }
     }
