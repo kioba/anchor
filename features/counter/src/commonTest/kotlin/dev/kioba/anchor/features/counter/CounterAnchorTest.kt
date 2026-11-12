@@ -1,16 +1,17 @@
-package dev.kioba.anchor.features.config
+package dev.kioba.anchor.features.counter
 
 import dev.kioba.anchor.RememberAnchorScope
-import dev.kioba.anchor.features.config.data.CounterAnchor
-import dev.kioba.anchor.features.config.data.CounterState
-import dev.kioba.anchor.features.config.data.counterAnchor
-import dev.kioba.anchor.features.config.data.decrement
-import dev.kioba.anchor.features.config.data.increment
-import dev.kioba.anchor.features.config.model.CounterSignal
+import dev.kioba.anchor.features.counter.data.CounterAnchor
+import dev.kioba.anchor.features.counter.data.CounterState
+import dev.kioba.anchor.features.counter.data.counterAnchor
+import dev.kioba.anchor.features.counter.data.decrement
+import dev.kioba.anchor.features.counter.data.increment
+import dev.kioba.anchor.features.counter.model.CounterSignal
 import dev.kioba.anchor.test.runAnchorTest
 import kotlin.test.Test
 
 internal class CounterAnchorTest {
+
   @Test
   fun `counter increment updates state`() {
     runAnchorTest(RememberAnchorScope::counterAnchor) {
@@ -34,7 +35,7 @@ internal class CounterAnchorTest {
         initialState { CounterState(count = 1) }
       }
 
-      on("decrement the counter", CounterAnchor::decrement)
+      on("decrementing the counter", CounterAnchor::decrement)
 
       verify("the state updated with the decremented value") {
         assertState { copy(count = 0) }
