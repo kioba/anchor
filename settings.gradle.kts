@@ -1,5 +1,3 @@
-import java.lang.System.getProperty
-
 include(":features:resources")
 
 
@@ -21,16 +19,6 @@ dependencyResolutionManagement {
   repositories {
     google()
     mavenCentral()
-    maven {
-      url = uri("https://maven.pkg.github.com/kioba/anchor")
-      credentials {
-        username = getProperty("gpr.user") ?: System.getenv("USERNAME")
-        password = getProperty("gpr.key") ?: System.getenv("TOKEN")
-      }
-      authentication {
-        create<BasicAuthentication>("basic")
-      }
-    }
   }
 }
 
