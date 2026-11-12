@@ -66,6 +66,8 @@ captures/
 # mkdocs
 /.cache
 /.venv
+# Dokka HTML that publish_docs.yml drops into the docs site
+/docs/reference/
 
 ### General
 .gradle

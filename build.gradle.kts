@@ -15,4 +15,20 @@ plugins {
 
   // publish
   alias(libs.plugins.vaniktechMavenPublish).apply(false)
+
+  // documentation
+  alias(libs.plugins.dokka)
+}
+
+// Aggregated API reference for the published modules: `./gradlew :dokkaGenerate`
+// writes HTML to build/dokka/html. Keep this list in sync with the modules that
+// apply `dev.kioba.publish`.
+dependencies {
+  dokka(projects.anchor)
+  dokka(projects.anchorCompose)
+  dokka(projects.anchorTest)
+}
+
+dokka {
+  moduleName.set("Anchor")
 }
