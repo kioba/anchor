@@ -17,8 +17,8 @@ import dev.kioba.anchor.ViewState
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -73,11 +73,11 @@ internal class AnchorRuntime<R, S, Err>(
     MutableSharedFlow(extraBufferCapacity = EVENT_BUFFER_CAPACITY)
 
   /**
-   * Map storing cancellable jobs keyed by their identifier.
+   * Map storing the latest cancellable job and its completion chain, keyed by identifier.
    * Access is guarded by [jobsMutex] to prevent race conditions.
    */
   @PublishedApi
-  internal val jobs: MutableMap<Any, Job> = mutableMapOf()
+  internal val jobs: MutableMap<Any, KeyedJob> = mutableMapOf()
 
   /**
    * Mutex protecting access to the [jobs] map to ensure thread-safe
@@ -166,22 +166,27 @@ internal class AnchorRuntime<R, S, Err>(
   /**
    * Executes a cancellable operation identified by [key].
    *
-   * If a previous operation with the same key is still running, it will be cancelled
-   * before the new operation starts. This is useful for debouncing operations like
-   * search queries where only the latest request should run.
+   * If a previous operation with the same key is still running, it will be cancelled,
+   * and the new operation starts only after the previous one has completed. This is
+   * useful for debouncing operations like search queries where only the latest request
+   * should run.
    *
-   * Thread-safe: Uses a mutex to prevent race conditions when multiple cancellable
-   * operations with the same key are triggered concurrently.
+   * Thread-safe: A mutex guards the jobs map, but it is never held across a join. Only
+   * non-suspending bookkeeping (map updates, `cancel()`, `launch`) runs under it, so a
+   * slow or non-cooperative operation on one key never delays an unrelated key. Each
+   * entry carries a `done` job that completes only after its own job and every
+   * predecessor for the same key have completed, so at most one block per key runs at
+   * a time, even when a waiting caller is cancelled.
    *
-   * Memory-safe: Completed jobs are automatically cleaned up from the jobs map in all
-   * scenarios - successful completion, exceptions, or cancellation. The cleanup uses
-   * identity comparison to ensure a job only removes itself, never a newer job that
-   * may have replaced it.
+   * Memory-safe: A job removes its own entry when it finishes, using identity comparison
+   * so it never removes a newer job that may have replaced it. An entry that cannot be
+   * removed yet (its predecessor chain is still running, or it was cancelled before it
+   * started) is purged on the next `cancellable` call.
    *
    * @param key Identifier for this cancellable operation. Operations with the same
    *        key will cancel each other.
    * @param block The operation to execute. If a previous operation with the same key
-   *        is running, it will be cancelled before this block executes.
+   *        is running, it will be cancelled, and this block starts after it has completed.
    */
   override suspend fun cancellable(
     key: Any,
@@ -192,31 +197,43 @@ internal class AnchorRuntime<R, S, Err>(
 
       val jobToWait =
         jobsMutex.withLock {
-          // Cancel and remove old job if it exists
-          val oldJob = jobs.remove(key)
-          oldJob?.cancelAndJoin()
+          // Only non-suspending work happens under the lock: never join here, or a
+          // slow job on one key would stall every other key.
+          jobs.entries.removeAll { it.value.done.isCompleted }
+          val previous = jobs[key]
+          previous?.job?.cancel()
 
-          // Create new job (don't wait while holding lock!)
           val newJob =
             launch {
+              val self = coroutineContext[Job]
               try {
+                // Wait until the previous holder of this key and all of its
+                // predecessors have completed. Cancellable: a successor waits on
+                // this job's `done`, which also waits for `previous.done`.
+                previous?.done?.join()
                 block()
               } catch (e: RaisedException) {
                 raised = e
                 throw e
               } finally {
-                // Clean up completed job to prevent memory leak
-                // Only remove if this job is still the current one for this key
-                jobsMutex.withLock {
-                  if (jobs[key] === coroutineContext[Job]) {
-                    jobs.remove(key)
+                withContext(NonCancellable) {
+                  jobsMutex.withLock {
+                    // Remove only when still current AND the predecessor chain is
+                    // done; otherwise the next caller must still wait on `done`.
+                    // Leftovers are purged on the next acquisition.
+                    val predecessorDone = previous?.done?.isCompleted ?: true
+                    if (jobs[key]?.job === self && predecessorDone) jobs.remove(key)
                   }
                 }
               }
             }
-
-          // Store the new job while still holding the lock
-          newJob.also { jobs[key] = it }
+          val done = Job()
+          newJob.invokeOnCompletion {
+            val prevDone = previous?.done
+            if (prevDone == null) done.complete() else prevDone.invokeOnCompletion { done.complete() }
+          }
+          jobs[key] = KeyedJob(newJob, done)
+          newJob
         }
 
       // Wait for the job to complete (outside the lock)
@@ -241,3 +258,13 @@ internal class AnchorRuntime<R, S, Err>(
     _emitter
       .emit(SubscriptionScope.block())
 }
+
+/**
+ * A `cancellable` [job] paired with its [done] marker, which completes only after [job]
+ * and every earlier job for the same key have completed.
+ */
+@PublishedApi
+internal class KeyedJob(
+  val job: Job,
+  val done: Job,
+)
