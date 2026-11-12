@@ -11,6 +11,14 @@ public interface GivenScope<R : Effect, S : ViewState, Err : Any> {
     f: () -> S,
   )
 
+  /**
+   * Records [f] as effect-scope setup, but nothing invokes it: neither
+   * [dev.kioba.anchor.test.runAnchorTest] nor the outer `given` of
+   * [dev.kioba.anchor.test.runAnchorSequenceTest] runs these blocks, so [f] has no effect on the
+   * action. Configure the effect scope with [effectScope] instead. Inside a sequence `step`,
+   * [StepGivenScope.effect] does run its block against the shared effect scope before that step's
+   * action.
+   */
   public suspend fun effect(
     f: suspend R.() -> Unit,
   )

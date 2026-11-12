@@ -5,6 +5,9 @@ import dev.kioba.anchor.Effect
 import dev.kioba.anchor.RememberAnchorScope
 import dev.kioba.anchor.Signal
 import dev.kioba.anchor.ViewState
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.test.Test
 
 private class CancelEffect : Effect
@@ -29,7 +32,7 @@ class CancellableTest {
 
   /**
    * Verifies that `cancellable` in the test runtime simply runs the
-   * block directly (AnchorTestRuntime line 52-53). There is no
+   * block directly (`AnchorTestRuntime.cancellable`). There is no
    * cancellation semantics in tests — the block executes inline.
    * The reduce inside is captured normally.
    */
@@ -94,6 +97,40 @@ class CancellableTest {
       verify("both blocks ran") {
         assertState { copy(value = 1) }
         assertState { copy(value = value + 10) }
+      }
+    }
+
+  /**
+   * Pins the documented divergence on `AnchorTestRuntime.cancellable`: a
+   * second block with the same key does NOT cancel a block that is still
+   * running. The first block is suspended in `delay` when the second one
+   * starts; the production runtime would cancel it before its reduce, but
+   * here it resumes and its reduce is recorded after the second block's.
+   */
+  @Test
+  fun sameKeyDoesNotCancelInFlightBlock() =
+    runAnchorTest(RememberAnchorScope::cancelAnchor) {
+      given("default state") {}
+
+      on("two overlapping cancellable blocks with the same key") {
+        coroutineScope {
+          launch {
+            cancellable("key") {
+              delay(100)
+              reduce { copy(value = 1) }
+            }
+          }
+          launch {
+            cancellable("key") {
+              reduce { copy(value = 2) }
+            }
+          }
+        }
+      }
+
+      verify("the superseded block still ran to completion") {
+        assertState { copy(value = 2) }
+        assertState { copy(value = 1) }
       }
     }
 }

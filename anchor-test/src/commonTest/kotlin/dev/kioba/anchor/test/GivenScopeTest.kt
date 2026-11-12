@@ -168,4 +168,52 @@ class GivenScopeTest {
         assertState { copy(value = value + 1, label = "composed") }
       }
     }
+
+  /**
+   * Pins the behavior documented on `GivenScope.effect`: `runAnchorTest`
+   * records `given { effect { } }` blocks but never invokes them, so the
+   * action below still sees `ran == false`. Update this test together with
+   * that KDoc if `runAnchorTest` starts running these blocks.
+   */
+  @Test
+  fun givenEffectBlockIsNotRunByRunAnchorTest() {
+    var ran = false
+    runAnchorTest(RememberAnchorScope::pureGivenAnchor) {
+      given("an effect block that sets a flag") {
+        effect { ran = true }
+      }
+
+      on("reading the flag") {
+        reduce { copy(label = "ran=$ran") }
+      }
+
+      verify("the given effect block did not run") {
+        assertState { copy(label = "ran=false") }
+      }
+    }
+  }
+
+  /**
+   * Same as above for the outer `given` of `runAnchorSequenceTest`: only a
+   * step's `given { effect { } }` is invoked, the outer one never is.
+   */
+  @Test
+  fun outerGivenEffectBlockIsNotRunByRunAnchorSequenceTest() {
+    var ran = false
+    runAnchorSequenceTest(RememberAnchorScope::pureGivenAnchor) {
+      given("an effect block that sets a flag") {
+        effect { ran = true }
+      }
+
+      step("reading the flag") {
+        on("reading the flag") {
+          reduce { copy(label = "ran=$ran") }
+        }
+
+        verify("the outer given effect block did not run") {
+          assertState { copy(label = "ran=false") }
+        }
+      }
+    }
+  }
 }
