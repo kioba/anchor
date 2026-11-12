@@ -1,6 +1,7 @@
 package dev.kioba.anchor
 
 import dev.kioba.anchor.internal.safeExecute
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.onEach
@@ -33,6 +34,14 @@ public class SubscriptionsScope<R, S, Err>(
 ) where R : Effect, S : ViewState, Err : Any {
 
   /**
+   * The runtime's release gate. Only the scope the runtime builds when its
+   * subscriptions start carries it. Every [anchor] action waits for it to
+   * open, so no handler action runs while the handlers are still starting. A
+   * scope built anywhere else has no gate, and its actions run at once.
+   */
+  internal var release: Deferred<Unit>? = null
+
+  /**
    * Extension function to execute an action on the [Anchor] for each value emitted by a [Flow].
    *
    * If the action calls [Raise.raise], the error is routed to the `onDomainError` handler
@@ -47,6 +56,7 @@ public class SubscriptionsScope<R, S, Err>(
     action: suspend Anchor<R, S, Err>.(I) -> Unit,
   ): Flow<I> =
     onEach { value ->
+      release?.await()
       safeExecute(anchor, onDomainError, defect) {
         anchor.action(value)
       }
