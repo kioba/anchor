@@ -332,7 +332,6 @@ class InitEventDeliveryTest {
         awaitOrFail("the Setup event from init never reached the handler collecting its events") {
           anchor.viewState.first { it.value == 1 }
         }
-        // Its action waits at the release gate like every handler action, so it can finish after the other's.
         awaitOrFail("the handler observing the repository never ran its action") {
           observed.first { it.isNotEmpty() }
         }
@@ -656,54 +655,6 @@ class InitEventDeliveryTest {
         "subscriptions started after the ViewModel was cleared",
       )
       assertEquals(0, anchor._emitter.subscriptionCount.value)
-    }
-
-  @Test
-  fun `a Created action runs only after every handler has subscribed`(): Unit =
-    runBlocking {
-      val subscribers = CompletableDeferred<Int>()
-      val anchor =
-        createAnchor(
-          subscriptions = {
-            // Declared first, so it starts in place before the other two exist.
-            connect<Created> { events ->
-              events.anchor {
-                subscribers.complete((this as AnchorRuntime<*, *, *>)._emitter.subscriptionCount.value)
-              }
-            }
-            connect<InitEvent.Ping> { events -> events }
-            connect<InitEvent.Done> { events -> events }
-          },
-        )
-
-      anchor.inViewModel {
-        val count = awaitOrFail("the Created handler never ran") { subscribers.await() }
-        assertEquals(3, count)
-      }
-    }
-
-  @Test
-  fun `an action of a handler that observes an outside flow runs only after every handler has subscribed`(): Unit =
-    runBlocking {
-      val subscribers = CompletableDeferred<Int>()
-      val anchor =
-        createAnchor(
-          subscriptions = {
-            // Never subscribes to the bus. Its source emits as soon as it is collected.
-            connect<InitEvent.Setup> { _ ->
-              flowOf(1).anchor {
-                subscribers.complete((this as AnchorRuntime<*, *, *>)._emitter.subscriptionCount.value)
-              }
-            }
-            connect<InitEvent.Ping> { events -> events }
-            connect<InitEvent.Done> { events -> events }
-          },
-        )
-
-      anchor.inViewModel {
-        val count = awaitOrFail("the outside-flow handler never ran its action") { subscribers.await() }
-        assertEquals(2, count)
-      }
     }
 
   @Test

@@ -20,6 +20,9 @@ public interface RememberAnchorScope {
    *        subscription starts. It must return; the events it emits are delivered once subscriptions start.
    *        Subscriptions start however it ends, including when it fails or is cancelled. A failure no handler
    *        catches is still reported like a failing action, which crashes the app on Android and iOS.
+   *        Startup runs in this order: `init`, then every `connect` handler starts and receives `Created`,
+   *        then the events queued so far are delivered. An event a handler emits while starting is queued
+   *        too, so it reaches every handler that has attached by then.
    * @param subscriptions An optional block for setting up event subscriptions.
    * @param onDomainError An optional callback invoked when a domain error is raised.
    * @param defect An optional callback invoked when an unexpected error occurs.

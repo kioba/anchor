@@ -58,11 +58,10 @@ private const val EVENT_BUFFER_CAPACITY: Int = 64
  * a handler launched then runs until everything it started is suspended.
  * Afterwards it dispatches to [delegate] like any other dispatcher.
  *
- * Only flow setup runs in place. Each handler subscribes to the bus and then
- * waits at the runtime's release gate, and every `.anchor {}` action waits at
- * it too, so no `Created` action and no handler action runs while [starting].
- * The exception is `onDomainError` or `defect` for a handler whose setup
- * throws during the window: it runs in place.
+ * Flow setup runs in place, and so does whatever a handler action runs before
+ * its first suspension. An event such an action emits is queued until the bus
+ * goes live, so it still reaches every handler. `onDomainError` or `defect`
+ * for a handler whose setup throws during the window also runs in place.
  * A handler coroutine resumed from another thread during that short window,
  * such as one collecting an outside flow, runs its setup in place on that
  * thread. A `yield()` during the window dispatches the handler to [delegate],
@@ -148,20 +147,10 @@ internal class AnchorRuntime<R, S, Err>(
 
   override val signals: SharedFlow<SignalProvider> = _signals.asSharedFlow()
 
-  /**
-   * The release gate. It opens once, after every handler has started in
-   * place, and stays open. Each bus subscription waits on it before it
-   * receives [Created], and every `.anchor {}` action of the handlers waits
-   * on it before it runs, so no handler action runs before every handler
-   * started in place has subscribed.
-   */
-  private val released: CompletableDeferred<Unit> = CompletableDeferred()
-
   private val emitter: SharedFlow<Event> =
     _emitter
       .asSharedFlow()
       .onSubscription {
-        released.await()
         emit(Created)
       }
 
@@ -177,11 +166,7 @@ internal class AnchorRuntime<R, S, Err>(
       onDomainError = onDomainError,
       defect = defect,
     ).also { scope ->
-      // Set after the subscriptions block, so a `.anchor {}` flow it collects
-      // itself runs at once; the handlers it declares are collected later and
-      // still wait at the gate.
       subscriptions?.invoke(scope)
-      scope.release = released
     }.flows
       .map { flow ->
         flow.catch { e ->
@@ -193,22 +178,21 @@ internal class AnchorRuntime<R, S, Err>(
 
   /**
    * Starts every `connect()` handler in place, each until it suspends, then
-   * releases them, then flushes the events queued until now to the bus and
-   * sends later `emit {}` calls straight to it. Never waits for a handler to
-   * subscribe, though the flush can suspend behind a slow handler once 64
-   * events are pending for it.
+   * flushes the events queued until now to the bus and sends later `emit {}`
+   * calls straight to it. Never waits for a handler to subscribe, though the
+   * flush can suspend behind a slow handler once 64 events are pending for it.
    *
    * A handler that collects its event flow in its own coroutines subscribes
-   * during the in-place start and then waits at the release gate, so no
-   * handler action runs before every such handler has subscribed. Once
-   * released, it receives [Created], then every queued event in order, then
-   * live ones. One whose subscription waits on anything else (any `flowOn`
+   * during the in-place start and receives [Created] then. An event its action
+   * emits meanwhile is queued, so it reaches every handler the flush reaches.
+   * Each such handler then receives every queued event in order, then live
+   * ones. One whose subscription waits on anything else (any `flowOn`
    * with a dispatcher, including `Dispatchers.Default`; a scope from outside;
    * asynchronous work or a `yield()` before it collects) subscribes later and
    * misses what was delivered before then. One that never collects its event
-   * flow never subscribes. Neither holds up the caller. The gate opens, and
-   * the flush runs, even when subscription setup throws, so a failed setup
-   * does not leave `emit {}` queuing.
+   * flow never subscribes. Neither holds up the caller. The flush runs even
+   * when subscription setup throws, so a failed setup does not leave `emit {}`
+   * queuing.
    *
    * The caller must not be inside an active unconfined event loop: the
    * in-place start would then run the handlers only after the flush, and
@@ -241,9 +225,6 @@ internal class AnchorRuntime<R, S, Err>(
       }
       return supervisor
     } finally {
-      // After in-place mode has ended, so released handlers resume on the
-      // delegate; before the flush, so it never fills a parked handler's buffer.
-      released.complete(Unit)
       goLive()
     }
   }

@@ -252,10 +252,12 @@ public interface SubscriptionAnchor {
    * this covers the events `init` emits and any emitted by actions that run before the handlers
    * start. The handlers then start in place, each until it suspends. Every handler that collects
    * its event flow in its own coroutines, through operators such as `filter`, `map`,
-   * `flatMapLatest`, `buffer` or `combine`, is attached by then, and no handler action runs until
-   * every one of them is. Each then receives [Created], with the state `init` set already in place.
-   * Then the queue is delivered to all of them in order, followed by later events. So an event a
-   * handler emits while it handles [Created] or a queued event reaches every other started handler.
+   * `flatMapLatest`, `buffer` or `combine`, is attached by then. Each receives [Created] as it
+   * attaches, with the state `init` set already in place. Then the queue is delivered to all of
+   * them in order, followed by later events. An event a handler emits while it handles [Created]
+   * is queued too, so it reaches every handler that is attached by the time the queue is delivered,
+   * whether it is declared before or after the emitting one. A handler's action can run before the
+   * handlers declared after it have attached.
    * A handler attaches later, and misses the events delivered before it attaches, when its
    * subscription waits on something else: any `flowOn` with a dispatcher (including
    * `Dispatchers.Default`, because handlers start on a dispatcher of their own), a scope from outside
