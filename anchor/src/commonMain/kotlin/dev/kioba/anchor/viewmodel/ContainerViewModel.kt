@@ -84,7 +84,9 @@ public class ContainerViewModel<R, S, Err>
       launchAction { anchor.consumeInitial() }.join()
       safeExecute(anchor, anchor.onDomainError, anchor.defect) {
         with(anchor) {
-          subscribe()
+          // If the subscriptions block throws, the forwarder runs on
+          // viewModelScope instead, so emit {} keeps delivering.
+          subscribe(fallbackScope = viewModelScope)
         }
       }
     }

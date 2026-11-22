@@ -244,11 +244,12 @@ public interface SubscriptionAnchor {
   /**
    * Emits an internal event.
    *
-   * Once subscriptions have started, the event is delivered to every `connect` handler attached at
-   * the time of the call, and each handler receives events in emission order. An event emitted
-   * while no handler is attached is dropped.
+   * Every event goes into one queue, in call order. Once subscriptions have started, events leave
+   * the queue in order, and each is delivered to every `connect` handler attached when it leaves.
+   * So each handler receives events in emission order. An event that leaves the queue while no
+   * handler is attached is dropped.
    *
-   * Until the anchor's subscriptions start, `emit` queues the event instead. `init` runs first, so
+   * Until the anchor's subscriptions start, events stay in the queue. `init` runs first, so
    * this covers the events `init` emits and any emitted by actions that run before the handlers
    * start. The handlers then start in place, each until it suspends. Every handler that collects
    * its event flow in its own coroutines, through operators such as `filter`, `map`,
@@ -269,15 +270,18 @@ public interface SubscriptionAnchor {
    * the anchor itself is being torn down. A failure in `init` that no handler catches is still
    * reported like a failing action, which crashes the app on Android and iOS.
    *
-   * `emit` returns once the event is queued, for every attached handler or in the startup queue; it
-   * does not wait for any handler to process it. Once subscriptions have started, it suspends only
-   * when 64 events are already pending behind the slowest handler, and resumes once that handler
-   * catches up.
+   * The queue holds 64 events. Before subscriptions start nothing leaves it, so `init` can emit at
+   * most 64 events, fewer if actions emitted some while it ran. A further `emit` from `init` waits
+   * for handlers that start only once `init` returns, and startup hangs.
+   *
+   * `emit` returns once the event is in the queue; it does not wait for any handler to process it.
+   * Once subscriptions have started, it suspends only when the queue is full because 64 more events
+   * are already pending behind the slowest handler, and resumes once that handler catches up.
    *
    * An action run by a `connect` handler, or an error handler invoked from it, can call `emit`.
    * That handler takes no new events until the invocation returns, so an invocation that emits
-   * more than 64 events to a bus it is itself subscribed to (fewer if other events are already
-   * pending) fills the queue and suspends forever.
+   * more than 128 events to a bus it is itself subscribed to (fewer if other events are already
+   * pending) fills both buffers and suspends forever.
    *
    * @param block A block that returns the [Event] to emit.
    *

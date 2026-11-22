@@ -17,7 +17,8 @@ public interface RememberAnchorScope {
    * @param effectScope A factory function for the [Effect] dependencies.
    * @param initialState A factory function for the initial [ViewState].
    * @param init An optional initialization block executed once when the Anchor is created, before any
-   *        subscription starts. It must return; the events it emits are delivered once subscriptions start.
+   *        subscription starts. It must return; the events it emits, at most 64, are delivered once
+   *        subscriptions start.
    *        Subscriptions start however it ends, including when it fails or is cancelled. A failure no handler
    *        catches is still reported like a failing action, which crashes the app on Android and iOS.
    *        Startup runs in this order: `init`, then every `connect` handler starts and receives `Created`,

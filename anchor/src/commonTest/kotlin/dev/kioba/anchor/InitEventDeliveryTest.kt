@@ -537,12 +537,13 @@ class InitEventDeliveryTest {
       val anchor =
         createAnchor(
           init = {
+            // Fills the event channel: init may emit at most 64 events.
             emit { InitEvent.Setup }
-            repeat(100) { emit { InitEvent.Ping } }
+            repeat(63) { emit { InitEvent.Ping } }
           },
           subscriptions = {
-            // More Pings queue behind Setup than the bus buffers, so the flush
-            // waits on this handler while its action emits Done.
+            // Its action emits Done while the Pings are still waiting in the
+            // channel, so Done must queue behind them.
             connect<InitEvent.Setup> { events -> events.anchor { emit { InitEvent.Done } } }
             connect<Event> { events -> events.onEach { event -> received.update { it + event } } }
           },
@@ -553,7 +554,7 @@ class InitEventDeliveryTest {
           awaitOrFail("the flush deadlocked, or Done never arrived") {
             received.first { InitEvent.Done in it }
           }
-        assertEquals(listOf(Created, InitEvent.Setup) + List(100) { InitEvent.Ping } + InitEvent.Done, events)
+        assertEquals(listOf(Created, InitEvent.Setup) + List(63) { InitEvent.Ping } + InitEvent.Done, events)
       }
     }
 
