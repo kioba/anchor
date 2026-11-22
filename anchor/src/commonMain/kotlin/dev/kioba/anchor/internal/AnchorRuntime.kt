@@ -14,17 +14,14 @@ import dev.kioba.anchor.SignalScope
 import dev.kioba.anchor.SubscriptionScope
 import dev.kioba.anchor.SubscriptionsScope
 import dev.kioba.anchor.ViewState
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.Runnable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.ClosedSendChannelException
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -34,57 +31,67 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onSubscription
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlin.concurrent.Volatile
-import kotlin.coroutines.ContinuationInterceptor
 import kotlin.coroutines.CoroutineContext
 
 /**
- * Events the bus holds for its slowest `connect()` handler, and also the
- * capacity of the channel `emit {}` sends into. Without the bus buffer, an
- * action a handler runs (or an error handler invoked from it) that calls
- * `emit {}` waits on that same handler, wedging the bus for good. The channel
- * holds every event emitted before the handlers start, so `init` can emit at
- * most this many before it waits on handlers that start only once it returns.
+ * Capacity of the channel `emit {}` sends into. The channel holds every event emitted before the handlers start, so `init`
+ * can emit at most this many before it waits on handlers that start only once
+ * it returns.
  */
 private const val EVENT_BUFFER_CAPACITY: Int = 64
 
 /**
- * The dispatcher `connect()` handlers run on. While [starting], it runs every
- * coroutine in place instead of dispatching it, including the ones operators
- * such as `flatMapLatest`, `buffer` or `combine` start to collect upstream, so
- * a handler launched then runs until everything it started is suspended.
- * Afterwards it dispatches to [delegate] like any other dispatcher.
- *
- * Flow setup runs in place, and so does whatever a handler action runs before
- * its first suspension. An event such an action emits waits in the event
- * channel until the forwarder starts, so it still reaches every handler. `onDomainError` or `defect`
- * for a handler whose setup throws during the window also runs in place.
- * A handler coroutine resumed from another thread during that short window,
- * such as one collecting an outside flow, runs its setup in place on that
- * thread. A `yield()` during the window dispatches the handler to [delegate],
- * so it subscribes late.
+ * Capacity of each handler's inbox. A handler whose events are collected by
+ * a coroutine an operator starts (`flatMapLatest`, `buffer`, `combine`) starts
+ * reading a moment after delivery starts, and until it does, an event that
+ * finds its inbox full is dropped. So an inbox holds the whole startup backlog
+ * (at most [EVENT_BUFFER_CAPACITY] events) plus [Created], with as much again
+ * to spare for events emitted before the handler gets going.
  */
-private class HandlerDispatcher(
-  private val delegate: CoroutineDispatcher,
-) : CoroutineDispatcher() {
+private const val INBOX_CAPACITY: Int = 2 * EVENT_BUFFER_CAPACITY
+
+/**
+ * One `connect()` handler's own queue of events, created when the handler is
+ * declared and starting with [Created]. It exists before the handler runs, so
+ * the handler receives every event delivered to it, however late it starts
+ * collecting.
+ *
+ * While the handler is collecting [input], delivery waits for room, so a slow
+ * handler holds up `emit {}` instead of losing events. While it is not, an
+ * event that finds the inbox full is dropped, so a handler that never reads
+ * its input, or has stopped, holds nothing up.
+ */
+private class Inbox {
+  private val channel = Channel<Event>(INBOX_CAPACITY).apply { trySend(Created) }
+
   @Volatile
-  var starting: Boolean = true
+  private var reading: Boolean = false
 
-  override fun isDispatchNeeded(context: CoroutineContext): Boolean =
-    !starting && delegate.isDispatchNeeded(context)
+  val input: Flow<Event> =
+    flow {
+      reading = true
+      try {
+        emitAll(channel.receiveAsFlow())
+      } finally {
+        reading = false
+      }
+    }
 
-  override fun dispatch(
-    context: CoroutineContext,
-    block: Runnable,
-  ): Unit =
-    delegate.dispatch(context, block)
+  suspend fun deliver(
+    event: Event,
+  ) {
+    if (reading) channel.send(event) else channel.trySend(event)
+  }
 }
 
 @PublishedApi
@@ -109,16 +116,13 @@ internal class AnchorRuntime<R, S, Err>(
   internal val _signals: MutableSharedFlow<SignalProvider> =
     MutableSharedFlow(extraBufferCapacity = 64)
 
-  @PublishedApi
-  @Suppress("ktlint:standard:backing-property-naming", "PropertyName")
-  internal val _emitter: MutableSharedFlow<Event> =
-    MutableSharedFlow(extraBufferCapacity = EVENT_BUFFER_CAPACITY)
-
   /**
    * Every `emit {}` goes through this channel, in call order. Nothing reads
-   * it until [subscribe] has started the handlers and launched the forwarder,
-   * so the events `init` emits, and any emitted by actions before the
-   * handlers start, wait here. Its one reader keeps the order without a lock.
+   * it until [subscribe] has created the handlers' inboxes and launched the
+   * forwarder, so the events `init` emits, and any emitted by actions before
+   * then, wait here. Its one reader keeps the order without a lock. It is
+   * closed only when the `subscriptions` block throws; `emit {}` then drops
+   * events, since there is no handler to receive them.
    */
   private val events: Channel<Event> = Channel(EVENT_BUFFER_CAPACITY)
 
@@ -141,20 +145,15 @@ internal class AnchorRuntime<R, S, Err>(
 
   override val signals: SharedFlow<SignalProvider> = _signals.asSharedFlow()
 
-  private val emitter: SharedFlow<Event> =
-    _emitter
-      .asSharedFlow()
-      .onSubscription {
-        emit(Created)
-      }
-
   internal suspend fun consumeInitial() {
     init?.invoke(this@AnchorRuntime)
   }
 
-  private suspend fun <T : Event> SharedFlow<T>.handlers(): List<Flow<*>> =
+  private suspend fun handlers(
+    inboxes: MutableList<Inbox>,
+  ): List<Flow<*>> =
     SubscriptionsScope<R, S, Err>(
-      chain = this,
+      chain = { Inbox().also(inboxes::add).input },
       anchor = this@AnchorRuntime,
       effect = effect,
       onDomainError = onDomainError,
@@ -171,44 +170,24 @@ internal class AnchorRuntime<R, S, Err>(
       }
 
   /**
-   * Starts every `connect()` handler in place, each until it suspends, then
-   * launches the forwarder under the returned supervisor, beside the
-   * handlers. The forwarder moves every event from the [events] channel to
-   * the bus, in order, until that supervisor is cancelled: first the ones
-   * emitted before now, then later ones. Never waits for a handler to
-   * subscribe.
+   * Runs the `subscriptions` block, which gives every `connect()` handler an
+   * inbox, launches the handlers, and launches the forwarder beside them under
+   * the returned supervisor. The forwarder moves every event from the [events]
+   * channel into every inbox, in order, until that supervisor is cancelled:
+   * first the ones emitted before now, then later ones.
    *
-   * A handler that collects its event flow in its own coroutines subscribes
-   * during the in-place start and receives [Created] then. An event its action
-   * emits meanwhile waits in the channel behind the earlier ones, so it reaches
-   * every handler attached when the forwarder delivers it. Each such handler
-   * receives every event emitted before the forwarder started, in order, then
-   * later ones. One whose subscription waits on anything else (any `flowOn`
-   * with a dispatcher, including `Dispatchers.Default`; a scope from outside;
-   * asynchronous work or a `yield()` before it collects) subscribes later and
-   * misses what was delivered before then. One that never collects its event
-   * flow never subscribes. Neither holds up the caller.
-   *
-   * When the `subscriptions` block throws, no supervisor exists, so the
-   * forwarder is launched in [fallbackScope] instead, and `emit {}` keeps
-   * working. Without one, events stay in the channel and the 65th `emit {}`
-   * suspends for good. `ContainerViewModel` passes `viewModelScope`.
-   *
-   * The caller must not be inside an active unconfined event loop: the
-   * in-place start would then run the handlers only after the forwarder
-   * started, and every handler would miss the earlier events.
-   * `ContainerViewModel` calls this from a coroutine dispatched to
-   * `Dispatchers.Default`.
+   * Each handler receives [Created], then every event delivered to its inbox,
+   * however late it starts collecting, as long as its inbox did not fill up
+   * before then. When the block throws, the channel is closed and later
+   * `emit {}` calls drop their events.
    */
-  suspend fun CoroutineScope.subscribe(
-    fallbackScope: CoroutineScope? = null,
-  ): Job {
-    val delegate = this.coroutineContext[ContinuationInterceptor] as? CoroutineDispatcher ?: Dispatchers.Default
+  suspend fun CoroutineScope.subscribe(): Job {
+    val inboxes = mutableListOf<Inbox>()
     val handlers =
       try {
-        emitter.handlers()
+        handlers(inboxes)
       } catch (e: Throwable) {
-        fallbackScope?.forward(delegate)
+        events.close()
         throw e
       }
     // SupervisorJob: a thrown subscription must not cancel siblings.
@@ -220,30 +199,19 @@ internal class AnchorRuntime<R, S, Err>(
     // "contained, not fatal" consistent across platforms — the isolation
     // SupervisorJob provides already keeps it from touching sibling flows.
     val containment = CoroutineExceptionHandler { _, _ -> }
-    val dispatcher = HandlerDispatcher(delegate = delegate)
-    val supervised = CoroutineScope(this.coroutineContext + supervisor + containment + dispatcher)
-    try {
-      for (flow in handlers) {
-        flow.launchIn(supervised)
+    val supervised = CoroutineScope(this.coroutineContext + supervisor + containment)
+    // Undispatched: each handler runs until it first suspends, so one that
+    // collects its events directly is already reading before delivery starts.
+    for (flow in handlers) {
+      supervised.launch(start = CoroutineStart.UNDISPATCHED) { flow.collect() }
+    }
+    supervised.launch {
+      for (event in events) {
+        for (inbox in inboxes) inbox.deliver(event)
       }
-    } finally {
-      dispatcher.starting = false
-      CoroutineScope(this.coroutineContext + supervisor).forward(delegate)
     }
     return supervisor
   }
-
-  /**
-   * Launches the forwarder: moves every event from [events] to the bus, in
-   * order, until this scope is cancelled. Undispatched, so it starts
-   * delivering the events emitted so far before its caller continues.
-   */
-  private fun CoroutineScope.forward(
-    dispatcher: CoroutineDispatcher,
-  ): Job =
-    launch(dispatcher, start = CoroutineStart.UNDISPATCHED) {
-      for (event in events) _emitter.emit(event)
-    }
 
   // DSL
 
@@ -348,6 +316,11 @@ internal class AnchorRuntime<R, S, Err>(
   override suspend fun emit(
     block: SubscriptionScope.() -> Event,
   ) {
-    events.send(SubscriptionScope.block())
+    val event = SubscriptionScope.block()
+    try {
+      events.send(event)
+    } catch (_: ClosedSendChannelException) {
+      // The subscriptions block failed: no handler exists to receive it.
+    }
   }
 }

@@ -244,44 +244,40 @@ public interface SubscriptionAnchor {
   /**
    * Emits an internal event.
    *
-   * Every event goes into one queue, in call order. Once subscriptions have started, events leave
-   * the queue in order, and each is delivered to every `connect` handler attached when it leaves.
-   * So each handler receives events in emission order. An event that leaves the queue while no
-   * handler is attached is dropped.
+   * Every event goes into one queue, in call order. Until the anchor's subscriptions start, events
+   * stay there. `init` runs first, so this covers the events `init` emits and any emitted by
+   * actions while it runs. When subscriptions start, every `connect` handler gets an inbox of its
+   * own that begins with [Created], and from then on each event leaves the queue in order and is
+   * copied into every inbox. So each handler receives [Created], with the state `init` set already
+   * in place, then every event in emission order, however late it starts collecting: `flowOn`,
+   * `shareIn` or a `yield()` before it collects lose nothing. An event a handler emits while it
+   * handles [Created] reaches every handler, whether declared before or after it. A handler that
+   * collects its events again, for example through `retry`, carries on from where it stopped.
    *
-   * Until the anchor's subscriptions start, events stay in the queue. `init` runs first, so
-   * this covers the events `init` emits and any emitted by actions that run before the handlers
-   * start. The handlers then start in place, each until it suspends. Every handler that collects
-   * its event flow in its own coroutines, through operators such as `filter`, `map`,
-   * `flatMapLatest`, `buffer` or `combine`, is attached by then. Each receives [Created] as it
-   * attaches, with the state `init` set already in place. Then the queue is delivered to all of
-   * them in order, followed by later events. An event a handler emits while it handles [Created]
-   * is queued too, so it reaches every handler that is attached by the time the queue is delivered,
-   * whether it is declared before or after the emitting one. A handler's action can run before the
-   * handlers declared after it have attached.
-   * A handler attaches later, and misses the events delivered before it attaches, when its
-   * subscription waits on something else: any `flowOn` with a dispatcher (including
-   * `Dispatchers.Default`, because handlers start on a dispatcher of their own), a scope from outside
-   * such as `shareIn`, or asynchronous work or a `yield()` before it collects. A handler that
-   * subscribes again, for example through `retry`, receives [Created] again but not the events
-   * delivered before it subscribed again. `init` must return: until it does, the handlers do not
-   * start and emitted events stay queued. Observe long-lived sources from `subscriptions`, not from
-   * `init`. The handlers start however `init` ends, including when it fails or is cancelled, unless
-   * the anchor itself is being torn down. A failure in `init` that no handler catches is still
-   * reported like a failing action, which crashes the app on Android and iOS.
+   * An inbox holds 128 events. While its handler is collecting, a full inbox makes delivery wait,
+   * so a slow handler holds up the others instead of losing events. While it is not collecting,
+   * because it has not started yet, has finished, or never reads its events, an event that finds
+   * its inbox full is dropped for that handler alone.
+   *
+   * `init` must return: until it does, the handlers do not start and emitted events stay queued.
+   * Observe long-lived sources from `subscriptions`, not from `init`. The handlers start however
+   * `init` ends, including when it fails or is cancelled, unless the anchor itself is being torn
+   * down. A failure in `init` that no handler catches is still reported like a failing action,
+   * which crashes the app on Android and iOS. If the `subscriptions` block itself fails, no
+   * handler exists and later events are dropped.
    *
    * The queue holds 64 events. Before subscriptions start nothing leaves it, so `init` can emit at
    * most 64 events, fewer if actions emitted some while it ran. A further `emit` from `init` waits
    * for handlers that start only once `init` returns, and startup hangs.
    *
    * `emit` returns once the event is in the queue; it does not wait for any handler to process it.
-   * Once subscriptions have started, it suspends only when the queue is full because 64 more events
-   * are already pending behind the slowest handler, and resumes once that handler catches up.
+   * Once subscriptions have started, it suspends only when the queue is full because delivery is
+   * waiting on a full inbox, and resumes once that handler catches up.
    *
    * An action run by a `connect` handler, or an error handler invoked from it, can call `emit`.
    * That handler takes no new events until the invocation returns, so an invocation that emits
-   * more than 128 events to a bus it is itself subscribed to (fewer if other events are already
-   * pending) fills both buffers and suspends forever.
+   * more than 192 events (fewer if others are already pending) fills its inbox and the queue and
+   * suspends forever.
    *
    * @param block A block that returns the [Event] to emit.
    *

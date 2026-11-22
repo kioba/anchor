@@ -362,7 +362,7 @@ class InitEventDeliveryTest {
     }
 
   @Test
-  fun `a handler that subscribes on another dispatcher misses events emitted before it attaches`(): Unit =
+  fun `a handler that starts collecting late on another dispatcher still receives every event`(): Unit =
     runBlocking {
       val held = HeldDispatcher()
       val received = MutableStateFlow<List<Event>>(emptyList())
@@ -370,7 +370,7 @@ class InitEventDeliveryTest {
         createAnchor(
           init = { emit { InitEvent.Setup } },
           subscriptions = {
-            // Starts in place, so it receives Setup when the startup queue is flushed.
+            // Collects at once, so it receives Setup straight away.
             connect<InitEvent.Setup> { events -> events.anchor { reduce { copy(value = 1) } } }
             connect<Event> { events -> events.flowOn(held).onEach { event -> received.update { it + event } } }
           },
@@ -378,23 +378,20 @@ class InitEventDeliveryTest {
 
       try {
         anchor.inViewModel {
-          awaitOrFail("the startup queue never flushed Setup to the handler started in place") {
+          awaitOrFail("Setup from init never reached the handler that collects at once") {
             anchor.viewState.first { it.value == 1 }
           }
 
-          // flowOn collects upstream on its dispatcher, so the handler
-          // subscribes only once that dispatcher runs, after the flush.
-          launch(Dispatchers.Default) { held.drain() }
-          awaitOrFail("the flowOn handler never subscribed") {
-            anchor._emitter.subscriptionCount.first { it >= 2 }
-          }
+          // flowOn collects upstream on its dispatcher, so the handler starts
+          // collecting only once that dispatcher runs; its inbox kept everything.
           anchor.emit { InitEvent.Ping }
+          launch(Dispatchers.Default) { held.drain() }
 
           val events =
-            awaitOrFail("the flowOn handler did not receive Created and Ping") {
-              received.first { it.size >= 2 }
+            awaitOrFail("the flowOn handler did not receive Created, Setup and Ping") {
+              received.first { it.size >= 3 }
             }
-          assertEquals(listOf(Created, InitEvent.Ping), events)
+          assertEquals(listOf(Created, InitEvent.Setup, InitEvent.Ping), events)
         }
       } finally {
         held.close()
@@ -497,7 +494,7 @@ class InitEventDeliveryTest {
     }
 
   @Test
-  fun `a handler that subscribes again receives Created but not the startup events again`(): Unit =
+  fun `a handler that collects its events again carries on from where it stopped`(): Unit =
     runBlocking {
       val received = MutableStateFlow<List<Event>>(emptyList())
       var failedOnce = false
@@ -519,19 +516,19 @@ class InitEventDeliveryTest {
         )
 
       anchor.inViewModel {
-        awaitOrFail("the handler never subscribed again") { received.first { it.size >= 3 } }
+        awaitOrFail("the handler never received Setup") { received.first { it.size >= 2 } }
         anchor.emit { InitEvent.Ping }
 
         val events =
           awaitOrFail("the handler did not receive the live Ping after subscribing again") {
             received.first { InitEvent.Ping in it }
           }
-        assertEquals(listOf(Created, InitEvent.Setup, Created, InitEvent.Ping), events)
+        assertEquals(listOf(Created, InitEvent.Setup, InitEvent.Ping), events)
       }
     }
 
   @Test
-  fun `an event a handler emits during the flush arrives after every queued event`(): Unit =
+  fun `an event a handler emits during startup arrives after every event init emitted`(): Unit =
     runBlocking {
       val received = MutableStateFlow<List<Event>>(emptyList())
       val anchor =
@@ -551,7 +548,7 @@ class InitEventDeliveryTest {
 
       anchor.inViewModel {
         val events =
-          awaitOrFail("the flush deadlocked, or Done never arrived") {
+          awaitOrFail("delivery deadlocked, or Done never arrived") {
             received.first { InitEvent.Done in it }
           }
         assertEquals(listOf(Created, InitEvent.Setup) + List(63) { InitEvent.Ping } + InitEvent.Done, events)
@@ -559,7 +556,7 @@ class InitEventDeliveryTest {
     }
 
   @Test
-  fun `emit goes live even when subscription setup raises`(): Unit =
+  fun `emit keeps returning when subscription setup raises`(): Unit =
     runBlocking {
       val errors = MutableStateFlow<List<TestError>>(emptyList())
       val anchor =
@@ -573,18 +570,11 @@ class InitEventDeliveryTest {
           errors.first { it.isNotEmpty() }
         }
 
-        // Watch the bus directly: if emit still queued, Ping would never reach it.
-        val subscribed = CompletableDeferred<Unit>()
-        val onBus =
-          async(Dispatchers.Default) {
-            anchor._emitter
-              .onSubscription { subscribed.complete(Unit) }
-              .first { it == InitEvent.Ping }
-          }
-        awaitOrFail("the bus watcher never subscribed") { subscribed.await() }
-        anchor.emit { InitEvent.Ping }
-
-        awaitOrFail("Ping never reached the bus after subscription setup raised") { onBus.await() }
+        // No handler exists, so emit drops its events. Far more than any buffer
+        // holds must still return instead of suspending for good.
+        awaitOrFail("emit suspended after subscription setup raised") {
+          repeat(200) { anchor.emit { InitEvent.Ping } }
+        }
       }
     }
 
@@ -655,7 +645,27 @@ class InitEventDeliveryTest {
         withTimeoutOrNull(200) { subscriptionsRan.await() },
         "subscriptions started after the ViewModel was cleared",
       )
-      assertEquals(0, anchor._emitter.subscriptionCount.value)
+    }
+
+  @Test
+  fun `a handler that never reads its events does not hold up the others`(): Unit =
+    runBlocking {
+      val received = MutableStateFlow(0)
+      val anchor =
+        createAnchor(
+          subscriptions = {
+            connect<InitEvent.Ping> { _ -> flowOf(Unit) }
+            connect<InitEvent.Ping> { events -> events.onEach { received.update { it + 1 } } }
+          },
+        )
+
+      anchor.inViewModel {
+        // Far more than an inbox holds: the ignored inbox must drop, not block delivery.
+        awaitOrFail("emit suspended behind the handler that never reads") {
+          repeat(500) { anchor.emit { InitEvent.Ping } }
+        }
+        awaitOrFail("the reading handler did not receive every Ping") { received.first { it == 500 } }
+      }
     }
 
   @Test

@@ -134,7 +134,7 @@ class RaiseTest {
     val anchor = createAnchor()
 
     val scope = SubscriptionsScope<EmptyEffect, TestState, TestError>(
-      chain = MutableSharedFlow(),
+      chain = { MutableSharedFlow() },
       anchor = anchor,
       effect = EmptyEffect,
       onDomainError = { error -> capturedErrors.add(error) },
@@ -212,7 +212,7 @@ class RaiseTest {
     val anchor = createAnchor()
 
     val scope = SubscriptionsScope<EmptyEffect, TestState, TestError>(
-      chain = MutableSharedFlow(),
+      chain = { MutableSharedFlow() },
       anchor = anchor,
       effect = EmptyEffect,
       onDomainError = { error -> capturedErrors.add(error) },
@@ -233,7 +233,7 @@ class RaiseTest {
     val anchor = createAnchor()
 
     val scope = SubscriptionsScope<EmptyEffect, TestState, TestError>(
-      chain = MutableSharedFlow(),
+      chain = { MutableSharedFlow() },
       anchor = anchor,
       effect = EmptyEffect,
       onDomainError = { _ -> },
@@ -256,7 +256,7 @@ class RaiseTest {
     val anchor = createAnchor()
 
     val scope = SubscriptionsScope<EmptyEffect, TestState, TestError>(
-      chain = MutableSharedFlow(),
+      chain = { MutableSharedFlow() },
       anchor = anchor,
       effect = EmptyEffect,
       defect = { error -> capturedDefects.add(error) },
@@ -278,7 +278,7 @@ class RaiseTest {
     val anchor = createAnchor()
 
     val scope = SubscriptionsScope<EmptyEffect, TestState, TestError>(
-      chain = MutableSharedFlow(),
+      chain = { MutableSharedFlow() },
       anchor = anchor,
       effect = EmptyEffect,
       defect = { error -> capturedDefects.add(error) },

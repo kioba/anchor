@@ -16,8 +16,9 @@ import kotlinx.coroutines.flow.onEach
  */
 @AnchorDsl
 public class SubscriptionsScope<R, S, Err>(
+  /** Called once per `connect()`, to give that handler its own event flow. */
   @PublishedApi
-  internal val chain: Flow<Event>,
+  internal val chain: () -> Flow<Event>,
   @PublishedApi
   internal val anchor: Anchor<R, S, Err>,
   /**
@@ -55,6 +56,9 @@ public class SubscriptionsScope<R, S, Err>(
   /**
    * Connects a handler to internal [Event]s of type [A].
    *
+   * The handler's event flow is its own queue: collect it once. Two concurrent collections of it
+   * split the events between them.
+   *
    * @param A The type of [Event] to connect to.
    * @param block A transformation block that takes a [Flow] of [A] and returns a [Flow] to be collected.
    *
@@ -77,6 +81,6 @@ public class SubscriptionsScope<R, S, Err>(
   internal suspend fun wrap(
     func: suspend Flow<Event>.() -> Flow<*>,
   ) {
-    flows.add(chain.func())
+    flows.add(chain().func())
   }
 }

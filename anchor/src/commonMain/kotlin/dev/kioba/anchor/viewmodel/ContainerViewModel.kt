@@ -20,10 +20,9 @@ import kotlinx.coroutines.launch
  * `init` runs first, as a job of its own, then subscriptions start.
  *
  * Events emitted before subscriptions start, by `init` or by actions that
- * run meanwhile, are queued. Each `connect` handler that attaches as it
- * starts receives `Created`, by which time `init` has finished, then the
- * queued events in order, then later events. `SubscriptionAnchor.emit`
- * spells out which handlers attach as they start.
+ * run meanwhile, are queued. Each `connect` handler receives `Created`, by
+ * which time `init` has finished, then the queued events in order, then
+ * later events. `SubscriptionAnchor.emit` spells out the details.
  *
  * Subscriptions start however `init` ends. A domain error or defect from
  * either step is routed to `onDomainError` or `defect` as before. A
@@ -84,9 +83,7 @@ public class ContainerViewModel<R, S, Err>
       launchAction { anchor.consumeInitial() }.join()
       safeExecute(anchor, anchor.onDomainError, anchor.defect) {
         with(anchor) {
-          // If the subscriptions block throws, the forwarder runs on
-          // viewModelScope instead, so emit {} keeps delivering.
-          subscribe(fallbackScope = viewModelScope)
+          subscribe()
         }
       }
     }

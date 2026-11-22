@@ -33,7 +33,7 @@ class SubscriptionDslTest {
 
   private fun createScope(anchor: AnchorRuntime<EmptyEffect, TestState, TestError>) =
     SubscriptionsScope(
-      chain = emptyFlow(),
+      chain = { emptyFlow() },
       anchor = anchor,
       effect = EmptyEffect,
     )
@@ -99,18 +99,13 @@ class SubscriptionDslTest {
         }
         val supervisor = supervisorReady.await()
 
-        // Wait for both connect() flows to start collecting from _emitter.
-        withTimeout(2_000) {
-          while (anchor._emitter.subscriptionCount.value < 2) yield()
-        }
-
         // Trigger the crashing subscription. Before the supervisor isolation
         // fix, this also tears down the surviving subscription.
-        anchor._emitter.emit(SubTestEvent.Crash(value = 1))
+        anchor.emit { SubTestEvent.Crash(value = 1) }
 
         // The surviving subscription must still receive new events.
-        anchor._emitter.emit(SubTestEvent.Survive(value = 7))
-        anchor._emitter.emit(SubTestEvent.Survive(value = 11))
+        anchor.emit { SubTestEvent.Survive(value = 7) }
+        anchor.emit { SubTestEvent.Survive(value = 11) }
 
         withTimeout(2_000) {
           while (survivedValues.size < 2) yield()
