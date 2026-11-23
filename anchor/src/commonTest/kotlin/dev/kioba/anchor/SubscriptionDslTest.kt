@@ -1,11 +1,8 @@
 package dev.kioba.anchor
 
 import dev.kioba.anchor.internal.AnchorRuntime
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
@@ -33,7 +30,6 @@ class SubscriptionDslTest {
 
   private fun createScope(anchor: AnchorRuntime<EmptyEffect, TestState, TestError>) =
     SubscriptionsScope(
-      chain = { emptyFlow() },
       anchor = anchor,
       effect = EmptyEffect,
     )
@@ -91,19 +87,10 @@ class SubscriptionDslTest {
         )
 
       coroutineScope {
-        val supervisorReady = CompletableDeferred<Job>()
-        launch {
-          with(anchor) {
-            supervisorReady.complete(subscribe())
-          }
-        }
-        val supervisor = supervisorReady.await()
+        val subscriber = launch { anchor.subscribe() }
 
-        // Trigger the crashing subscription. Before the supervisor isolation
-        // fix, this also tears down the surviving subscription.
         anchor.emit { SubTestEvent.Crash(value = 1) }
 
-        // The surviving subscription must still receive new events.
         anchor.emit { SubTestEvent.Survive(value = 7) }
         anchor.emit { SubTestEvent.Survive(value = 11) }
 
@@ -112,9 +99,9 @@ class SubscriptionDslTest {
         }
 
         assertEquals(listOf(7, 11), survivedValues)
-        assertTrue(supervisor.isActive, "supervisor must stay active when a child throws")
+        assertTrue(subscriber.isActive, "subscriptions must stay active when a handler throws")
 
-        supervisor.cancelAndJoin()
+        subscriber.cancelAndJoin()
       }
     }
 }

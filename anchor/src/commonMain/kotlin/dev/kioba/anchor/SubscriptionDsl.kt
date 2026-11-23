@@ -1,5 +1,7 @@
 package dev.kioba.anchor
 
+import dev.kioba.anchor.internal.Inbox
+import dev.kioba.anchor.internal.InboxedFlow
 import dev.kioba.anchor.internal.safeExecute
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filterIsInstance
@@ -16,9 +18,6 @@ import kotlinx.coroutines.flow.onEach
  */
 @AnchorDsl
 public class SubscriptionsScope<R, S, Err>(
-  /** Called once per `connect()`, to give that handler its own event flow. */
-  @PublishedApi
-  internal val chain: () -> Flow<Event>,
   @PublishedApi
   internal val anchor: Anchor<R, S, Err>,
   /**
@@ -29,9 +28,9 @@ public class SubscriptionsScope<R, S, Err>(
   internal val onDomainError: (suspend ErrorScope<R, S>.(Err) -> Unit)? = null,
   @PublishedApi
   internal val defect: (suspend ErrorScope<R, S>.(Throwable) -> Unit)? = null,
-  @PublishedApi
-  internal val flows: MutableList<Flow<*>> = mutableListOf(),
 ) where R : Effect, S : ViewState, Err : Any {
+  /** Every `connect()` handler declared in this scope, each with its own inbox. */
+  internal val handlers: MutableList<InboxedFlow> = mutableListOf()
 
   /**
    * Extension function to execute an action on the [Anchor] for each value emitted by a [Flow].
@@ -81,6 +80,7 @@ public class SubscriptionsScope<R, S, Err>(
   internal suspend fun wrap(
     func: suspend Flow<Event>.() -> Flow<*>,
   ) {
-    flows.add(chain().func())
+    val inbox = Inbox()
+    handlers.add(InboxedFlow(inbox = inbox, flow = inbox.input.func()))
   }
 }

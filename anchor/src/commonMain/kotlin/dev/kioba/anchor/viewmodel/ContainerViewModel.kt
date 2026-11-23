@@ -74,12 +74,6 @@ public class ContainerViewModel<R, S, Err>
 
   init {
     viewModelScope.launch(Dispatchers.Default) {
-      // init runs first, as a job of its own, the way execute() runs an action.
-      // Whether it returns, has its error handled, is cancelled from inside
-      // (withTimeout, a raise() with no onDomainError) or fails, it cannot
-      // cancel this coroutine, so subscriptions start once it has ended. join()
-      // throws only when viewModelScope itself is cancelled, and then no
-      // handler starts.
       launchAction { anchor.consumeInitial() }.join()
       safeExecute(anchor, anchor.onDomainError, anchor.defect) {
         with(anchor) {

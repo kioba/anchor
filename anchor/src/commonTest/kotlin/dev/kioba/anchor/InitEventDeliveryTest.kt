@@ -224,7 +224,6 @@ class InitEventDeliveryTest {
         )
 
       anchor.inViewModel {
-        // init runs first, so wait for the later step: the error from subscription setup.
         awaitOrFail("the domain error from subscription setup never reached onDomainError") {
           errors.first { it.isNotEmpty() }
         }
@@ -253,8 +252,6 @@ class InitEventDeliveryTest {
         createAnchor(
           init = { emit { InitEvent.Setup } },
           subscriptions = {
-            // flatMapLatest collects its upstream in a separately dispatched
-            // coroutine, so this handler subscribes to the bus asynchronously.
             connect<InitEvent.Setup> { events ->
               events
                 .flatMapLatest { flowOf(1) }
@@ -321,8 +318,6 @@ class InitEventDeliveryTest {
         createAnchor(
           init = { emit { InitEvent.Setup } },
           subscriptions = {
-            // Ignores its events and never completes, like
-            // connect<E> { repository.observe().anchor(...) }.
             connect<InitEvent.Setup> { _ -> repository.anchor { value -> observed.update { it + value } } }
             connect<InitEvent.Setup> { events -> events.anchor { reduce { copy(value = 1) } } }
           },
@@ -347,7 +342,6 @@ class InitEventDeliveryTest {
         createAnchor(
           init = { emit { InitEvent.Setup } },
           subscriptions = {
-            // buffer() collects its upstream in a coroutine of its own.
             connect<Event> { events -> events.buffer().onEach { event -> received.update { it + event } } }
           },
         )
@@ -370,7 +364,6 @@ class InitEventDeliveryTest {
         createAnchor(
           init = { emit { InitEvent.Setup } },
           subscriptions = {
-            // Collects at once, so it receives Setup straight away.
             connect<InitEvent.Setup> { events -> events.anchor { reduce { copy(value = 1) } } }
             connect<Event> { events -> events.flowOn(held).onEach { event -> received.update { it + event } } }
           },
@@ -382,8 +375,6 @@ class InitEventDeliveryTest {
             anchor.viewState.first { it.value == 1 }
           }
 
-          // flowOn collects upstream on its dispatcher, so the handler starts
-          // collecting only once that dispatcher runs; its inbox kept everything.
           anchor.emit { InitEvent.Ping }
           launch(Dispatchers.Default) { held.drain() }
 
@@ -455,7 +446,6 @@ class InitEventDeliveryTest {
 
       anchor.inViewModel {
         awaitOrFail("init never started") { initStarted.await() }
-        // Stands in for a UI action that emits while init is still running.
         anchor.emit { InitEvent.Ping }
         releaseInit.complete(Unit)
 
@@ -534,13 +524,10 @@ class InitEventDeliveryTest {
       val anchor =
         createAnchor(
           init = {
-            // Fills the event channel: init may emit at most 64 events.
             emit { InitEvent.Setup }
             repeat(63) { emit { InitEvent.Ping } }
           },
           subscriptions = {
-            // Its action emits Done while the Pings are still waiting in the
-            // channel, so Done must queue behind them.
             connect<InitEvent.Setup> { events -> events.anchor { emit { InitEvent.Done } } }
             connect<Event> { events -> events.onEach { event -> received.update { it + event } } }
           },
@@ -570,8 +557,6 @@ class InitEventDeliveryTest {
           errors.first { it.isNotEmpty() }
         }
 
-        // No handler exists, so emit drops its events. Far more than any buffer
-        // holds must still return instead of suspending for good.
         awaitOrFail("emit suspended after subscription setup raised") {
           repeat(200) { anchor.emit { InitEvent.Ping } }
         }
@@ -604,7 +589,6 @@ class InitEventDeliveryTest {
     runBlocking {
       val anchor =
         createAnchor(
-          // No onDomainError, so raise() ends init with a RaisedException, which is a CancellationException.
           init = {
             reduce { copy(value = 5) }
             emit { InitEvent.Setup }
@@ -640,7 +624,6 @@ class InitEventDeliveryTest {
         awaitOrFail("init never started") { initStarted.await() }
       }
 
-      // inViewModel cleared the ViewModel while init was still suspended.
       assertNull(
         withTimeoutOrNull(200) { subscriptionsRan.await() },
         "subscriptions started after the ViewModel was cleared",
@@ -660,7 +643,6 @@ class InitEventDeliveryTest {
         )
 
       anchor.inViewModel {
-        // Far more than an inbox holds: the ignored inbox must drop, not block delivery.
         awaitOrFail("emit suspended behind the handler that never reads") {
           repeat(500) { anchor.emit { InitEvent.Ping } }
         }
@@ -700,7 +682,6 @@ class InitEventDeliveryTest {
       val anchor =
         createAnchor(
           subscriptions = {
-            // Collected here, not returned from connect, so it runs while subscriptions are set up.
             flowOf(1).anchor { value -> reduce { copy(value = value) } }.collect()
             connect<InitEvent.Ping> { events -> events.anchor { reduce { copy(value = 2) } } }
           },

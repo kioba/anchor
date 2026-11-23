@@ -2,7 +2,6 @@ package dev.kioba.anchor.internal
 
 import dev.kioba.anchor.Anchor
 import dev.kioba.anchor.AnchorSink
-import dev.kioba.anchor.Created
 import dev.kioba.anchor.DomainDefectException
 import dev.kioba.anchor.Effect
 import dev.kioba.anchor.ErrorScope
@@ -14,16 +13,11 @@ import dev.kioba.anchor.SignalScope
 import dev.kioba.anchor.SubscriptionScope
 import dev.kioba.anchor.SubscriptionsScope
 import dev.kioba.anchor.ViewState
-import kotlinx.coroutines.CoroutineExceptionHandler
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ClosedSendChannelException
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -31,68 +25,14 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.emitAll
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import kotlin.concurrent.Volatile
 import kotlin.coroutines.CoroutineContext
-
-/**
- * Capacity of the channel `emit {}` sends into. The channel holds every event emitted before the handlers start, so `init`
- * can emit at most this many before it waits on handlers that start only once
- * it returns.
- */
-private const val EVENT_BUFFER_CAPACITY: Int = 64
-
-/**
- * Capacity of each handler's inbox. A handler whose events are collected by
- * a coroutine an operator starts (`flatMapLatest`, `buffer`, `combine`) starts
- * reading a moment after delivery starts, and until it does, an event that
- * finds its inbox full is dropped. So an inbox holds the whole startup backlog
- * (at most [EVENT_BUFFER_CAPACITY] events) plus [Created], with as much again
- * to spare for events emitted before the handler gets going.
- */
-private const val INBOX_CAPACITY: Int = 2 * EVENT_BUFFER_CAPACITY
-
-/**
- * One `connect()` handler's own queue of events, created when the handler is
- * declared and starting with [Created]. It exists before the handler runs, so
- * the handler receives every event delivered to it, however late it starts
- * collecting.
- *
- * While the handler is collecting [input], delivery waits for room, so a slow
- * handler holds up `emit {}` instead of losing events. While it is not, an
- * event that finds the inbox full is dropped, so a handler that never reads
- * its input, or has stopped, holds nothing up.
- */
-private class Inbox {
-  private val channel = Channel<Event>(INBOX_CAPACITY).apply { trySend(Created) }
-
-  @Volatile
-  private var reading: Boolean = false
-
-  val input: Flow<Event> =
-    flow {
-      reading = true
-      try {
-        emitAll(channel.receiveAsFlow())
-      } finally {
-        reading = false
-      }
-    }
-
-  suspend fun deliver(
-    event: Event,
-  ) {
-    if (reading) channel.send(event) else channel.trySend(event)
-  }
-}
 
 @PublishedApi
 internal class AnchorRuntime<R, S, Err>(
@@ -149,68 +89,59 @@ internal class AnchorRuntime<R, S, Err>(
     init?.invoke(this@AnchorRuntime)
   }
 
-  private suspend fun handlers(
-    inboxes: MutableList<Inbox>,
-  ): List<Flow<*>> =
+  /**
+   * Runs the `subscriptions` block and returns its `connect()` handlers, each
+   * with its own inbox, and each flow wrapped so a failure it does not handle
+   * is routed to `onDomainError` / `defect`.
+   */
+  private suspend fun handlers(): List<InboxedFlow> =
     SubscriptionsScope<R, S, Err>(
-      chain = { Inbox().also(inboxes::add).input },
       anchor = this@AnchorRuntime,
       effect = effect,
       onDomainError = onDomainError,
       defect = defect,
     ).also { scope ->
       subscriptions?.invoke(scope)
-    }.flows
-      .map { flow ->
-        flow.catch { e ->
-          safeExecute(this@AnchorRuntime, onDomainError, defect) {
-            throw e
-          }
-        }
+    }.handlers
+      .map { handler ->
+        InboxedFlow(
+          inbox = handler.inbox,
+          flow =
+            handler.flow.catch { e ->
+              safeExecute(this@AnchorRuntime, onDomainError, defect) {
+                throw e
+              }
+            },
+        )
       }
 
   /**
    * Runs the `subscriptions` block, which gives every `connect()` handler an
-   * inbox, launches the handlers, and launches the forwarder beside them under
-   * the returned supervisor. The forwarder moves every event from the [events]
-   * channel into every inbox, in order, until that supervisor is cancelled:
-   * first the ones emitted before now, then later ones.
+   * inbox, then collects every handler and, after them, the forwarder, until
+   * the calling coroutine is cancelled. The forwarder moves every event from
+   * the [events] channel into every inbox, in order: first the ones emitted
+   * before now, then later ones. It goes last, so every handler that collects
+   * its events directly is already reading when delivery starts.
    *
-   * Each handler receives [Created], then every event delivered to its inbox,
+   * Each handler receives [dev.kioba.anchor.Created], then every event delivered to its inbox,
    * however late it starts collecting, as long as its inbox did not fill up
-   * before then. When the block throws, the channel is closed and later
+   * before then. A handler that fails ends alone; the others keep running.
+   * When the block throws, the channel is closed, this rethrows, and later
    * `emit {}` calls drop their events.
    */
-  suspend fun CoroutineScope.subscribe(): Job {
-    val inboxes = mutableListOf<Inbox>()
+  suspend fun subscribe() {
     val handlers =
       try {
-        handlers(inboxes)
+        handlers()
       } catch (e: Throwable) {
         events.close()
         throw e
       }
-    // SupervisorJob: a thrown subscription must not cancel siblings.
-    val supervisor = SupervisorJob(parent = this.coroutineContext[Job])
-    // Without a handler, an exception a subscription rethrows past
-    // safeExecute (no defect handler configured) reaches each platform's
-    // default uncaught-exception path. The JVM/Android default just logs it;
-    // Kotlin/Native's default aborts the whole process. This handler makes
-    // "contained, not fatal" consistent across platforms — the isolation
-    // SupervisorJob provides already keeps it from touching sibling flows.
-    val containment = CoroutineExceptionHandler { _, _ -> }
-    val supervised = CoroutineScope(this.coroutineContext + supervisor + containment)
-    // Undispatched: each handler runs until it first suspends, so one that
-    // collects its events directly is already reading before delivery starts.
-    for (flow in handlers) {
-      supervised.launch(start = CoroutineStart.UNDISPATCHED) { flow.collect() }
-    }
-    supervised.launch {
-      for (event in events) {
-        for (inbox in inboxes) inbox.deliver(event)
-      }
-    }
-    return supervisor
+    val forwarder =
+      events
+        .receiveAsFlow()
+        .onEach { event -> handlers.forEach { it.inbox.deliver(event) } }
+    (handlers.map { it.flow } + forwarder).collectSupervised()
   }
 
   // DSL
@@ -320,7 +251,6 @@ internal class AnchorRuntime<R, S, Err>(
     try {
       events.send(event)
     } catch (_: ClosedSendChannelException) {
-      // The subscriptions block failed: no handler exists to receive it.
     }
   }
 }
