@@ -17,7 +17,7 @@ import kotlinx.coroutines.flow.onEach
  * @param Err The domain error type.
  */
 @AnchorDsl
-public class SubscriptionsScope<R, S, Err>(
+public class SubscriptionsScope<R, S, Err> internal constructor(
   @PublishedApi
   internal val anchor: Anchor<R, S, Err>,
   /**
@@ -55,11 +55,10 @@ public class SubscriptionsScope<R, S, Err>(
   /**
    * Connects a handler to internal [Event]s of type [A].
    *
-   * The handler's event flow is its own queue: collect it once. Two concurrent collections of it
-   * split the events between them.
-   *
-   * @param A The type of [Event] to connect to.
-   * @param block A transformation block that takes a [Flow] of [A] and returns a [Flow] to be collected.
+   * The flow passed to [block] reads this handler's own queue of events. Collect it
+   * from one place at a time: two concurrent collections split the events between them.
+   * Collecting it again after it ended, for example through `retry`, resumes with the next
+   * undelivered event; the event being handled when it failed is not delivered again.
    *
    * Example:
    * ```kotlin
@@ -67,6 +66,9 @@ public class SubscriptionsScope<R, S, Err>(
    *   events.onEach { /* do something */ }
    * }
    * ```
+   *
+   * @param A The type of [Event] to connect to.
+   * @param block A transformation block that takes a [Flow] of [A] and returns a [Flow] to be collected.
    */
   public suspend inline fun <reified A> connect(
     crossinline block: (Flow<A>) -> Flow<*>,

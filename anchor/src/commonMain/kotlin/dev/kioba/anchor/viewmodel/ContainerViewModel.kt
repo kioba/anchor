@@ -22,15 +22,21 @@ import kotlinx.coroutines.launch
  * Events emitted before subscriptions start, by `init` or by actions that
  * run meanwhile, are queued. Each `connect` handler receives `Created`, by
  * which time `init` has finished, then the queued events in order, then
- * later events. `SubscriptionAnchor.emit` spells out the details.
+ * later events. [dev.kioba.anchor.SubscriptionAnchor.emit] spells out the
+ * details.
  *
- * Subscriptions start however `init` ends. A domain error or defect from
- * either step is routed to `onDomainError` or `defect` as before. A
- * cancellation from inside `init`, such as a `withTimeout` or a `raise()`
- * with no `onDomainError`, ends `init` silently. An unhandled failure is
- * reported like a failing action: it crashes on Android and iOS, and is
- * logged on desktop. An `init` that never returns never starts them, and
- * clearing the ViewModel while `init` runs keeps them from starting.
+ * Subscriptions start however `init` ends. A domain error or defect in
+ * `init` or in the `subscriptions` block is routed to `onDomainError` or
+ * `defect`. A cancellation from inside `init`, such as a `withTimeout` or a
+ * `raise()` with no `onDomainError`, ends `init` silently. With no handler,
+ * any other failure in either is reported like a failing action: it
+ * crashes on Android and iOS, and is logged on desktop. An unhandled
+ * failure inside a `connect` handler's flow ends that handler silently; the
+ * others keep running.
+ *
+ * An `init` that never returns never starts subscriptions, and clearing the
+ * ViewModel while `init` runs keeps subscriptions from starting. Once the
+ * ViewModel is cleared, `emit {}` drops its events.
  */
 public class ContainerViewModel<R, S, Err>
   @PublishedApi
@@ -74,11 +80,13 @@ public class ContainerViewModel<R, S, Err>
 
   init {
     viewModelScope.launch(Dispatchers.Default) {
-      launchAction { anchor.consumeInitial() }.join()
-      safeExecute(anchor, anchor.onDomainError, anchor.defect) {
-        with(anchor) {
-          subscribe()
+      try {
+        launchAction { anchor.consumeInitial() }.join()
+        safeExecute(anchor, anchor.onDomainError, anchor.defect) {
+          anchor.subscribe()
         }
+      } finally {
+        anchor.closeEvents()
       }
     }
   }

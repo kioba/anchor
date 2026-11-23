@@ -16,14 +16,11 @@ public interface RememberAnchorScope {
    * @param Err The domain error type. Use [Nothing] when no domain errors are needed.
    * @param effectScope A factory function for the [Effect] dependencies.
    * @param initialState A factory function for the initial [ViewState].
-   * @param init An optional initialization block executed once when the Anchor is created, before any
-   *        subscription starts. It must return; the events it emits, at most 64, are delivered once
-   *        subscriptions start.
-   *        Subscriptions start however it ends, including when it fails or is cancelled. A failure no handler
-   *        catches is still reported like a failing action, which crashes the app on Android and iOS.
-   *        Startup runs in this order: `init`, then every `connect` handler gets its own inbox holding
-   *        `Created`, then the events queued so far are delivered to every inbox, in order. An event a
-   *        handler emits while starting is delivered the same way, so it reaches every handler.
+   * @param init An optional block run once, before any subscription starts. It must return: the
+   *        events it emits, at most 64, are delivered once subscriptions start, after each handler
+   *        has received `Created`. Subscriptions start however it ends, unless the anchor is torn
+   *        down first. A failure no handler catches is reported like a failing action: it crashes
+   *        the app on Android and iOS, and is logged on desktop. See [SubscriptionAnchor.emit].
    * @param subscriptions An optional block for setting up event subscriptions.
    * @param onDomainError An optional callback invoked when a domain error is raised.
    * @param defect An optional callback invoked when an unexpected error occurs.

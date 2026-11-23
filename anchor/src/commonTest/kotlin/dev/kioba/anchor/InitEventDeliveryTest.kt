@@ -694,4 +694,24 @@ class InitEventDeliveryTest {
         }
       }
     }
+
+  @Test
+  fun `emit drops once the ViewModel is cleared while init runs`(): Unit =
+    runBlocking {
+      val initStarted = CompletableDeferred<Unit>()
+      val anchor =
+        createAnchor(
+          init = {
+            initStarted.complete(Unit)
+            awaitCancellation()
+          },
+          subscriptions = { connect<InitEvent.Ping> { events -> events } },
+        )
+
+      anchor.inViewModel { initStarted.await() }
+
+      awaitOrFail("emit kept queueing after the ViewModel was cleared, so it suspended for good") {
+        repeat(200) { anchor.emit { InitEvent.Ping } }
+      }
+    }
 }

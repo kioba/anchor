@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
@@ -61,8 +62,9 @@ internal class AnchorRuntime<R, S, Err>(
    * it until [subscribe] has created the handlers' inboxes and launched the
    * forwarder, so the events `init` emits, and any emitted by actions before
    * then, wait here. Its one reader keeps the order without a lock. It is
-   * closed only when the `subscriptions` block throws; `emit {}` then drops
-   * events, since there is no handler to receive them.
+   * closed, and emptied, when [subscribe] ends: the `subscriptions` block
+   * threw, or subscriptions were torn down. `emit {}` then drops events,
+   * since no handler can receive them.
    */
   private val events: Channel<Event> = Channel(EVENT_BUFFER_CAPACITY)
 
@@ -107,11 +109,12 @@ internal class AnchorRuntime<R, S, Err>(
         InboxedFlow(
           inbox = handler.inbox,
           flow =
-            handler.flow.catch { e ->
-              safeExecute(this@AnchorRuntime, onDomainError, defect) {
-                throw e
-              }
-            },
+            handler.flow
+              .catch { e ->
+                safeExecute(this@AnchorRuntime, onDomainError, defect) {
+                  throw e
+                }
+              }.onCompletion { handler.inbox.close() },
         )
       }
 
@@ -125,23 +128,33 @@ internal class AnchorRuntime<R, S, Err>(
    *
    * Each handler receives [dev.kioba.anchor.Created], then every event delivered to its inbox,
    * however late it starts collecting, as long as its inbox did not fill up
-   * before then. A handler that fails ends alone; the others keep running.
-   * When the block throws, the channel is closed, this rethrows, and later
-   * `emit {}` calls drop their events.
+   * before then. A handler that ends, by completing or failing, ends alone:
+   * its inbox is closed and emptied, and delivery to the others carries on.
+   * When the block throws, or this is cancelled, the [events] channel is
+   * closed and emptied, and later `emit {}` calls drop their events.
    */
   suspend fun subscribe() {
-    val handlers =
-      try {
-        handlers()
-      } catch (e: Throwable) {
-        events.close()
-        throw e
-      }
-    val forwarder =
-      events
-        .receiveAsFlow()
-        .onEach { event -> handlers.forEach { it.inbox.deliver(event) } }
-    (handlers.map { it.flow } + forwarder).collectSupervised()
+    try {
+      val handlers = handlers()
+      val forwarder =
+        events
+          .receiveAsFlow()
+          .onEach { event -> handlers.forEach { it.inbox.deliver(event) } }
+      (handlers.map { it.flow } + forwarder).collectSupervised()
+    } finally {
+      closeEvents()
+    }
+  }
+
+  /**
+   * Closes and empties the [events] channel once no handler can ever receive
+   * an event: subscriptions ended, or never started because the anchor was
+   * torn down first. Later `emit {}` calls drop their events. Safe to call
+   * more than once.
+   */
+  internal fun closeEvents() {
+    events.close()
+    events.drain()
   }
 
   // DSL
