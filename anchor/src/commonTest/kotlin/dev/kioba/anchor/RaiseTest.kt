@@ -1,7 +1,6 @@
 package dev.kioba.anchor
 
 import dev.kioba.anchor.internal.AnchorRuntime
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
@@ -134,7 +133,6 @@ class RaiseTest {
     val anchor = createAnchor()
 
     val scope = SubscriptionsScope<EmptyEffect, TestState, TestError>(
-      chain = MutableSharedFlow(),
       anchor = anchor,
       effect = EmptyEffect,
       onDomainError = { error -> capturedErrors.add(error) },
@@ -212,7 +210,6 @@ class RaiseTest {
     val anchor = createAnchor()
 
     val scope = SubscriptionsScope<EmptyEffect, TestState, TestError>(
-      chain = MutableSharedFlow(),
       anchor = anchor,
       effect = EmptyEffect,
       onDomainError = { error -> capturedErrors.add(error) },
@@ -233,7 +230,6 @@ class RaiseTest {
     val anchor = createAnchor()
 
     val scope = SubscriptionsScope<EmptyEffect, TestState, TestError>(
-      chain = MutableSharedFlow(),
       anchor = anchor,
       effect = EmptyEffect,
       onDomainError = { _ -> },
@@ -256,7 +252,6 @@ class RaiseTest {
     val anchor = createAnchor()
 
     val scope = SubscriptionsScope<EmptyEffect, TestState, TestError>(
-      chain = MutableSharedFlow(),
       anchor = anchor,
       effect = EmptyEffect,
       defect = { error -> capturedDefects.add(error) },
@@ -278,7 +273,6 @@ class RaiseTest {
     val anchor = createAnchor()
 
     val scope = SubscriptionsScope<EmptyEffect, TestState, TestError>(
-      chain = MutableSharedFlow(),
       anchor = anchor,
       effect = EmptyEffect,
       defect = { error -> capturedDefects.add(error) },

@@ -2,7 +2,6 @@ package dev.kioba.anchor.internal
 
 import dev.kioba.anchor.Anchor
 import dev.kioba.anchor.AnchorSink
-import dev.kioba.anchor.Created
 import dev.kioba.anchor.DomainDefectException
 import dev.kioba.anchor.Effect
 import dev.kioba.anchor.ErrorScope
@@ -14,13 +13,11 @@ import dev.kioba.anchor.SignalScope
 import dev.kioba.anchor.SubscriptionScope
 import dev.kioba.anchor.SubscriptionsScope
 import dev.kioba.anchor.ViewState
-import kotlinx.coroutines.CoroutineExceptionHandler
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.ClosedSendChannelException
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -28,22 +25,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onSubscription
+import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
-
-/**
- * Events the bus holds for its slowest `connect()` handler before `emit {}`
- * suspends. Without this buffer, an action a handler runs (or an error handler
- * invoked from it) that calls `emit {}` waits on that same handler, wedging
- * the bus for good.
- */
-private const val EVENT_BUFFER_CAPACITY: Int = 64
 
 @PublishedApi
 internal class AnchorRuntime<R, S, Err>(
@@ -67,10 +57,16 @@ internal class AnchorRuntime<R, S, Err>(
   internal val _signals: MutableSharedFlow<SignalProvider> =
     MutableSharedFlow(extraBufferCapacity = 64)
 
-  @PublishedApi
-  @Suppress("ktlint:standard:backing-property-naming", "PropertyName")
-  internal val _emitter: MutableSharedFlow<Event> =
-    MutableSharedFlow(extraBufferCapacity = EVENT_BUFFER_CAPACITY)
+  /**
+   * Every `emit {}` goes through this channel, in call order. Nothing reads
+   * it until [subscribe] has created the handlers' inboxes and launched the
+   * forwarder, so the events `init` emits, and any emitted by actions before
+   * then, wait here. Its one reader keeps the order without a lock. It is
+   * closed, and emptied, when [subscribe] ends: the `subscriptions` block
+   * threw, or subscriptions were torn down. `emit {}` then drops events,
+   * since no handler can receive them.
+   */
+  private val events: Channel<Event> = Channel(EVENT_BUFFER_CAPACITY)
 
   /**
    * Map storing cancellable jobs keyed by their identifier.
@@ -91,48 +87,74 @@ internal class AnchorRuntime<R, S, Err>(
 
   override val signals: SharedFlow<SignalProvider> = _signals.asSharedFlow()
 
-  private val emitter: SharedFlow<Event> =
-    _emitter
-      .asSharedFlow()
-      .onSubscription { emit(Created) }
-
   internal suspend fun consumeInitial() {
     init?.invoke(this@AnchorRuntime)
   }
 
-  private suspend fun <T : Event> SharedFlow<T>.handlers(): List<Flow<*>> =
+  /**
+   * Runs the `subscriptions` block and returns its `connect()` handlers, each
+   * with its own inbox, and each flow wrapped so a failure it does not handle
+   * is routed to `onDomainError` / `defect`.
+   */
+  private suspend fun handlers(): List<InboxedFlow> =
     SubscriptionsScope<R, S, Err>(
-      chain = this,
       anchor = this@AnchorRuntime,
       effect = effect,
       onDomainError = onDomainError,
       defect = defect,
-    ).also { scope -> subscriptions?.invoke(scope) }
-      .flows
-      .map { flow ->
-        flow.catch { e ->
-          safeExecute(this@AnchorRuntime, onDomainError, defect) {
-            throw e
-          }
-        }
+    ).also { scope ->
+      subscriptions?.invoke(scope)
+    }.handlers
+      .map { handler ->
+        InboxedFlow(
+          inbox = handler.inbox,
+          flow =
+            handler.flow
+              .catch { e ->
+                safeExecute(this@AnchorRuntime, onDomainError, defect) {
+                  throw e
+                }
+              }.onCompletion { handler.inbox.close() },
+        )
       }
 
-  suspend fun CoroutineScope.subscribe(): Job {
-    val handlers = emitter.handlers()
-    // SupervisorJob: a thrown subscription must not cancel siblings.
-    val supervisor = SupervisorJob(parent = this.coroutineContext[Job])
-    // Without a handler, an exception a subscription rethrows past
-    // safeExecute (no defect handler configured) reaches each platform's
-    // default uncaught-exception path. The JVM/Android default just logs it;
-    // Kotlin/Native's default aborts the whole process. This handler makes
-    // "contained, not fatal" consistent across platforms — the isolation
-    // SupervisorJob provides already keeps it from touching sibling flows.
-    val containment = CoroutineExceptionHandler { _, _ -> }
-    val supervised = CoroutineScope(this.coroutineContext + supervisor + containment)
-    for (flow in handlers) {
-      flow.launchIn(supervised)
+  /**
+   * Runs the `subscriptions` block, which gives every `connect()` handler an
+   * inbox, then collects every handler and, after them, the forwarder, until
+   * the calling coroutine is cancelled. The forwarder moves every event from
+   * the [events] channel into every inbox, in order: first the ones emitted
+   * before now, then later ones. It goes last, so every handler that collects
+   * its events directly is already reading when delivery starts.
+   *
+   * Each handler receives [dev.kioba.anchor.Created], then every event delivered to its inbox,
+   * however late it starts collecting, as long as its inbox did not fill up
+   * before then. A handler that ends, by completing or failing, ends alone:
+   * its inbox is closed and emptied, and delivery to the others carries on.
+   * When the block throws, or this is cancelled, the [events] channel is
+   * closed and emptied, and later `emit {}` calls drop their events.
+   */
+  suspend fun subscribe() {
+    try {
+      val handlers = handlers()
+      val forwarder =
+        events
+          .receiveAsFlow()
+          .onEach { event -> handlers.forEach { it.inbox.deliver(event) } }
+      (handlers.map { it.flow } + forwarder).collectSupervised()
+    } finally {
+      closeEvents()
     }
-    return supervisor
+  }
+
+  /**
+   * Closes and empties the [events] channel once no handler can ever receive
+   * an event: subscriptions ended, or never started because the anchor was
+   * torn down first. Later `emit {}` calls drop their events. Safe to call
+   * more than once.
+   */
+  internal fun closeEvents() {
+    events.close()
+    events.drain()
   }
 
   // DSL
@@ -237,7 +259,11 @@ internal class AnchorRuntime<R, S, Err>(
 
   override suspend fun emit(
     block: SubscriptionScope.() -> Event,
-  ): Unit =
-    _emitter
-      .emit(SubscriptionScope.block())
+  ) {
+    val event = SubscriptionScope.block()
+    try {
+      events.send(event)
+    } catch (_: ClosedSendChannelException) {
+    }
+  }
 }

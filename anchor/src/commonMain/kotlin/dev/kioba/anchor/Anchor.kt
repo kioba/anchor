@@ -242,27 +242,44 @@ public object SubscriptionScope
 @AnchorDsl
 public interface SubscriptionAnchor {
   /**
-   * Emits an internal event.
+   * Emits an internal event to every `connect` handler.
    *
-   * The event is delivered to every `connect` handler attached at the time of the call, and each
-   * handler receives events in emission order. An event emitted while no handler is attached
-   * (for example, from `init`, which runs before subscriptions attach) is dropped.
+   * `emit` returns once the event is queued; it does not wait for any handler to process it. Each
+   * handler receives events in emission order. Events emitted before subscriptions start, by
+   * `init` or by actions while it runs, are held until they start. Each handler then receives
+   * [Created], with the state `init` set already in place, then the held events, then later ones.
+   * A handler receives them however late it starts collecting, for example behind `flowOn`,
+   * `shareIn` or a `yield()`, as long as its buffer did not fill first (see the limits below). An
+   * event a handler emits while it handles [Created] reaches every handler, whether declared
+   * before or after it.
    *
-   * `emit` returns once the event is queued for every attached handler; it does not wait for any
-   * handler to process it. It suspends only when 64 events are already pending behind the slowest
-   * handler, and resumes once that handler catches up.
+   * `init` must return: until it does, no handler starts and emitted events stay held. Observe
+   * long-lived sources from `subscriptions`, not from `init`. Handlers start however `init` ends,
+   * including when it fails or is cancelled, unless the anchor is torn down first. A failure in
+   * `init` that no handler catches is reported like a failing action: it crashes the app on
+   * Android and iOS, and is logged on desktop. A failure inside a `connect` handler's flow that no
+   * handler catches ends that handler silently; the other handlers keep running. Once no handler
+   * can receive events, because the `subscriptions` block failed or the anchor was torn down,
+   * `emit` drops them.
    *
-   * An action run by a `connect` handler, or an error handler invoked from it, can call `emit`.
-   * That handler takes no new events until the invocation returns, so an invocation that emits
-   * more than 64 events to a bus it is itself subscribed to (fewer if other events are already
-   * pending) fills the queue and suspends forever.
-   *
-   * @param block A block that returns the [Event] to emit.
+   * Limits:
+   * - Up to 64 events can be held before subscriptions start, so `init` can emit at most 64,
+   *   fewer if actions emitted some while it ran. A further `emit` from `init` waits for handlers
+   *   that start only once `init` returns, and startup hangs.
+   * - Each handler buffers up to 65 events. While a handler is collecting, a full buffer makes
+   *   delivery wait: it holds up every handler and, once 64 more events are pending, `emit`
+   *   itself. While a handler is not collecting, because it has not started yet or never reads
+   *   its events, an event that finds its buffer full is dropped for that handler alone.
+   * - A handler takes no new events while an action it runs, or an error handler invoked from
+   *   it, is running. If that invocation emits more than 130 events (fewer if others are already
+   *   pending), the buffers fill and it suspends forever.
    *
    * Example:
    * ```kotlin
    * emit { MyEvent.Finished }
    * ```
+   *
+   * @param block A block that returns the [Event] to emit.
    */
   public suspend fun emit(
     block: SubscriptionScope.() -> Event,

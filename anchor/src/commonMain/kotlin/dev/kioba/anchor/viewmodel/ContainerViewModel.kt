@@ -10,10 +10,34 @@ import dev.kioba.anchor.ViewState
 import dev.kioba.anchor.internal.AnchorRuntime
 import dev.kioba.anchor.internal.safeExecute
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
+/**
+ * Hosts an anchor for the lifetime of a ViewModel and starts it once:
+ * `init` runs first, as a job of its own, then subscriptions start.
+ *
+ * Events emitted before subscriptions start, by `init` or by actions that
+ * run meanwhile, are queued. Each `connect` handler receives `Created`, by
+ * which time `init` has finished, then the queued events in order, then
+ * later events. [dev.kioba.anchor.SubscriptionAnchor.emit] spells out the
+ * details.
+ *
+ * Subscriptions start however `init` ends. A domain error or defect in
+ * `init` or in the `subscriptions` block is routed to `onDomainError` or
+ * `defect`. A cancellation from inside `init`, such as a `withTimeout` or a
+ * `raise()` with no `onDomainError`, ends `init` silently. With no handler,
+ * any other failure in either is reported like a failing action: it
+ * crashes on Android and iOS, and is logged on desktop. An unhandled
+ * failure inside a `connect` handler's flow ends that handler silently; the
+ * others keep running.
+ *
+ * An `init` that never returns never starts subscriptions, and clearing the
+ * ViewModel while `init` runs keeps subscriptions from starting. Once the
+ * ViewModel is cleared, `emit {}` drops its events.
+ */
 public class ContainerViewModel<R, S, Err>
   @PublishedApi
   internal constructor(
@@ -33,21 +57,36 @@ public class ContainerViewModel<R, S, Err>
   override fun execute(
     block: suspend Anchor<R, S, *>.() -> Unit,
   ) {
-    viewModelScope.launch(Dispatchers.Default) {
-      safeExecute(anchor, anchor.onDomainError, anchor.defect) {
-        @Suppress("UNCHECKED_CAST")
-        anchor.block()
-      }
+    launchAction {
+      @Suppress("UNCHECKED_CAST")
+      anchor.block()
     }
   }
 
-  init {
+  /**
+   * Launches [block] on `viewModelScope` with `Dispatchers.Default`, inside the
+   * anchor's error boundary, as a job of its own. A failure it does not handle
+   * is reported like any uncaught coroutine failure and never cancels a
+   * sibling job.
+   */
+  private fun launchAction(
+    block: suspend () -> Unit,
+  ): Job =
     viewModelScope.launch(Dispatchers.Default) {
       safeExecute(anchor, anchor.onDomainError, anchor.defect) {
-        anchor.consumeInitial()
-        with(anchor) {
-          subscribe()
+        block()
+      }
+    }
+
+  init {
+    viewModelScope.launch(Dispatchers.Default) {
+      try {
+        launchAction { anchor.consumeInitial() }.join()
+        safeExecute(anchor, anchor.onDomainError, anchor.defect) {
+          anchor.subscribe()
         }
+      } finally {
+        anchor.closeEvents()
       }
     }
   }

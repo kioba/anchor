@@ -46,13 +46,8 @@ class EventBusReentrancyTest {
     coroutineScope {
       val subscriber = launch { subscribe() }
       try {
-        withTimeout(2_000) {
-          while (_emitter.subscriptionCount.value < handlers) yield()
-        }
         block()
       } finally {
-        // subscribe()'s supervisor is a child of the subscriber job, so this
-        // cancels the supervisor and every handler collector under it.
         subscriber.cancelAndJoin()
       }
     }
@@ -68,12 +63,10 @@ class EventBusReentrancyTest {
         }
 
       anchor.withSubscriptions(handlers = 2) {
-        withTimeout(2_000) { anchor._emitter.emit(BusEvent.Ping) }
+        withTimeout(2_000) { anchor.emit { BusEvent.Ping } }
 
-        // Before the fix, the Ping handler's emit {} waits on the Ping handler
-        // itself, so every later emission on the bus suspends forever.
         withTimeout(2_000) { anchor.emit { BusEvent.Other } }
-        withTimeout(2_000) { anchor._emitter.emit(BusEvent.Ping) }
+        withTimeout(2_000) { anchor.emit { BusEvent.Ping } }
 
         withTimeout(2_000) {
           while (pongs < 2) yield()
@@ -95,10 +88,8 @@ class EventBusReentrancyTest {
         }
 
       anchor.withSubscriptions(handlers = 2) {
-        withTimeout(2_000) { anchor._emitter.emit(BusEvent.Ping) }
+        withTimeout(2_000) { anchor.emit { BusEvent.Ping } }
 
-        // onDomainError runs inline in the Ping handler's collector, so its
-        // emit {} wedged the bus the same way an action's emit {} did.
         withTimeout(2_000) { anchor.emit { BusEvent.Other } }
 
         withTimeout(2_000) {
